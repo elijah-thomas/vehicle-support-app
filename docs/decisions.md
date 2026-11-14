@@ -137,3 +137,12 @@ why. To change one, add a new entry that supersedes it rather than editing histo
 - **Why:** Familiar to me, a readable schema file reviewers can scan to understand the data
   model, typed queries, and built-in migrations and seeding.
 - **Note:** Only the API uses Prisma. The web app never touches the database directly.
+
+## D13. UI components {#ui-components}
+
+- **Decision:** How UI components are built.
+- **Options:** Hand-rolled Tailwind; shadcn/ui on Base UI, Radix, or React Aria.
+- **Choice:** Tailwind CSS + shadcn/ui, `base-nova` preset on Base UI, Lucide icons.
+- **Why:** shadcn copies component source into the repo (`components/ui/`), so every component
+  is readable and editable, with no black-box library. Base UI is shadcn's current default and
+  actively maintained.
