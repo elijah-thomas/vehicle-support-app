@@ -128,3 +128,12 @@ why. To change one, add a new entry that supersedes it rather than editing histo
 - **Consequences:** Evals must pass on both Gemini and Claude. The Vercel-key fallback means a
   request can leave my own provider agreements; `only` does not disable it. Gateway budgets
   don't cap BYOK spend, so set a GCP budget alert and an Anthropic spend limit.
+
+## D12. Database access from the API {#orm}
+
+- **Decision:** How `services/vehicle-api` talks to Cloud SQL Postgres.
+- **Options:** Prisma; Drizzle; raw SQL with `pg`.
+- **Choice:** Prisma, owned by `services/vehicle-api` (schema, migrations, seed live there).
+- **Why:** Familiar to me, a readable schema file reviewers can scan to understand the data
+  model, typed queries, and built-in migrations and seeding.
+- **Note:** Only the API uses Prisma. The web app never touches the database directly.
