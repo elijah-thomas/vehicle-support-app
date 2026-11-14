@@ -1,0 +1,15 @@
+# Local Postgres for development (host port 5440 avoids clashing with other local Postgres instances).
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: vehicle
+      POSTGRES_PASSWORD: vehicle
+      POSTGRES_DB: vehicle_support
+    ports:
+      - "127.0.0.1:5440:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
