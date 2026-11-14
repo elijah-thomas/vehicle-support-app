@@ -1,12 +1,5 @@
-import express from "express";
+import { app } from "./app.js";
 import { env } from "./env.js";
-
-const app = express();
-app.use(express.json());
-
-app.get("/health", (_req, res) => {
-  res.json({ status: "ok" });
-});
 
 // Cloud Run injects PORT; 8080 is its default.
 app.listen(env.PORT, () => {
