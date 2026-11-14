@@ -170,3 +170,24 @@ why. To change one, add a new entry that supersedes it rather than editing histo
   open case; the rep can pick another or create a new case.
 - **Why:** Mirrors real CRM workflow and avoids duplicate cases for repeat callers, while
   handling calls about something new.
+
+## D16. Shape of the customer's API {#api-shape}
+
+- **Decision:** Whether the GCP API returns raw records or agent-ready summaries.
+- **Options:** Shaped around the data; shaped for the agent (pre-summarized endpoints).
+- **Choice:** Shaped around the data. Six endpoints: customer by email, vehicle by VIN (with
+  specs and recalls), telematics, cases (with notes), create case, add case note. One error
+  shape: `{ error: { code, message } }`.
+- **Why:** The customer's API already exists and shouldn't change to accommodate AI. All
+  AI-specific logic stays on the Vercel side of the boundary; agent tools map 1:1 to endpoints.
+- **Note:** Express has no auth code. Cloud Run IAM rejects unauthenticated callers before a
+  request reaches the container (D3). A light rate limit (120/min per IP) is a backstop (D8).
+
+## D17. How the web app knows the API's shapes {#contracts}
+
+- **Decision:** Share types between API and web, or keep them separate.
+- **Options:** Shared `packages/contracts`; web app owns its own Zod schemas.
+- **Choice:** The web app defines its own Zod schemas in `lib/customer/` and validates every
+  response from the GCP API.
+- **Why:** In reality another team owns the customer's API; the Vercel app treats it as an
+  external contract and checks it at the boundary. Cost: shapes are written twice.
