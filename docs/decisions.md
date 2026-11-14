@@ -146,3 +146,27 @@ why. To change one, add a new entry that supersedes it rather than editing histo
 - **Why:** shadcn copies component source into the repo (`components/ui/`), so every component
   is readable and editable, with no black-box library. Base UI is shadcn's current default and
   actively maintained.
+
+## D14. Data model and synthetic data {#data-model}
+
+- **Decision:** The shape of the customer's existing data, and what test data tells.
+- **Options:** Leaner model without recalls; full model with recalls.
+- **Choice:** Eight tables: `customers`, `vehicle_models` (factory specs), `vehicles` (VIN as
+  primary key), `telematics_events`, `recalls`, `vehicle_recalls`, `cases`, `case_notes`.
+  Seeded with five synthetic stories for a fictional make, Meridian Motors: a recurring fault,
+  a symptom matching an open recall, a healthy new vehicle, a customer with two vehicles, and a
+  fault that returned after a closed case.
+- **Why:** Specs belong to the model, not the vehicle, which makes them the most cacheable data.
+  VIN is the identifier reps already use. Recalls enable the highest-value connection the agent
+  can make. Each story is also an eval case.
+- **Notes:** Postgres 17 locally via Docker (host port 5440) to match Cloud SQL. Prisma pinned
+  to 7.10.1 stable rather than the 8.0 release candidate. VINs use the made-up `0MR` prefix.
+
+## D15. Where saved call summaries go {#save-target}
+
+- **Decision:** Which record a reviewed call summary is attached to.
+- **Options:** Always a new case; always the latest open case; a note on a case the rep picks.
+- **Choice:** A `case_notes` row on a case the rep picks. Defaults to the vehicle's most recent
+  open case; the rep can pick another or create a new case.
+- **Why:** Mirrors real CRM workflow and avoids duplicate cases for repeat callers, while
+  handling calls about something new.
