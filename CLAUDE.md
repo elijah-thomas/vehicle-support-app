@@ -113,7 +113,8 @@ Rules for collaborating:
 
 ## Stack
 
-**Settled:** Next.js 16 (App Router), React 19, TypeScript `strict`, Tailwind CSS, pnpm
+**Settled:** Next.js 16 (App Router), React 19, TypeScript `strict`, Tailwind CSS + shadcn/ui
+(Base UI, D13), pnpm
 workspaces, Zod at every boundary. AI SDK + AI Gateway (BYOK GCP credentials), Cache
 Components, Fluid Compute, Vercel Firewall rate limiting. Express on Cloud Run, Cloud SQL
 Postgres via Prisma (D12). See `docs/decisions.md`.
@@ -144,7 +145,8 @@ pnpm-workspace monorepo. Each app deploys independently.
 ```
 apps/web/                 Next.js app → Vercel (Git integration, root directory apps/web)
   app/                    Routes only. Thin: compose components, call lib/. No business logic.
-  components/             Shared UI. One component per file, PascalCase filenames.
+  components/             Shared UI. One component per file, kebab-case filenames (shadcn style).
+    ui/                   shadcn components. Add with `pnpm dlx shadcn@latest add <name>`.
   lib/
     customer/             THE BOUNDARY: clients for the systems that stay on GCP. Everything
                           that talks to them lives here and only here.
