@@ -1,0 +1,169 @@
+// Data model for the customer's existing support system on GCP.
+// See docs/decisions.md#data-model
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Powertrain {
+  EV
+  HYBRID
+  GAS
+}
+
+enum TelematicsType {
+  DTC
+  BATTERY
+  ODOMETER
+  SOFTWARE
+}
+
+enum Severity {
+  INFO
+  WARN
+  CRITICAL
+}
+
+enum RecallStatus {
+  OPEN
+  COMPLETED
+}
+
+enum CaseStatus {
+  OPEN
+  CLOSED
+}
+
+enum NoteSource {
+  REP
+  AI_DRAFT_EDITED
+}
+
+model Customer {
+  id        String    @id @default(cuid())
+  email     String    @unique
+  firstName String
+  lastName  String
+  phone     String
+  createdAt DateTime  @default(now())
+  vehicles  Vehicle[]
+  cases     Case[]
+
+  @@map("customers")
+}
+
+/// Factory specs shared by every vehicle of the same year/model/trim. Never changes.
+model VehicleModel {
+  id         String     @id @default(cuid())
+  year       Int
+  make       String
+  model      String
+  trim       String
+  powertrain Powertrain
+  batteryKwh Float?
+  rangeMiles Int?
+  engine     String?
+  towingLbs  Int?
+  vehicles   Vehicle[]
+  recalls    Recall[]
+
+  @@unique([year, make, model, trim])
+  @@map("vehicle_models")
+}
+
+model Vehicle {
+  vin              String            @id
+  customerId       String
+  modelId          String
+  color            String
+  purchasedAt      DateTime
+  softwareVersion  String
+  installedOptions String[]
+  customer         Customer          @relation(fields: [customerId], references: [id])
+  model            VehicleModel      @relation(fields: [modelId], references: [id])
+  telematics       TelematicsEvent[]
+  recalls          VehicleRecall[]
+  cases            Case[]
+
+  @@index([customerId])
+  @@map("vehicles")
+}
+
+model TelematicsEvent {
+  id         String         @id @default(cuid())
+  vin        String
+  recordedAt DateTime
+  type       TelematicsType
+  code       String?
+  severity   Severity
+  message    String
+  value      Float?
+  vehicle    Vehicle        @relation(fields: [vin], references: [vin])
+
+  @@index([vin, recordedAt])
+  @@map("telematics_events")
+}
+
+model Recall {
+  id             String          @id @default(cuid())
+  campaignNumber String          @unique
+  title          String
+  description    String
+  remedy         String
+  modelId        String
+  model          VehicleModel    @relation(fields: [modelId], references: [id])
+  vehicles       VehicleRecall[]
+
+  @@map("recalls")
+}
+
+model VehicleRecall {
+  vin         String
+  recallId    String
+  status      RecallStatus
+  completedAt DateTime?
+  vehicle     Vehicle      @relation(fields: [vin], references: [vin])
+  recall      Recall       @relation(fields: [recallId], references: [id])
+
+  @@id([vin, recallId])
+  @@map("vehicle_recalls")
+}
+
+model Case {
+  id          String     @id @default(cuid())
+  vin         String
+  customerId  String
+  status      CaseStatus
+  category    String
+  subject     String
+  description String
+  openedAt    DateTime
+  closedAt    DateTime?
+  resolution  String?
+  vehicle     Vehicle    @relation(fields: [vin], references: [vin])
+  customer    Customer   @relation(fields: [customerId], references: [id])
+  notes       CaseNote[]
+
+  @@index([vin, openedAt])
+  @@map("cases")
+}
+
+/// Saved call summaries land here after a rep reviews the AI draft.
+model CaseNote {
+  id        String     @id @default(cuid())
+  caseId    String
+  source    NoteSource
+  issue     String
+  summary   String
+  nextSteps String[]
+  createdAt DateTime   @default(now())
+  case      Case       @relation(fields: [caseId], references: [id])
+
+  @@index([caseId, createdAt])
+  @@map("case_notes")
+}

@@ -1,4 +1,5 @@
 import express from "express";
+import { env } from "./env.js";
 
 const app = express();
 app.use(express.json());
@@ -8,7 +9,6 @@ app.get("/health", (_req, res) => {
 });
 
 // Cloud Run injects PORT; 8080 is its default.
-const port = Number(process.env.PORT ?? 8080);
-app.listen(port, () => {
-  console.log(`vehicle-api listening on :${port}`);
+app.listen(env.PORT, () => {
+  console.log(`vehicle-api listening on :${env.PORT}`);
 });

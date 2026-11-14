@@ -153,7 +153,9 @@ apps/web/                 Next.js app → Vercel (Git integration, root director
     env.ts                Zod-validated env vars; the only place process.env is read.
   evals/                  Canned prompts + expected behavior for validating the AI.
 services/vehicle-api/     Express API → Cloud Run (GitHub Actions). Owns the Postgres schema.
-  db/                     Migrations and synthetic seed data.
+  prisma/                 schema.prisma, migrations, seed.ts (synthetic data).
+  src/                    Express server; src/generated/ is Prisma output (gitignored).
+  docker-compose.yml      Local Postgres 17 on port 5440.
 .github/workflows/        CI and GCP deploys.
 docs/                     decisions.md, architecture, rollout plan, submission write-up.
 ```
