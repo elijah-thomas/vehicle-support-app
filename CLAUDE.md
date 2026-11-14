@@ -116,7 +116,7 @@ Rules for collaborating:
 **Settled:** Next.js 16 (App Router), React 19, TypeScript `strict`, Tailwind CSS, pnpm
 workspaces, Zod at every boundary. AI SDK + AI Gateway (BYOK GCP credentials), Cache
 Components, Fluid Compute, Vercel Firewall rate limiting. Express on Cloud Run, Cloud SQL
-Postgres. See `docs/decisions.md`.
+Postgres via Prisma (D12). See `docs/decisions.md`.
 
 Vercel OIDC → GCP Workload Identity Federation → Cloud Run IAM for boundary auth (D3).
 
