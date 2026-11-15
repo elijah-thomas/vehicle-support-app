@@ -16,16 +16,30 @@ const requestSchema = z.object({
 
 export async function POST(request: Request) {
   const parsed = requestSchema.safeParse(await request.json().catch(() => null));
-  if (!parsed.success) return Response.json({ error: "Invalid request" }, { status: 400 });
+  if (!parsed.success) return errorResponse("invalid_request", 400);
 
   const { vin, messages } = parsed.data;
   const tooLong = messages.some((m) =>
     m.parts.some((p) => p.type === "text" && typeof p.text === "string" && p.text.length > MAX_TEXT_LENGTH),
   );
-  if (tooLong) return Response.json({ error: "Message too long" }, { status: 413 });
+  if (tooLong) return errorResponse("too_long", 413);
 
-  return createAgentUIStreamResponse({
-    agent: createVehicleAgent(vin),
-    uiMessages: messages.slice(-MAX_MESSAGES),
-  });
+  try {
+    return await createAgentUIStreamResponse({
+      agent: createVehicleAgent(vin),
+      uiMessages: messages.slice(-MAX_MESSAGES),
+      // Failures after streaming starts reach the client as this text, so it parses like a 500.
+      onError: (error) => {
+        console.error("agent stream failed", error);
+        return JSON.stringify({ error: { code: "agent_failed" } });
+      },
+    });
+  } catch (error) {
+    console.error("agent failed", error);
+    return errorResponse("agent_failed", 500);
+  }
+}
+
+function errorResponse(code: "invalid_request" | "too_long" | "agent_failed", status: number) {
+  return Response.json({ error: { code } }, { status });
 }

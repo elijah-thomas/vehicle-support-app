@@ -2,39 +2,67 @@
 
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
-import { ArrowUp, Sparkles, Square } from "lucide-react";
+import { ArrowUp, CircleAlert, Sparkles, Square, TriangleAlert } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { AgentAnswer } from "@/components/agent-answer";
 import { AgentToolStep } from "@/components/agent-tool-step";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import type { VehicleAgentMessage } from "@/lib/ai/vehicle-agent";
 
-const cannedPrompts = [
+const primaryPrompts = [
   "Summarize this vehicle's status",
   "Is this a recurring issue?",
-  "What changed since the last contact?",
-  "Could an open recall explain the complaint?",
   "What should I tell the customer?",
 ];
+const morePrompts = ["What changed since the last contact?", "Could an open recall explain the complaint?"];
+const allPrompts = [...primaryPrompts, ...morePrompts];
 
 const MAX_TEXT_LENGTH = 2000;
+const MAX_FOLLOW_UPS = 2;
+
+// The route answers errors with { error: { code } }; the transport puts that body in error.message
+// and the HTTP status in statusCode. A 429 comes from the Firewall, whose body isn't ours.
+function errorCode(error: Error) {
+  if ("statusCode" in error && error.statusCode === 429) return "rate_limited";
+  try {
+    return (JSON.parse(error.message) as { error?: { code?: string } }).error?.code ?? "agent_failed";
+  } catch {
+    return "agent_failed";
+  }
+}
 
 function errorCopy(error: Error) {
-  const message = error.message.toLowerCase();
-  if (message.includes("429") || message.includes("too many")) {
-    return { title: "Too many questions", body: "The assistant is rate-limited. Wait a minute, then ask again." };
+  switch (errorCode(error)) {
+    case "rate_limited":
+      return { tone: "warning", text: "Too many questions. Wait a minute, then ask again." } as const;
+    case "too_long":
+      return { tone: "warning", text: `Keep questions under ${MAX_TEXT_LENGTH.toLocaleString("en-US")} characters.` } as const;
+    default:
+      return {
+        tone: "destructive",
+        text: "The assistant couldn't answer. The vehicle record is still on this page. Try again in a moment.",
+      } as const;
   }
-  if (message.includes("too long") || message.includes("413")) {
-    return { title: "Question too long", body: `Keep questions under ${MAX_TEXT_LENGTH.toLocaleString()} characters.` };
-  }
-  return { title: "The assistant couldn't answer", body: "The vehicle record is still on this page. Try again in a moment." };
+}
+
+function PromptButton({ prompt, onAsk }: { prompt: string; onAsk: (prompt: string) => void }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onAsk(prompt)}
+      className="h-7 rounded-md border border-input bg-card px-2 text-left text-xs font-medium hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+    >
+      {prompt}
+    </button>
+  );
 }
 
 export function AgentChat({ vin }: { vin: string }) {
   const [input, setInput] = useState("");
+  const [showMore, setShowMore] = useState(false);
   const { messages, sendMessage, status, error, stop } = useChat<VehicleAgentMessage>({
     transport: new DefaultChatTransport({ api: "/api/agent", body: { vin } }),
   });
@@ -52,6 +80,13 @@ export function AgentChat({ vin }: { vin: string }) {
   }
 
   const failure = error ? errorCopy(error) : null;
+  const asked = new Set(
+    messages.flatMap((m) => (m.role === "user" ? m.parts.flatMap((p) => (p.type === "text" ? [p.text] : [])) : [])),
+  );
+  const followUps =
+    status === "ready" && messages.at(-1)?.role === "assistant"
+      ? allPrompts.filter((prompt) => !asked.has(prompt)).slice(0, MAX_FOLLOW_UPS)
+      : [];
 
   return (
     <Card className="h-full gap-0 py-0">
@@ -68,23 +103,20 @@ export function AgentChat({ vin }: { vin: string }) {
         role="log"
         aria-live="polite"
         aria-busy={busy}
-        className="max-h-[60vh] min-h-40 flex-1 space-y-5 overflow-y-auto py-4 xl:max-h-none"
+        className="max-h-[60vh] min-h-40 flex-1 space-y-5 overflow-y-auto py-4 lg:max-h-none"
       >
         {messages.length === 0 && (
           <div className="space-y-2">
             <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Start with</p>
             <div className="flex flex-col items-start gap-2">
-              {cannedPrompts.map((prompt) => (
-                <Button
-                  key={prompt}
-                  variant="outline"
-                  size="sm"
-                  className="h-auto min-h-7 py-1 text-left whitespace-normal"
-                  onClick={() => ask(prompt)}
-                >
-                  {prompt}
-                </Button>
+              {(showMore ? allPrompts : primaryPrompts).map((prompt) => (
+                <PromptButton key={prompt} prompt={prompt} onAsk={ask} />
               ))}
+              {!showMore && (
+                <Button variant="ghost" size="sm" className="text-accent-foreground" onClick={() => setShowMore(true)}>
+                  {morePrompts.length} more questions
+                </Button>
+              )}
             </div>
           </div>
         )}
@@ -114,6 +146,13 @@ export function AgentChat({ vin }: { vin: string }) {
                 </div>
               )}
               {message.parts.map((part, i) => (part.type === "text" ? <AgentAnswer key={i} text={part.text} /> : null))}
+              {message === messages.at(-1) && followUps.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 pt-1" aria-label="Follow-up questions">
+                  {followUps.map((prompt) => (
+                    <PromptButton key={prompt} prompt={prompt} onAsk={ask} />
+                  ))}
+                </div>
+              )}
             </div>
           ),
         )}
@@ -126,9 +165,9 @@ export function AgentChat({ vin }: { vin: string }) {
         )}
 
         {failure && (
-          <Alert variant="destructive" className="border-destructive/30 bg-destructive-soft">
-            <AlertTitle>{failure.title}</AlertTitle>
-            <AlertDescription>{failure.body}</AlertDescription>
+          <Alert variant={failure.tone}>
+            {failure.tone === "warning" ? <TriangleAlert aria-hidden /> : <CircleAlert aria-hidden />}
+            <AlertDescription className="text-foreground">{failure.text}</AlertDescription>
           </Alert>
         )}
       </CardContent>
