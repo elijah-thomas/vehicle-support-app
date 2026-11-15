@@ -303,3 +303,27 @@ why. To change one, add a new entry that supersedes it rather than editing histo
   (`cle1`), isolated per environment, evicted by lifetime. Flagged as a customer approval item.
 - **Measured locally against staging:** first load ~5 s (staging scaled to zero, token exchange,
   connector setup); warm loads 0.08–0.3 s.
+
+## D25. Vehicle agent {#agent}
+
+- **Decision:** How the AI assistant is scoped, powered, and bounded.
+- **Choice:** A `ToolLoopAgent` (AI SDK 7) behind `POST /api/agent`, shown as a chat panel on
+  the vehicle page with five canned prompts and visible tool calls.
+  - **Tools:** `getVehicle`, `getTelematics`, `getCases`, mapping 1:1 to the GCP API and reusing
+    the page's cached fetchers, so lookups are near-instant when the rep already has the page open.
+  - **Scope:** tools take no VIN. The route passes the vehicle the rep has open, so no prompt can
+    make the agent read another customer's record.
+  - **Models:** Gemini 3.8 Flash on Vertex → Claude Sonnet 5.5 on Anthropic, `only: ["vertex",
+    "anthropic"]` so each model runs only on the provider whose credits it should use (D11).
+  - **Limits:** 6 steps, `reasoning: "low"`, last 10 messages, 2,000 characters per message.
+    No output-token cap (see below). Rate limiting in front of the route comes with the Firewall
+    step (D8).
+  - **Grounding:** the prompt allows only facts the tools returned, cited with dates; says so when
+    data is missing; refers to cases by subject and date, never internal IDs; ends with next steps.
+- **Options considered:** letting the model choose the VIN (enables comparing a customer's
+  vehicles, but a crafted prompt could pull any record); cheaper model pairs (Haiku, Flash Lite).
+- **Found while testing:** Gemini's hidden reasoning tokens count toward `maxOutputTokens`; at the
+  default depth it used the whole budget and cut answers off (`finishReason: "length"`).
+  `reasoning: "low"` fixed it. The 1,000-token cap was then removed: a truncated answer is worse
+  than a long one, and cost per message stays bounded by the step cap, input caps, and rate
+  limiting. Dates are formatted in UTC so the page and the agent (which reads UTC timestamps) agree.
