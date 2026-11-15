@@ -2,6 +2,7 @@ import "server-only";
 import { isStepCount, ToolLoopAgent, tool, type InferAgentUIMessage } from "ai";
 import { z } from "zod";
 import { getCases, getTelematics, getVehicle } from "@/lib/customer/vehicles";
+import { casesForModel, telematicsForModel } from "./model-context";
 import { gatewayOptions, PRIMARY_MODEL } from "./models";
 
 const instructions = `You help a customer support rep at Meridian Motors on a live call.
@@ -40,12 +41,12 @@ export function createVehicleAgent(vin: string) {
         inputSchema: z.object({
           limit: z.number().int().min(1).max(50).default(20).describe("How many recent events to return"),
         }),
-        execute: ({ limit }) => getTelematics(vin, limit),
+        execute: async ({ limit }) => telematicsForModel(await getTelematics(vin, limit)),
       }),
       getCases: tool({
         description: "Support cases for this vehicle, newest first, with resolutions and saved call notes.",
         inputSchema: z.object({}),
-        execute: () => getCases(vin),
+        execute: async () => casesForModel(await getCases(vin)),
       }),
     },
   });
