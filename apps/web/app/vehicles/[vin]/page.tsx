@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
+import { AgentChat } from "@/components/agent-chat";
 import { CaseHistory } from "@/components/case-history";
 import { PanelSkeleton } from "@/components/panel-skeleton";
 import { TelematicsPanel } from "@/components/telematics-panel";
@@ -21,6 +22,10 @@ export default function VehiclePage({ params }: PageProps<"/vehicles/[vin]">) {
 
       <Suspense fallback={<PanelSkeleton rows={6} />}>
         <WithVin params={params}>{(vin) => <VehicleSummary vin={vin} />}</WithVin>
+      </Suspense>
+
+      <Suspense fallback={<PanelSkeleton rows={2} />}>
+        <WithVin params={params}>{(vin) => <AgentChat vin={vin} />}</WithVin>
       </Suspense>
 
       <div className="grid gap-6 lg:grid-cols-2">
