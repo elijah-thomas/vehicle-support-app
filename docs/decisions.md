@@ -353,3 +353,20 @@ why. To change one, add a new entry that supersedes it rather than editing histo
 - **Risk to flag:** transcripts are personal data sent to the model providers (Vertex, Anthropic)
   under my BYOK agreements. Production answer: AI Gateway Zero Data Retention routing with
   ZDR-marked keys, and a retention review with the customer's privacy team.
+
+## D27. Visual design system and assistant panel {#design-system}
+
+- **Decision:** How the app looks beyond shadcn's neutral defaults, and where the assistant sits.
+- **Options (look):** Calm utility (warm grays, one teal accent, dense); automotive dark (dark-first,
+  instrument-cluster feel); friendly SaaS (bright, rounded, roomier).
+- **Choice:** Calm utility, light theme only. Inter for UI, JetBrains Mono for VINs and fault codes.
+  Tokens map onto shadcn's CSS variables in `app/globals.css`, plus `success`, `warning`, `info`,
+  and `-soft` backgrounds for status. The assistant docks as a sticky 400px right column at `xl`
+  (1280px+) and sits under the vehicle summary on smaller screens.
+- **Assistant panel:** tool calls show as "sources checked" chips (running, done, failed); answers
+  render the agent's plain-text format (summary, bullets, a highlighted "Next steps" block)
+  without a markdown parser; a Stop button replaces Ask while it streams; rate-limit and
+  too-long errors get their own messages.
+- **Why:** Reps scan this screen during a live call, so color is reserved for meaning and every
+  status carries a word. Keeping the assistant in view lets the rep check its answer against the
+  telematics and cases without scrolling away from it.

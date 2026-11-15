@@ -16,31 +16,39 @@ import { VIN_PATTERN } from "@/lib/format";
 //   telematics                → always fresh
 export default function VehiclePage({ params }: PageProps<"/vehicles/[vin]">) {
   return (
-    <main className="mx-auto w-full max-w-5xl space-y-6 px-4 py-8">
+    <main className="mx-auto w-full max-w-content px-4 py-8 xl:px-6">
       <Link href="/" className="text-sm text-muted-foreground hover:underline">
         ← New lookup
       </Link>
 
-      <Suspense fallback={<PanelSkeleton rows={6} />}>
-        <WithVin params={params}>{(vin) => <VehicleSummary vin={vin} />}</WithVin>
-      </Suspense>
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Suspense fallback={<PanelSkeleton rows={2} />}>
-          <WithVin params={params}>{(vin) => <AgentChat vin={vin} />}</WithVin>
+      {/* Below xl the assistant sits right under the vehicle summary; from xl it docks as a
+          sticky right column so it stays in view while the rep scrolls telematics and cases. */}
+      <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_var(--spacing-agent-panel)]">
+        <Suspense fallback={<PanelSkeleton rows={6} />}>
+          <WithVin params={params}>{(vin) => <VehicleSummary vin={vin} />}</WithVin>
         </Suspense>
+
+        <aside
+          aria-label="Assistant"
+          className="xl:sticky xl:top-6 xl:col-start-2 xl:row-span-3 xl:row-start-1 xl:h-[calc(100dvh-3rem)] xl:self-start"
+        >
+          <Suspense fallback={<PanelSkeleton rows={2} />}>
+            <WithVin params={params}>{(vin) => <AgentChat vin={vin} />}</WithVin>
+          </Suspense>
+        </aside>
+
         <Suspense fallback={<PanelSkeleton rows={3} />}>
           <WithVin params={params}>{(vin) => <CallSummaryPanel vin={vin} />}</WithVin>
         </Suspense>
-      </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Suspense fallback={<PanelSkeleton />}>
-          <WithVin params={params}>{(vin) => <TelematicsPanel vin={vin} />}</WithVin>
-        </Suspense>
-        <Suspense fallback={<PanelSkeleton />}>
-          <WithVin params={params}>{(vin) => <CaseHistory vin={vin} />}</WithVin>
-        </Suspense>
+        <div className="grid gap-6 lg:grid-cols-2 xl:col-start-1">
+          <Suspense fallback={<PanelSkeleton />}>
+            <WithVin params={params}>{(vin) => <TelematicsPanel vin={vin} />}</WithVin>
+          </Suspense>
+          <Suspense fallback={<PanelSkeleton />}>
+            <WithVin params={params}>{(vin) => <CaseHistory vin={vin} />}</WithVin>
+          </Suspense>
+        </div>
       </div>
     </main>
   );
