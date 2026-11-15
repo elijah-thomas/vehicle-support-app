@@ -228,3 +228,16 @@ why. To change one, add a new entry that supersedes it rather than editing histo
   instance for about an hour.
 - **Open:** Untested whether the token is available if cached functions run at build time
   (for example, prerendered vehicle pages). Check before prerendering anything that calls GCP.
+
+## D21. Vercel function region {#function-region}
+
+- **Decision:** Where Vercel Functions run.
+- **Options:** `iad1` (default, Washington D.C.); `cle1` (Cleveland); multiple regions.
+- **Choice:** `cle1`, set in `apps/web/vercel.json`.
+- **Why:** Every request crosses to GCP `us-central1` (Iowa), often several times per agent run.
+  `cle1` is the closest Vercel region to it, and Vercel recommends running functions next to
+  their data. A single region is enough: users are internal support reps, and static and cached
+  content is still served from Vercel's global CDN.
+- **Trade-off:** If `cle1` has an outage, Vercel reroutes to the next closest region (failover
+  ordering is automatic; per-function failover is Enterprise).
+
