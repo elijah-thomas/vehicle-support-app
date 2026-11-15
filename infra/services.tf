@@ -9,6 +9,7 @@ locals {
     "iam.googleapis.com",
     "iamcredentials.googleapis.com",
     "sts.googleapis.com",
+    "aiplatform.googleapis.com",
   ]
 }
 
