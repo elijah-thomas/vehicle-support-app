@@ -21,16 +21,16 @@ export default function VehiclePage({ params }: PageProps<"/vehicles/[vin]">) {
         ← New lookup
       </Link>
 
-      {/* Below xl the assistant sits right under the vehicle summary; from xl it docks as a
+      {/* Below lg the assistant sits right under the vehicle summary; from lg it docks as a
           sticky right column so it stays in view while the rep scrolls telematics and cases. */}
-      <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_var(--spacing-agent-panel)]">
+      <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_var(--spacing-agent-panel-md)] xl:grid-cols-[minmax(0,1fr)_var(--spacing-agent-panel)]">
         <Suspense fallback={<PanelSkeleton rows={6} />}>
           <WithVin params={params}>{(vin) => <VehicleSummary vin={vin} />}</WithVin>
         </Suspense>
 
         <aside
           aria-label="Assistant"
-          className="xl:sticky xl:top-6 xl:col-start-2 xl:row-span-3 xl:row-start-1 xl:h-[calc(100dvh-3rem)] xl:self-start"
+          className="lg:sticky lg:top-6 lg:col-start-2 lg:row-span-3 lg:row-start-1 lg:h-[calc(100dvh-3rem)] lg:self-start"
         >
           <Suspense fallback={<PanelSkeleton rows={2} />}>
             <WithVin params={params}>{(vin) => <AgentChat vin={vin} />}</WithVin>
@@ -41,7 +41,7 @@ export default function VehiclePage({ params }: PageProps<"/vehicles/[vin]">) {
           <WithVin params={params}>{(vin) => <CallSummaryPanel vin={vin} />}</WithVin>
         </Suspense>
 
-        <div className="grid gap-6 lg:grid-cols-2 xl:col-start-1">
+        <div className="grid gap-6 lg:col-start-1 xl:grid-cols-2">
           <Suspense fallback={<PanelSkeleton />}>
             <WithVin params={params}>{(vin) => <TelematicsPanel vin={vin} />}</WithVin>
           </Suspense>
