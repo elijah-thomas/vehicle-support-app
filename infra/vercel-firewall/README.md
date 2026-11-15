@@ -1,7 +1,7 @@
 # Vercel Firewall rules
 
 Rate limits enforced at Vercel's edge, before any function runs, so a blocked request costs no
-compute and no model tokens. See `docs/decisions.md` (D8, D28).
+compute and no model tokens. See `docs/decisions.md` (D8, D29).
 
 | File | Matches | Limit |
 |---|---|---|

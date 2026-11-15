@@ -83,7 +83,7 @@ why. To change one, add a new entry that supersedes it rather than editing histo
   size, agent steps, and output tokens.
 - **Why:** The money is spent on the Vercel side (AI Gateway calls), so the limit belongs in front
   of the AI route, not only on the backend.
-- **Resolved:** see D28. The output-token cap was dropped (D25).
+- **Resolved:** see D29. The output-token cap was dropped (D25).
 
 ## D9. Model provider credentials {#gateway-byok}
 
@@ -372,32 +372,6 @@ why. To change one, add a new entry that supersedes it rather than editing histo
   status carries a word. Keeping the assistant in view lets the rep check its answer against the
   telematics and cases without scrolling away from it.
 
-## D28. Rate limits on the public endpoints {#rate-limits}
-
-- **Decision:** Where and how tightly to rate-limit the unauthenticated AI and save endpoints.
-- **Options considered:** Vercel Firewall custom rules at the edge; `@vercel/firewall`
-  `checkRateLimit()` inside the route (per-route logic, but the function already started); an
-  in-app limiter on Redis (new service and cost); relying only on the Cloud Run backstop (doesn't
-  protect model spend, which happens on Vercel).
-- **Choice:** Two Vercel Firewall rate-limit rules, fixed 60-second window, keyed by IP, returning
-  429:
-  - `POST /api/agent` or `POST /api/call-summary`: 20 per minute. A rep asks a handful of
-    questions per call; 20 is generous for a person and cheap for a script to hit.
-  - Note saves (`POST /vehicles/*` with a `Next-Action` header, i.e. the Server Action): 30 per
-    minute. These write to the customer's case system on GCP.
-- **Config as code:** the rule JSON lives in `infra/vercel-firewall/` and is applied with
-  `vercel firewall rules add` and `publish`.
-- **Why the edge:** a blocked request never starts a function or reaches a model, so it costs no
-  compute and no tokens.
-- **Verified (Nov 2026):** 25 POSTs to `/api/agent` on a preview deployment returned 20 × 400
-  (empty body) then 5 × 429. Project firewall rules apply to preview deployments too, not only
-  production. Unauthenticated requests to a protected preview get 401 from Deployment
-  Protection before the counter is reached.
-- **Limits to flag:** per-IP limits don't bound total spend from many IPs, and counters are per
-  region. The spend backstop is provider-side limits on the BYOK keys (Anthropic spend limit, GCP
-  budget alert), since AI Gateway budgets don't cap BYOK (D9). In production, rep login (out of
-  scope) would let the limit key on the user instead of the IP.
-
 ## D28. Vehicle status row and UI refinements {#vehicle-status}
 
 - **Decision:** How the vehicle page answers "what's wrong with this car?" at a glance, how
@@ -434,3 +408,29 @@ why. To change one, add a new entry that supersedes it rather than editing histo
   solid 2px teal outline (5.6:1 on the background, above the 3:1 minimum); telematics times are
   relative ("3 h ago", absolute after 60 days) while record dates stay absolute UTC to match what
   the assistant cites. Inputs opt out of password-manager autofill, since the app has no sign-in.
+
+## D29. Rate limits on the public endpoints {#rate-limits}
+
+- **Decision:** Where and how tightly to rate-limit the unauthenticated AI and save endpoints.
+- **Options considered:** Vercel Firewall custom rules at the edge; `@vercel/firewall`
+  `checkRateLimit()` inside the route (per-route logic, but the function already started); an
+  in-app limiter on Redis (new service and cost); relying only on the Cloud Run backstop (doesn't
+  protect model spend, which happens on Vercel).
+- **Choice:** Two Vercel Firewall rate-limit rules, fixed 60-second window, keyed by IP, returning
+  429:
+  - `POST /api/agent` or `POST /api/call-summary`: 20 per minute. A rep asks a handful of
+    questions per call; 20 is generous for a person and cheap for a script to hit.
+  - Note saves (`POST /vehicles/*` with a `Next-Action` header, i.e. the Server Action): 30 per
+    minute. These write to the customer's case system on GCP.
+- **Config as code:** the rule JSON lives in `infra/vercel-firewall/` and is applied with
+  `vercel firewall rules add` and `publish`.
+- **Why the edge:** a blocked request never starts a function or reaches a model, so it costs no
+  compute and no tokens.
+- **Verified (Nov 2026):** 25 POSTs to `/api/agent` on a preview deployment returned 20 × 400
+  (empty body) then 5 × 429. Project firewall rules apply to preview deployments too, not only
+  production. Unauthenticated requests to a protected preview get 401 from Deployment
+  Protection before the counter is reached.
+- **Limits to flag:** per-IP limits don't bound total spend from many IPs, and counters are per
+  region. The spend backstop is provider-side limits on the BYOK keys (Anthropic spend limit, GCP
+  budget alert), since AI Gateway budgets don't cap BYOK (D9). In production, rep login (out of
+  scope) would let the limit key on the user instead of the IP.
