@@ -156,6 +156,8 @@ services/vehicle-api/     Express API → Cloud Run (GitHub Actions). Owns the P
   prisma/                 schema.prisma, migrations, seed.ts (synthetic data).
   src/                    Express server; src/generated/ is Prisma output (gitignored).
   docker-compose.yml      Local Postgres 17 on port 5440.
+infra/                    Terraform for GCP (D18). Never change GCP by hand; edit here and
+                          `terraform plan` first. sql/ holds Postgres GRANTs Terraform can't manage.
 .github/workflows/        CI and GCP deploys.
 docs/                     decisions.md, architecture, rollout plan, submission write-up.
 ```

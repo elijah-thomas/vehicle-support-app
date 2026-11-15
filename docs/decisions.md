@@ -191,3 +191,40 @@ why. To change one, add a new entry that supersedes it rather than editing histo
   response from the GCP API.
 - **Why:** In reality another team owns the customer's API; the Vercel app treats it as an
   external contract and checks it at the boundary. Cost: shapes are written twice.
+
+## D18. Infrastructure as code {#terraform}
+
+- **Decision:** How the GCP side is defined and changed.
+- **Options:** Ad hoc gcloud commands; Terraform for GCP only; Terraform for GCP and Vercel.
+- **Choice:** Terraform for GCP (`infra/`), state in a versioned GCS bucket. Resources first
+  created with gcloud were adopted with `import` blocks (no recreation). Three things stay out:
+  the running image (GitHub Actions deploys it; Terraform ignores image changes), Postgres
+  GRANTs (inside the database; kept in `infra/sql/grants.sql`), and the Vercel project (its
+  Terraform provider needs a long-lived Vercel API token).
+- **Why:** The boundary (WIF trust, IAM bindings) is what reviewers will question, so it should
+  be readable code. Constraint changes become reviewed diffs, and `terraform destroy` tears the
+  demo down cleanly in a shared project.
+
+## D19. Cloud Run → Cloud SQL access and region {#db-access}
+
+- **Decision:** How the API connects and authenticates to Postgres, and where it all runs.
+- **Options:** Connector + password; connector + IAM database login; private IP in a VPC.
+- **Choice:** Cloud SQL connector with IAM database login, in `us-central1`. The database has a
+  public IP with no authorized networks, so only the IAM-checked, mTLS connector can connect.
+  The API's database user can read and write rows but not change the schema; migrations run as
+  a separate human IAM login. Private IP is the documented production design.
+- **Why:** Extends "no long-lived secrets" to the database: no database password exists.
+  Builds run as a dedicated service account rather than the project's shared default account.
+
+## D20. Boundary spike results {#spike}
+
+- **Result:** The Vercel → GCP chain works end to end from a Vercel deployment: Vercel OIDC token
+  → STS → `generateIdToken` for `vehicle-support-caller` → private Cloud Run (anonymous calls get
+  403) → Cloud SQL via IAM login. The OIDC token is also reachable from inside a `"use cache"`
+  function at request time, so the Cache Components plan (D6) stands with no fallback.
+- **Implementation choice:** The federated credential calls `generateIdToken` directly (the
+  Vercel project holds `serviceAccountOpenIdTokenCreator` on the caller account) rather than
+  impersonating it first. One permission, one hop. The ID token is cached per Fluid Compute
+  instance for about an hour.
+- **Open:** Untested whether the token is available if cached functions run at build time
+  (for example, prerendered vehicle pages). Check before prerendering anything that calls GCP.
