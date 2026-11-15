@@ -241,3 +241,39 @@ why. To change one, add a new entry that supersedes it rather than editing histo
 - **Trade-off:** If `cle1` has an outage, Vercel reroutes to the next closest region (failover
   ordering is automatic; per-function failover is Enterprise).
 
+## D22. Staging and production environments {#environments}
+
+- **Decision:** Whether the GCP side has one environment or two.
+- **Options:** One environment shared by all Vercel deployments; staging + production.
+- **Choice:** Two. `develop` deploys `vehicle-support-api-staging` (database
+  `vehicle_support_staging`); `master` deploys `vehicle-support-api` (`vehicle_support`). Both
+  databases share one Cloud SQL instance. Vercel Preview and Development use staging; Vercel
+  Production uses production.
+- **Isolation is enforced, not conventional:** separate runtime, caller, and deployer service
+  accounts per environment. WIF maps `project:environment` from the Vercel token, so preview
+  and development tokens can only become the staging caller and production tokens only the
+  production caller. In Postgres, each database revokes `CONNECT` from `PUBLIC`; the staging
+  accounts cannot even connect to the production database.
+- **Why:** A preview deployment can never read or write production data, and the rollout plan
+  (preview → staging → production) is real rather than described.
+- **Cost:** One extra Cloud Run service (scales to zero) and one extra database on the existing
+  instance. No new instance.
+
+## D23. API deploy pipeline {#pipeline}
+
+- **Decision:** How the GCP API is built, migrated, and released.
+- **Choice:** GitHub Actions (`.github/workflows/deploy-api.yml`), on push to `develop` or
+  `master`: build image → `prisma migrate deploy` through the Cloud SQL Auth Proxy → roll out
+  the new revision. Auth via a second WIF provider for GitHub, trusted by immutable repository
+  ID; each branch can only act as its environment's deployer. GitHub Environments add branch
+  policies (production deploys only from `master`). Staging can be reseeded on demand
+  (`workflow_dispatch`); production never is.
+- **Options considered:** Migrations as a Cloud Run Job (keeps them inside GCP but needs a
+  separate image with the Prisma CLI); Terraform plan/apply in CI (needs project-wide read
+  access for GitHub's identity). Terraform stays local for this demo.
+- **Why:** No stored GCP keys anywhere in CI. Migrating before deploying means a failed
+  migration leaves the running revision untouched; migrations must be backward compatible
+  (expand, then contract) because the old revision serves until the new one is ready.
+- **Database ownership:** each environment's deployer owns its schema and is the only identity
+  that changes it. The production tables, first created by a human login, were transferred to
+  the production deployer (`infra/sql/grants.sql`).
