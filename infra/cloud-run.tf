@@ -1,32 +1,44 @@
-# Runtime identity for the API: may connect to Cloud SQL and log in as its IAM database user.
+# Runtime identity per environment: may connect to Cloud SQL and log in as its IAM database
+# user. Postgres GRANTs (infra/sql/grants.sql) limit each one to its own database.
 resource "google_service_account" "api" {
-  account_id   = "vehicle-support-api"
-  display_name = "vehicle-support-app API runtime"
+  for_each     = local.environments
+  account_id   = "vehicle-support-api${each.value.suffix}"
+  display_name = "vehicle-support-app API runtime (${each.key})"
+}
+
+locals {
+  sql_roles = ["roles/cloudsql.client", "roles/cloudsql.instanceUser"]
+  api_sql_grants = {
+    for pair in setproduct(keys(local.environments), local.sql_roles) :
+    "${pair[0]}:${pair[1]}" => { env = pair[0], role = pair[1] }
+  }
 }
 
 resource "google_project_iam_member" "api_sql" {
-  for_each = toset(["roles/cloudsql.client", "roles/cloudsql.instanceUser"])
+  for_each = local.api_sql_grants
   project  = var.project_id
-  role     = each.value
-  member   = google_service_account.api.member
+  role     = each.value.role
+  member   = google_service_account.api[each.value.env].member
 }
 
-# Terraform owns the service's shape (identity, env, scaling, who may call it).
+# Terraform owns each service's shape (identity, env, scaling, who may call it).
 # GitHub Actions owns which image is running, so Terraform ignores image changes.
 resource "google_cloud_run_v2_service" "api" {
-  name                = "vehicle-support-api"
+  for_each            = local.environments
+  name                = "vehicle-support-api${each.value.suffix}"
   location            = var.region
   ingress             = "INGRESS_TRAFFIC_ALL"
   deletion_protection = false
 
   template {
-    service_account = google_service_account.api.email
+    service_account = google_service_account.api[each.key].email
 
     scaling {
       max_instance_count = 3
     }
 
     containers {
+      # First deploy only; CI replaces it.
       image = "${var.region}-docker.pkg.dev/${var.project_id}/vehicle-support/vehicle-api:spike"
 
       resources {
@@ -41,11 +53,11 @@ resource "google_cloud_run_v2_service" "api" {
       }
       env {
         name  = "DB_IAM_USER"
-        value = google_sql_user.api.name
+        value = google_sql_user.api[each.key].name
       }
       env {
         name  = "DB_NAME"
-        value = google_sql_database.app.name
+        value = google_sql_database.app[each.key].name
       }
     }
   }
@@ -61,16 +73,19 @@ resource "google_cloud_run_v2_service" "api" {
   }
 }
 
-import {
-  to = google_service_account.api
-  id = "projects/${var.project_id}/serviceAccounts/vehicle-support-api@${var.project_id}.iam.gserviceaccount.com"
+moved {
+  from = google_service_account.api
+  to   = google_service_account.api["production"]
 }
-import {
-  for_each = toset(["roles/cloudsql.client", "roles/cloudsql.instanceUser"])
-  to       = google_project_iam_member.api_sql[each.value]
-  id       = "${var.project_id} ${each.value} serviceAccount:vehicle-support-api@${var.project_id}.iam.gserviceaccount.com"
+moved {
+  from = google_project_iam_member.api_sql["roles/cloudsql.client"]
+  to   = google_project_iam_member.api_sql["production:roles/cloudsql.client"]
 }
-import {
-  to = google_cloud_run_v2_service.api
-  id = "projects/${var.project_id}/locations/${var.region}/services/vehicle-support-api"
+moved {
+  from = google_project_iam_member.api_sql["roles/cloudsql.instanceUser"]
+  to   = google_project_iam_member.api_sql["production:roles/cloudsql.instanceUser"]
+}
+moved {
+  from = google_cloud_run_v2_service.api
+  to   = google_cloud_run_v2_service.api["production"]
 }

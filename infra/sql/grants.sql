@@ -1,15 +1,30 @@
 -- Postgres privileges live inside the database, so Terraform can't manage them.
--- Run once as the built-in postgres user (reset its password with gcloud first), via
--- the Cloud SQL Auth Proxy. See infra/README.md
+-- Run once per environment as the built-in postgres user, through the Cloud SQL Auth Proxy:
 --
--- Least privilege: the migrator owns the schema; the API can read and write rows but
--- cannot change the schema.
+--   psql "host=127.0.0.1 port=5441 user=postgres dbname=<database>" \
+--     -v db=<database> \
+--     -v deployer='<deployer-sa>@<project>.iam' \
+--     -v api='<api-sa>@<project>.iam' \
+--     -f infra/sql/grants.sql
+--
+-- Result, per environment:
+--   deployer  owns the schema and runs migrations (CI only)
+--   api       reads and writes rows; cannot change the schema
+--   nobody else, including the other environment's accounts, can connect
 
-GRANT USAGE, CREATE ON SCHEMA public TO "MIGRATOR_EMAIL";
-GRANT USAGE ON SCHEMA public TO "vehicle-support-api@PROJECT_ID.iam";
+REVOKE CONNECT ON DATABASE :"db" FROM PUBLIC;
+GRANT CONNECT ON DATABASE :"db" TO :"deployer", :"api";
 
--- Then, connected as the migrator after running `prisma migrate deploy`:
--- GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public
---   TO "vehicle-support-api@PROJECT_ID.iam";
--- ALTER DEFAULT PRIVILEGES IN SCHEMA public
---   GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO "vehicle-support-api@PROJECT_ID.iam";
+GRANT USAGE, CREATE ON SCHEMA public TO :"deployer";
+GRANT USAGE ON SCHEMA public TO :"api";
+
+-- Tables the deployer creates in future migrations are usable by the API automatically.
+GRANT :"deployer" TO postgres;
+ALTER DEFAULT PRIVILEGES FOR ROLE :"deployer" IN SCHEMA public
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO :"api";
+
+-- One-time, production only (2026-11-14): the first migration ran as a human login, so its
+-- tables were transferred to the deployer with:
+--   GRANT "<human>" TO postgres;
+--   REASSIGN OWNED BY "<human>" TO "<production-deployer>";
+--   REVOKE "<human>" FROM postgres;

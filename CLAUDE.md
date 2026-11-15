@@ -158,7 +158,7 @@ services/vehicle-api/     Express API → Cloud Run (GitHub Actions). Owns the P
   docker-compose.yml      Local Postgres 17 on port 5440.
 infra/                    Terraform for GCP (D18). Never change GCP by hand; edit here and
                           `terraform plan` first. sql/ holds Postgres GRANTs Terraform can't manage.
-.github/workflows/        CI and GCP deploys.
+.github/workflows/        deploy-api.yml: develop → staging, master → production (D22, D23).
 docs/                     decisions.md, architecture, rollout plan, submission write-up.
 ```
 

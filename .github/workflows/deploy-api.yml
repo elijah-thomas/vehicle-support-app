@@ -1,0 +1,102 @@
+# Deploys services/vehicle-api to Cloud Run. develop → staging, master → production.
+# No GCP key is stored anywhere: GitHub's OIDC token is exchanged through Workload Identity
+# Federation for the environment's deployer service account. See docs/decisions.md#pipeline
+#
+# Order matters: build → migrate → deploy. If a migration fails, the running revision is untouched.
+# Migrations must stay backward compatible with the previous revision (expand, then contract),
+# because the old revision keeps serving until the new one is ready.
+
+name: Deploy API
+
+on:
+  push:
+    branches: [develop, master]
+    paths:
+      - services/vehicle-api/**
+      - pnpm-lock.yaml
+      - .github/workflows/deploy-api.yml
+  workflow_dispatch:
+    inputs:
+      reseed:
+        description: "Reset staging to the synthetic seed data (ignored on production)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: deploy-api-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # The environment's branch policy and the WIF binding both restrict who can deploy where.
+    environment: ${{ github.ref_name == 'master' && 'production' || 'staging' }}
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      IMAGE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/vehicle-support/vehicle-api
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Authenticate to GCP (Workload Identity Federation)
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v3
+
+      - name: Build and push image
+        run: |
+          gcloud auth configure-docker ${{ vars.GCP_REGION }}-docker.pkg.dev --quiet
+          docker build -f services/vehicle-api/Dockerfile -t "$IMAGE:${{ github.sha }}" .
+          docker push "$IMAGE:${{ github.sha }}"
+
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install API dependencies
+        run: pnpm install --frozen-lockfile --filter vehicle-api
+
+      - name: Start Cloud SQL Auth Proxy
+        run: |
+          curl -sSfLo cloud-sql-proxy \
+            https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v2.18.1/cloud-sql-proxy.linux.amd64
+          chmod +x cloud-sql-proxy
+          # --auto-iam-authn logs in as the deployer's IAM database user: no password.
+          ./cloud-sql-proxy --auto-iam-authn --port 5432 "${{ vars.INSTANCE_CONNECTION_NAME }}" &
+          for i in $(seq 1 30); do nc -z 127.0.0.1 5432 && exit 0; sleep 1; done
+          echo "Proxy did not start" && exit 1
+
+      - name: Run migrations
+        working-directory: services/vehicle-api
+        env:
+          DB_USER: ${{ vars.DB_MIGRATOR_USER }}
+          DB_NAME: ${{ vars.DB_NAME }}
+        run: |
+          export DATABASE_URL="postgresql://${DB_USER//@/%40}@127.0.0.1:5432/${DB_NAME}?sslmode=disable"
+          pnpm exec prisma migrate deploy
+
+      - name: Reseed staging
+        if: inputs.reseed && github.ref_name == 'develop'
+        working-directory: services/vehicle-api
+        env:
+          DB_USER: ${{ vars.DB_MIGRATOR_USER }}
+          DB_NAME: ${{ vars.DB_NAME }}
+        run: |
+          export DATABASE_URL="postgresql://${DB_USER//@/%40}@127.0.0.1:5432/${DB_NAME}?sslmode=disable"
+          pnpm exec prisma generate
+          pnpm db:seed
+
+      # Only the image changes here; Terraform owns everything else about the service.
+      - name: Deploy new revision
+        run: |
+          gcloud run services update "${{ vars.CLOUD_RUN_SERVICE }}" \
+            --region "${{ vars.GCP_REGION }}" \
+            --image "$IMAGE:${{ github.sha }}" \
+            --quiet
