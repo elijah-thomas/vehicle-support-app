@@ -327,3 +327,29 @@ why. To change one, add a new entry that supersedes it rather than editing histo
   `reasoning: "low"` fixed it. The 1,000-token cap was then removed: a truncated answer is worse
   than a long one, and cost per message stays bounded by the step cap, input caps, and rate
   limiting. Dates are formatted in UTC so the page and the agent (which reads UTC timestamps) agree.
+
+## D26. Call summary {#call-summary-generation}
+
+- **Decision:** How a transcript becomes a saved case note.
+- **Choice:**
+  - **Fields** match `case_notes` exactly (issue, summary, next steps) plus a suggested subject and
+    category used only for a new case. No database change.
+  - **Generation:** one structured call (`streamText` + `Output.object`) with the vehicle, cases,
+    and telematics loaded up front, rather than an agent loop. The draft streams into the form.
+  - **Review:** nothing is saved until the rep edits and presses Save. The case picker defaults to
+    the most recent open case, with a "New case" option (D15).
+  - **Save:** a Server Action creates the case if needed, posts the note to GCP
+    (`source: AI_DRAFT_EDITED`), then calls `updateTag('cases:{vin}')` so Case history shows the
+    note on the next render instead of the cached list.
+  - **Limits:** transcripts up to 15,000 characters (about a 15-minute call); field limits match
+    the GCP API's validation.
+  - **Safety:** the transcript is treated as untrusted content in the prompt, and the call has no
+    tools, so instructions hidden in a transcript can't fetch or change anything.
+- **Options considered:** extra fields (urgency, sentiment; needs a migration); reusing the agent
+  with tools (flexible but multi-step, slower, harder to evaluate); a picker without "New case"
+  (a vehicle with no cases couldn't save a summary).
+- **Found while testing:** the model quoted internal case IDs despite a prompt rule. IDs are now
+  stripped from everything the model sees (`lib/ai/model-context.ts`), for the agent too.
+- **Risk to flag:** transcripts are personal data sent to the model providers (Vertex, Anthropic)
+  under my BYOK agreements. Production answer: AI Gateway Zero Data Retention routing with
+  ZDR-marked keys, and a retention review with the customer's privacy team.
