@@ -1,7 +1,9 @@
+import { ShieldAlert } from "lucide-react";
 import { notFound } from "next/navigation";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { VehicleStatus } from "@/components/vehicle-status";
 import { getVehicle, type Vehicle } from "@/lib/customer/vehicles";
 import { formatDate } from "@/lib/format";
 
@@ -25,12 +27,18 @@ export async function VehicleSummary({ vin }: { vin: string }) {
   return (
     <div className="space-y-4">
       {openRecalls.map(({ recall }) => (
-        <Alert key={recall.campaignNumber} variant="destructive">
+        <Alert
+          key={recall.campaignNumber}
+          id={`recall-${recall.campaignNumber}`}
+          variant="warning"
+          className="scroll-mt-6 transition-colors"
+        >
+          <ShieldAlert aria-hidden />
           <AlertTitle>
-            Open recall {recall.campaignNumber}: {recall.title}
+            Open recall <span className="font-mono">{recall.campaignNumber}</span>: {recall.title}
           </AlertTitle>
           <AlertDescription>
-            {recall.description} Remedy: {recall.remedy}
+            {recall.description} <span className="font-medium text-foreground">Remedy:</span> {recall.remedy}
           </AlertDescription>
         </Alert>
       ))}
@@ -41,6 +49,9 @@ export async function VehicleSummary({ vin }: { vin: string }) {
             {model.year} {model.make} {model.model} {model.trim}
           </CardTitle>
           <CardDescription className="font-mono">{vehicle.vin}</CardDescription>
+          <div className="mt-2">
+            <VehicleStatus vin={vin} openRecallCampaigns={openRecalls.map(({ recall }) => recall.campaignNumber)} />
+          </div>
         </CardHeader>
         <CardContent className="grid gap-6 sm:grid-cols-2">
           <dl className="space-y-1 text-sm">

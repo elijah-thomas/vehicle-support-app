@@ -26,7 +26,6 @@ export function SearchForm() {
           name="query"
           placeholder="VIN or customer email"
           aria-label="VIN or customer email"
-          autoComplete="off"
           required
         />
         <Button type="submit" disabled={pending}>
