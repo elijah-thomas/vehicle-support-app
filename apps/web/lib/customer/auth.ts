@@ -1,12 +1,12 @@
 import "server-only";
 import { getVercelOidcToken } from "@vercel/oidc";
-import { ExternalAccountClient } from "google-auth-library";
+import { IdentityPoolClient } from "google-auth-library";
 import { env } from "@/lib/env";
 
 // Vercel OIDC token → GCP STS (Workload Identity Federation) → short-lived Google credential
 // → ID token for the caller service account, which Cloud Run IAM checks.
 // No long-lived secret exists in this chain. See docs/decisions.md#boundary-auth
-const federated = ExternalAccountClient.fromJSON({
+const federated = new IdentityPoolClient({
   type: "external_account",
   audience: `//iam.googleapis.com/projects/${env.GCP_PROJECT_NUMBER}/locations/global/workloadIdentityPools/${env.GCP_WORKLOAD_IDENTITY_POOL_ID}/providers/${env.GCP_WORKLOAD_IDENTITY_POOL_PROVIDER_ID}`,
   subject_token_type: "urn:ietf:params:oauth:token-type:jwt",
@@ -19,7 +19,6 @@ let cached: { token: string; expiresAt: number } | undefined;
 
 export async function getVehicleApiIdToken(): Promise<string> {
   if (cached && cached.expiresAt - Date.now() > 5 * 60_000) return cached.token;
-  if (!federated) throw new Error("Workload Identity Federation client is not configured");
 
   const { token: accessToken } = await federated.getAccessToken();
   const response = await fetch(

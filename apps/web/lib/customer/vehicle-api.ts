@@ -14,7 +14,7 @@ export class VehicleApiError extends Error {
 }
 
 // Every call across the boundary goes through here: authenticate, fetch, validate the shape.
-export async function vehicleApi<T>(path: string, schema: z.ZodType<T>, init?: RequestInit) {
+export async function vehicleApi<T>(path: string, schema: z.ZodType<T>, init?: RequestInit): Promise<T> {
   const token = await getVehicleApiIdToken();
   const response = await fetch(new URL(path, env.VEHICLE_API_URL), {
     ...init,
@@ -30,4 +30,14 @@ export async function vehicleApi<T>(path: string, schema: z.ZodType<T>, init?: R
     );
   }
   return schema.parse(body);
+}
+
+// For lookups where "not found" is a normal answer (a mistyped VIN), not an error.
+export async function vehicleApiOrNull<T>(path: string, schema: z.ZodType<T>): Promise<T | null> {
+  try {
+    return await vehicleApi(path, schema);
+  } catch (error) {
+    if (error instanceof VehicleApiError && error.status === 404) return null;
+    throw error;
+  }
 }
