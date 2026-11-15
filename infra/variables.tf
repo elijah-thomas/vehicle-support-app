@@ -29,3 +29,8 @@ variable "db_migrator_email" {
   description = "Google account that runs Prisma migrations as an IAM database user."
   type        = string
 }
+
+variable "github_repository_id" {
+  description = "Immutable numeric ID of the GitHub repo allowed to deploy (gh api repos/OWNER/REPO --jq .id)."
+  type        = string
+}

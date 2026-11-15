@@ -2,7 +2,10 @@
 # long-lived secret. See docs/decisions.md#boundary-auth
 #
 # Vercel OIDC token ─► STS (this pool/provider) ─► federated credential
-#   ─► generateIdToken for vehicle-support-caller ─► Cloud Run IAM checks run.invoker
+#   ─► generateIdToken for the caller account ─► Cloud Run IAM checks run.invoker
+#
+# Vercel preview and development tokens can only become the staging caller; production
+# tokens can only become the production caller. See docs/decisions.md#environments
 
 resource "google_iam_workload_identity_pool" "vercel" {
   workload_identity_pool_id = "vercel"
@@ -25,28 +28,40 @@ resource "google_iam_workload_identity_pool_provider" "vercel" {
     "google.subject"        = "assertion.sub"
     "attribute.project"     = "assertion.project"
     "attribute.environment" = "assertion.environment"
+    "attribute.deployment"  = "assertion.project + ':' + assertion.environment"
   }
 
   # Other projects in the same Vercel team are rejected at the token exchange.
   attribute_condition = "assertion.project == '${var.vercel_project_name}'"
 }
 
-# The identity the Vercel app acts as. Its only permission: invoke this one Cloud Run service.
+# The identity the Vercel app acts as. Its only permission: invoke its environment's API.
 resource "google_service_account" "caller" {
-  account_id   = "vehicle-support-caller"
-  display_name = "Vercel web app → vehicle API caller"
+  for_each     = local.environments
+  account_id   = "vehicle-support-caller${each.value.suffix}"
+  display_name = "Vercel web app → vehicle API caller (${each.key})"
 }
 
 resource "google_cloud_run_v2_service_iam_member" "caller_invokes_api" {
-  name     = google_cloud_run_v2_service.api.name
+  for_each = local.environments
+  name     = google_cloud_run_v2_service.api[each.key].name
   location = var.region
   role     = "roles/run.invoker"
-  member   = google_service_account.caller.member
+  member   = google_service_account.caller[each.key].member
 }
 
-# Federated identities from the Vercel project may mint ID tokens for the caller account.
 resource "google_service_account_iam_member" "vercel_mints_caller_id_tokens" {
-  service_account_id = google_service_account.caller.name
+  for_each           = local.vercel_bindings
+  service_account_id = google_service_account.caller[each.value.env].name
   role               = "roles/iam.serviceAccountOpenIdTokenCreator"
-  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.vercel.name}/attribute.project/${var.vercel_project_name}"
+  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.vercel.name}/attribute.deployment/${var.vercel_project_name}:${each.value.vercel_env}"
+}
+
+moved {
+  from = google_service_account.caller
+  to   = google_service_account.caller["production"]
+}
+moved {
+  from = google_cloud_run_v2_service_iam_member.caller_invokes_api
+  to   = google_cloud_run_v2_service_iam_member.caller_invokes_api["production"]
 }

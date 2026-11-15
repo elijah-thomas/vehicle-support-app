@@ -17,9 +17,3 @@ resource "google_project_service" "apis" {
   service            = each.value
   disable_on_destroy = false
 }
-
-import {
-  for_each = toset(local.apis)
-  to       = google_project_service.apis[each.value]
-  id       = "${var.project_id}/${each.value}"
-}
