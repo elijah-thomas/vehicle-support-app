@@ -277,3 +277,29 @@ why. To change one, add a new entry that supersedes it rather than editing histo
 - **Database ownership:** each environment's deployer owns its schema and is the only identity
   that changes it. The production tables, first created by a human login, were transferred to
   the production deployer (`infra/sql/grants.sql`).
+
+## D24. Vehicle page rendering and caching {#vehicle-page-caching}
+
+- **Decision:** What is static, cached, or fresh on `/vehicles/[vin]`, and where cached data lives.
+- **Options (store):** plain `"use cache"` (in-memory per instance, free) or `"use cache: remote"`
+  (Vercel Runtime Cache: shared by all instances in the region, isolated per environment).
+- **Choice:** Static shell (layout, headings, skeletons) with three independently streamed panels:
+
+  | Data | Strategy | Tag |
+  |---|---|---|
+  | Vehicle, specs, recalls | `use cache: remote`, `hours` (`minutes` if not found) | `vehicle:{vin}` |
+  | Cases and notes | `use cache: remote`, `minutes`; cleared by `updateTag` on note save | `cases:{vin}` |
+  | Telematics | Not cached; request time (`connection()`) | — |
+  | Customer search by email | Not cached; server action, so the email never appears in a URL | — |
+
+  No vehicle pages are prerendered at build time.
+- **Why remote:** In-memory entries live per instance, so `updateTag` after a save could leave
+  another instance serving old cases. The Runtime Cache is shared and environment-isolated,
+  matching the staging/production split. Cost is fractions of a cent at demo traffic; it starts
+  empty after each deploy.
+- **Why these lifetimes:** Specs never change; recall status rarely does. Cases also change in
+  the existing CRM, which never tells this app, so a short lifetime bounds staleness there.
+- **Personal data:** Owner names, emails, and case descriptions are cached briefly, in one region
+  (`cle1`), isolated per environment, evicted by lifetime. Flagged as a customer approval item.
+- **Measured locally against staging:** first load ~5 s (staging scaled to zero, token exchange,
+  connector setup); warm loads 0.08–0.3 s.
