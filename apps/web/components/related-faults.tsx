@@ -9,7 +9,7 @@ import {
   RELATED_FAULT_WINDOW_DAYS,
   relatedFaults,
 } from "@/lib/cases";
-import { type Case, getTelematicsWindow, type TelematicsEvent } from "@/lib/customer/vehicles";
+import { type Case, getFaultsInWindow, type TelematicsEvent } from "@/lib/customer/vehicles";
 import { formatDate } from "@/lib/format";
 import { loadPanel } from "@/lib/load-panel";
 
@@ -96,7 +96,7 @@ async function loadFaultWindows(vin: string, supportCase: Case, cases: Case[]) {
   const windows = await Promise.all(
     casesNeedingFaultWindows(supportCase, cases).map((c) => {
       const { from, to } = faultWindow(c);
-      return getTelematicsWindow(vin, from, to);
+      return getFaultsInWindow(vin, from, to);
     }),
   );
   const byId = new Map<string, TelematicsEvent>();
