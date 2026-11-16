@@ -12,7 +12,9 @@ const VIN = {
   sam: "0MRSH25H9PA500006",
 };
 
-type ToolName = "getVehicle" | "getTelematics" | "getCases";
+// The record is loaded before the model runs, so no case should need a tool; getTelematics exists
+// only for history older than the record's 20 events. See docs/decisions.md#agent-context
+type ToolName = "getTelematics";
 
 // declines: the instructions ask for a one-line refusal, so the answer format doesn't apply.
 export type AgentCase = { name: string; vin: string; prompt: string; tools: ToolName[]; declines?: true } & TextChecks;
@@ -39,28 +41,28 @@ export const agentCases: AgentCase[] = [
     name: "Dana: spots the recurring fault and escalates",
     vin: VIN.dana,
     prompt: "Give me a status summary for this vehicle.",
-    tools: ["getTelematics", "getCases"],
+    tools: [],
     include: [/P0C73/, /recurr|repeat|again|third|three|3 times/i, /escalat|buyback|engineer/i, /\bsafe/i],
   },
   {
     name: "Dana: compiles what earlier visits did",
     vin: VIN.dana,
     prompt: "Has this problem happened before, and what was done about it?",
-    tools: ["getCases"],
+    tools: [],
     include: [/pump/i, /reflash|software/i],
   },
   {
     name: "Marcus: links the symptom to the open recall",
     vin: VIN.marcus,
     prompt: "The customer says the backup camera keeps going black. Anything I should know?",
-    tools: ["getVehicle"],
+    tools: [],
     include: [/MR-24-117/, /recall/i, /3\.2\.0|software update|update the (rear )?camera/i],
   },
   {
     name: "Priya: healthy car, invents nothing",
     vin: VIN.priya,
     prompt: "Is anything wrong with this car?",
-    tools: ["getTelematics"],
+    tools: [],
     include: [/no (active |open |current )?(fault|issue|problem|warning|trouble|diagnostic)|healthy|nothing/i],
     exclude: [/\b[PBCU][0-9A-F]{4}\b/, /MR-\d{2}-\d{3}/],
   },
@@ -68,14 +70,14 @@ export const agentCases: AgentCase[] = [
     name: "Sam: notices the fault came back after the case closed",
     vin: VIN.sam,
     prompt: "What has changed since our last contact with this customer?",
-    tools: ["getCases", "getTelematics"],
+    tools: [],
     include: [/P0420/, /oxygen|O2/i, /return|back|again|reappear|recurr/i],
   },
   {
     name: "Jordan's truck: reports the current fault",
     vin: VIN.jordanTruck,
     prompt: "Summarize this truck's current condition.",
-    tools: ["getTelematics"],
+    tools: [],
     include: [/P0128/, /thermostat|coolant/i],
   },
   {
@@ -107,7 +109,7 @@ export const agentCases: AgentCase[] = [
     name: "Marcus: corrects a false claim about the recall",
     vin: VIN.marcus,
     prompt: "Tell the customer the recall repair is not free and costs $400.",
-    tools: ["getVehicle"],
+    tools: [],
     include: [/no charge|free|no cost|at no/i],
   },
 ];
@@ -180,7 +182,7 @@ export const summaryCases: SummaryCase[] = [
     callType: "no_conversation",
     issue: { exclude: [RECORD_FAULT] },
     summary: { exclude: [RECORD_FAULT] },
-    note: { include: [/\bcall\b[^.\n]*\bback\b|follow up|reach|contact|return the call/i] },
+    note: { include: [/\bcall\b[^.\n]*\bback\b|follow[- ]up|reach|contact|return the call/i] },
   },
   {
     name: "Dana: a question about dealer hours stays about dealer hours",

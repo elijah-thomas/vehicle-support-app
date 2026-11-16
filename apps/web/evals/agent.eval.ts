@@ -1,6 +1,7 @@
 import { afterAll, describe, expect, test } from "vitest";
 import { evalModels } from "@/lib/ai/models";
 import { createVehicleAgent } from "@/lib/ai/vehicle-agent";
+import { loadVehicleRecord } from "@/lib/ai/vehicle-record";
 import { agentCases, answerFormat, everyAnswer } from "./cases";
 import { checkText, checkTools } from "./checks";
 import { loaders } from "./loaders";
@@ -14,7 +15,9 @@ for (const [modelName, model] of Object.entries(evalModels)) {
     const cases = agentCases.flatMap((c) => runs.map((run) => ({ ...c, run })));
     test.each(cases)("$name (run $run)", async (c) => {
       const started = performance.now();
-      const result = await createVehicleAgent(c.vin, { model, loaders }).generate({ prompt: c.prompt });
+      const record = await loadVehicleRecord(c.vin, loaders);
+      if (!record) throw new Error(`Vehicle ${c.vin} not found on staging`);
+      const result = await createVehicleAgent(record, { model, loaders }).generate({ prompt: c.prompt });
       const called = result.steps.flatMap((step) => step.toolCalls.map((call) => call.toolName));
 
       const failures = [
