@@ -1,6 +1,6 @@
 "use server";
 
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { z } from "zod";
 import { findCustomerByEmail } from "@/lib/customer/customers";
 import { VIN_PATTERN } from "@/lib/format";
@@ -25,7 +25,14 @@ export async function searchAction(_previous: SearchState, formData: FormData): 
     return { error: "Enter a 17-character VIN or a customer email address." };
   }
 
-  const customer = await findCustomerByEmail(query);
+  let customer;
+  try {
+    customer = await findCustomerByEmail(query);
+  } catch (error) {
+    unstable_rethrow(error);
+    console.error("customer lookup failed", error);
+    return { error: "Couldn't reach the customer system. Try again in a moment." };
+  }
   if (!customer) return { error: "No customer found with that email." };
   if (customer.vehicles.length === 1) redirect(`/vehicles/${customer.vehicles[0].vin}`);
 

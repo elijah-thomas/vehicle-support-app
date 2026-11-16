@@ -12,13 +12,18 @@ const requestSchema = z.object({
 
 export async function POST(request: Request) {
   const parsed = requestSchema.safeParse(await request.json().catch(() => null));
-  if (!parsed.success) return Response.json({ error: "Invalid request" }, { status: 400 });
+  if (!parsed.success) return errorResponse("invalid_request", 400);
   const { vin, transcript } = parsed.data;
 
   const [vehicle, cases, telematics] = await Promise.all([getVehicle(vin), getCases(vin), getTelematics(vin, 20)]);
-  if (!vehicle) return Response.json({ error: "Vehicle not found" }, { status: 404 });
+  if (!vehicle) return errorResponse("not_found", 404);
 
   const result = streamText(callSummaryRequest({ vehicle, cases, telematics }, transcript));
 
   return createTextStreamResponse({ stream: toTextStream({ stream: result.stream }) });
+}
+
+// Same shape as the agent route, so the UI maps both the same way (lib/ai-request-error.ts).
+function errorResponse(code: "invalid_request" | "not_found", status: number) {
+  return Response.json({ error: { code } }, { status });
 }

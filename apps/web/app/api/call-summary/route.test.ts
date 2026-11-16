@@ -26,7 +26,9 @@ test.each([
   ["a whitespace-only transcript", { vin: "0MRKC15V8PA200002", transcript: " \n\t " }],
   ["a transcript over 15,000 characters", { vin: "0MRKC15V8PA200002", transcript: "x".repeat(15_001) }],
 ])("rejects %s with 400, without calling the model", async (_label, body) => {
-  expect((await post(body)).status).toBe(400);
+  const response = await post(body);
+  expect(response.status).toBe(400);
+  expect(await response.json()).toEqual({ error: { code: "invalid_request" } });
   expect(streamText).not.toHaveBeenCalled();
 });
 

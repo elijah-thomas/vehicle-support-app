@@ -5,6 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "cn";
 import { getCases } from "@/lib/customer/vehicles";
 import { formatDateTime, formatRelative, ordinal } from "@/lib/format";
+import { loadPanel } from "@/lib/load-panel";
 import { getTelematicsSnapshot, RECENT_WINDOW_DAYS, repeatKey, worstRecentEvent } from "@/lib/telematics";
 
 // Worst first: critical event, open recalls, warning event, open cases. Telematics and cases stream
@@ -44,8 +45,10 @@ export function VehicleStatus({ vin, openRecallCampaigns }: { vin: string; openR
   );
 }
 
+// A failed load shows nothing here: the panel below explains the failure and offers Retry.
 async function TelematicsStatus({ vin }: { vin: string }) {
-  const snapshot = await getTelematicsSnapshot(vin);
+  const loaded = await loadPanel("telematics status", () => getTelematicsSnapshot(vin));
+  const snapshot = loaded.ok ? loaded.data : null;
   if (!snapshot) return null;
 
   const { events, fetchedAt: now } = snapshot;
@@ -85,7 +88,8 @@ async function TelematicsStatus({ vin }: { vin: string }) {
 }
 
 async function CasesStatus({ vin, hasOpenRecalls }: { vin: string; hasOpenRecalls: boolean }) {
-  const cases = await getCases(vin);
+  const loaded = await loadPanel("cases status", () => getCases(vin));
+  const cases = loaded.ok ? loaded.data : null;
   if (!cases) return null;
 
   const open = cases.filter((supportCase) => supportCase.status === "OPEN").length;

@@ -1,11 +1,15 @@
+import { PanelUnavailable } from "@/components/panel-unavailable";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { getCases } from "@/lib/customer/vehicles";
 import { formatDate } from "@/lib/format";
+import { loadPanel } from "@/lib/load-panel";
 
 export async function CaseHistory({ vin }: { vin: string }) {
-  const cases = await getCases(vin);
+  const loaded = await loadPanel("cases", () => getCases(vin));
+  if (!loaded.ok) return <PanelUnavailable title="Case history" id="cases" />;
+  const cases = loaded.data;
   if (!cases) return null;
 
   return (

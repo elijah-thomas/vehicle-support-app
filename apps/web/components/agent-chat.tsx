@@ -11,6 +11,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { aiErrorCode } from "@/lib/ai-request-error";
 import type { VehicleAgentMessage } from "@/lib/ai/vehicle-agent";
 
 const primaryPrompts = [
@@ -26,27 +27,17 @@ const sources = ["Vehicle, specs, recalls", "Telematics", "Case history"];
 const MAX_TEXT_LENGTH = 2000;
 const MAX_FOLLOW_UPS = 2;
 
-// The route answers errors with { error: { code } }; the transport puts that body in error.message
-// and the HTTP status in statusCode. A 429 comes from the Firewall, whose body isn't ours.
-function errorCode(error: Error) {
-  if ("statusCode" in error && error.statusCode === 429) return "rate_limited";
-  try {
-    return (JSON.parse(error.message) as { error?: { code?: string } }).error?.code ?? "agent_failed";
-  } catch {
-    return "agent_failed";
-  }
-}
-
 function errorCopy(error: Error) {
-  switch (errorCode(error)) {
+  switch (aiErrorCode(error)) {
     case "rate_limited":
-      return { tone: "warning", text: "Too many questions. Wait a minute, then ask again." } as const;
+      return { tone: "warning", text: "Too many questions. Wait a minute, then ask again.", retry: false } as const;
     case "too_long":
-      return { tone: "warning", text: `Keep questions under ${MAX_TEXT_LENGTH.toLocaleString("en-US")} characters.` } as const;
+      return { tone: "warning", text: `Keep questions under ${MAX_TEXT_LENGTH.toLocaleString("en-US")} characters.`, retry: false } as const;
     default:
       return {
         tone: "destructive",
-        text: "The assistant couldn't answer. The vehicle record is still on this page. Try again in a moment.",
+        text: "The assistant couldn't answer. The vehicle record is still on this page.",
+        retry: true,
       } as const;
   }
 }
@@ -66,7 +57,7 @@ function PromptButton({ prompt, onAsk }: { prompt: string; onAsk: (prompt: strin
 export function AgentChat({ vin }: { vin: string }) {
   const [input, setInput] = useState("");
   const [showMore, setShowMore] = useState(false);
-  const { messages, sendMessage, status, error, stop } = useChat<VehicleAgentMessage>({
+  const { messages, sendMessage, regenerate, status, error, stop } = useChat<VehicleAgentMessage>({
     transport: new DefaultChatTransport({ api: "/api/agent", body: { vin } }),
   });
   const busy = status === "submitted" || status === "streaming";
@@ -179,7 +170,14 @@ export function AgentChat({ vin }: { vin: string }) {
         {failure && (
           <Alert variant={failure.tone}>
             {failure.tone === "warning" ? <TriangleAlert aria-hidden /> : <CircleAlert aria-hidden />}
-            <AlertDescription className="text-foreground">{failure.text}</AlertDescription>
+            <AlertDescription className="text-foreground">
+              {failure.text}
+              {failure.retry && (
+                <Button variant="outline" size="sm" className="mt-2" onClick={() => regenerate()}>
+                  Try again
+                </Button>
+              )}
+            </AlertDescription>
           </Alert>
         )}
       </div>
