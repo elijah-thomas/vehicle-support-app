@@ -2,4 +2,5 @@
 export const cacheTags = {
   vehicle: (vin: string) => `vehicle:${vin}`,
   cases: (vin: string) => `cases:${vin}`,
+  telematics: (vin: string) => `telematics:${vin}`,
 };
