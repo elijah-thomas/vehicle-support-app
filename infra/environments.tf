@@ -8,12 +8,15 @@ locals {
       database    = "vehicle_support"
       branch      = "refs/heads/master"
       vercel_envs = ["production"]
+      # Vehicle API requests per minute for the whole Vercel app (D31).
+      api_rate_limit = 1200
     }
     staging = {
-      suffix      = "-staging"
-      database    = "vehicle_support_staging"
-      branch      = "refs/heads/develop"
-      vercel_envs = ["preview", "development"]
+      suffix         = "-staging"
+      database       = "vehicle_support_staging"
+      branch         = "refs/heads/develop"
+      vercel_envs    = ["preview", "development"]
+      api_rate_limit = 1200
     }
   }
 

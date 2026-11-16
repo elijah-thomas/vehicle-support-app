@@ -11,6 +11,7 @@ const envSchema = z
     INSTANCE_CONNECTION_NAME: z.string().optional(),
     DB_NAME: z.string().default("vehicle_support"),
     DB_IAM_USER: z.string().optional(),
+    RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(1200),
   })
   .refine((env) => env.DATABASE_URL || (env.INSTANCE_CONNECTION_NAME && env.DB_IAM_USER), {
     message: "Set DATABASE_URL, or INSTANCE_CONNECTION_NAME and DB_IAM_USER",
