@@ -434,3 +434,56 @@ why. To change one, add a new entry that supersedes it rather than editing histo
   region. The spend backstop is provider-side limits on the BYOK keys (Anthropic spend limit, GCP
   budget alert), since AI Gateway budgets don't cap BYOK (D9). In production, rep login (out of
   scope) would let the limit key on the user instead of the IP.
+
+## D30. Evals {#evals}
+
+- **Decision:** How to check that the agent and call summaries stay grounded, on both models.
+- **Choice:**
+  - **Harness:** Vitest, run on demand with `pnpm eval` (its own config, so no other test command
+    spends tokens). Not in CI yet: real model calls cost money and aren't deterministic. The
+    rollout plan lists CI evals on release PRs as the next step.
+  - **What runs:** the real agent and the real call-summary request, with the model and data
+    loaders injected. Each model runs alone with failover off (`evalModels`), so a score belongs
+    to the model it names. Data comes from the staging API over the same OIDC → WIF path, minus
+    the Next.js cache, fetched once per run.
+  - **Grading:** deterministic only: expected tools called, required facts present, forbidden
+    text absent (internal IDs, invented fault codes, assumed pronouns, promised loaners or
+    buybacks, markdown). No LLM judge: free, stable, and every failure is explainable.
+  - **Cases:** 8 agent cases and 2 call-summary cases built on the seeded stories (recurring
+    fault, open recall, healthy car, fault returned after a closed case, missing data, a request
+    for another customer's VIN, a prompt injection inside a transcript). Each runs 3 times and
+    reports a pass rate per model, since one pass proves little.
+- **Options considered:** HTTP against the running route (real path, but can't choose the model
+  without a public override); recorded fixtures (fast, but skips the boundary and drifts with the
+  relative seed dates); an LLM judge for qualities like "suggests escalation" (keywords cover it).
+- **What the evals found, and what changed:**
+  - Claude guessed gender from customer names ("ask him", "she"). Both prompts now say to use
+    the name, "the customer", or "they". A prohibition alone didn't work; a positive alternative
+    did.
+  - Gemini skipped driver safety on a CRITICAL reduced-power fault and offered a loaner. The agent
+    now puts safety first for CRITICAL driving faults and routes coverage, loaner, refund, and
+    buyback requests instead of promising them.
+  - Claude refused an injected instruction in a transcript but copied it into the summary. The
+    note is saved and later read by the agent, so that is a stored prompt injection. The prompt
+    now says to leave such instructions out of the note.
+  - The seeded battery temperature had no unit; it now says °C.
+  - The first wording of the "no promises" rule made Claude repeat the rule to the rep as a next
+    step. It now applies only when the customer asks.
+- **Results (3 runs per case, Nov 2026):** Gemini 30/30. Claude 28/30: once "his", and once it
+  still mentioned the injected buyback request while saying it wasn't acted on. Tuning further
+  would overfit ten prompts; the rep reviewing every note is the backstop. Gemini used about half
+  the tokens per answer (~1,700 vs ~3,600) at similar median latency, which supports it as the
+  primary model.
+- **Also found:** run in parallel, the evals hit the vehicle API's 120/min per-IP limit. Both models
+  handled the 429s well: they said the lookups failed and didn't guess. The limit's keying is a
+  production concern of its own: see D31.
+
+## D31. Vehicle API rate-limit keying (open) {#api-rate-limit-keying}
+
+- **Decision:** What the vehicle API's backstop rate limit (D8) should count per client.
+- **Finding:** it keys by client IP, but the API's only client is the Vercel app. Every rep's
+  traffic arrives from Vercel's shared outbound IPs, so the whole support team shares one
+  120/min budget. One agent question costs up to 3 API calls.
+- **Status:** fine for the demo, not for a contact center. To decide: key by the verified caller
+  identity (the service account in the Cloud Run ID token), raise the limit and rely on Cloud
+  Run IAM plus the Vercel Firewall in front, or keep it and document it.
