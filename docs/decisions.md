@@ -487,3 +487,53 @@ why. To change one, add a new entry that supersedes it rather than editing histo
 - **Status:** fine for the demo, not for a contact center. To decide: key by the verified caller
   identity (the service account in the Cloud Run ID token), raise the limit and rely on Cloud
   Run IAM plus the Vercel Firewall in front, or keep it and document it.
+
+## D32. Lookup suggestions and a page that fits the screen {#lookup-and-layout}
+
+- **Decision:** How the vehicle page fits a laptop screen, where Call summary lives, how
+  telematics units are shown, and what the lookup suggests.
+- **Layout:** two independent columns instead of one grid with the assistant spanning rows. A
+  fixed-height item spanning rows stretched them, leaving empty bands under shorter panels.
+  - Left: header, then telematics and cases, as one flex column. Right: the assistant, sticky at
+    72px (48px top bar + 24px) with `height: calc(100dvh - 6rem)`, so its input stays 24px above
+    the bottom of the screen.
+  - Below `lg` the left wrapper is `display: contents`, so `order` can place the assistant
+    between the header and telematics without rendering it twice. Each panel keeps its own
+    `<Suspense>` (D24).
+  - A sticky top bar (product name, lookup, "Synthetic demo data") replaces "← New lookup".
+    The landing page hides the bar's lookup and shows one large lookup instead, so `/` always
+    has a single target.
+  - Verified at 1280×800, 1440×900 (header, status row and the top of telematics and cases
+    above the fold) and 1024×768 (cases stack under telematics there, per D28).
+- **Call summary:**
+  - **Options:** a tab beside "Ask" in the assistant panel; or stay in the left column, sized to
+    its content.
+  - **Choice:** a tab. Both tools draft for the rep, so they share the column; the left column
+    stays pure record, and a saved note appears in Case history next to the panel. Both tabs
+    stay mounted (Base UI Tabs, `keepMounted`), so switching never loses the chat or an unsaved
+    draft. Staying in the left column pushed telematics and cases below the fold.
+- **Telematics units:**
+  - **Options:** derive the unit in the web app from the message text; add `unit` to the
+    telematics API contract (D16/D17: migration, seed, API and schema changes).
+  - **Choice:** derive it (`lib/format.ts`) from the message's trailing parenthesis: "(miles)",
+    "(%)", "(°C)" (the seed gained "(°C)" in D30). `type` can't be used: `BATTERY` covers both
+    pack temperature and state of health. Brittle by design; the production fix is a `unit` field
+    in the customer's API. The agent still reads the raw message, so its answers don't change.
+- **Lookup suggestions:**
+  - **Options:** client-only (recents in this browser, demo stories, live VIN/email checks);
+    server prefix search (`GET /customers/search?q=`); client-only with recents storing no
+    owner name.
+  - **Choice:** client-only. Prefix search on an unauthenticated public demo would let anyone
+    list customer emails and VINs; it belongs behind rep sign-in (out of scope).
+  - **Recents:** the last 5 vehicles opened, in `localStorage` (`vs:recent`), storing VIN,
+    vehicle name and owner name, never emails, with a "Clear recent" item. The owner name is the
+    minimum that makes a recent useful. In production this would be rep-scoped server storage.
+  - A digit marks a VIN being typed (names and story labels never contain one), so only then is
+    the input uppercased, stripped of spaces and dashes, and checked as a VIN.
+- **Found while building:**
+  - Base UI's Combobox resets the input to the selected value when it closes. The lookup never
+    keeps a selection, so it ignores that reset and only typing changes the query.
+  - Base UI adds a hidden form field, which disables the browser's "Enter submits a one-field
+    form" rule. A visually hidden "Look up" submit button restores it.
+  - Cache Components rejects reading the clock while prerendering, so the time used for
+    "2 min ago" is taken when the list opens, not on render.

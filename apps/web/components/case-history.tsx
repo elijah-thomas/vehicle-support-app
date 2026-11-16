@@ -9,7 +9,7 @@ export async function CaseHistory({ vin }: { vin: string }) {
   if (!cases) return null;
 
   return (
-    <Card id="cases" className="scroll-mt-6">
+    <Card id="cases" className="scroll-mt-18">
       <CardHeader>
         <CardTitle>Case history</CardTitle>
         <CardDescription>{cases.length === 1 ? "1 case" : `${cases.length} cases`}, newest first.</CardDescription>

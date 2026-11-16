@@ -5,7 +5,6 @@ import { useState, useTransition } from "react";
 import { saveNoteAction } from "@/app/vehicles/[vin]/save-note-action";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -32,59 +31,83 @@ export function CallSummary({ vin, cases, cannedTranscript }: Props) {
     onFinish: ({ object }) => setDraft(object ?? null),
   });
 
+  function reset() {
+    setDraft(null);
+    setSaved(false);
+  }
+
   function generate() {
     setDraft(null);
     setSaved(false);
     submit({ vin, transcript });
   }
 
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Call summary</CardTitle>
-        <CardDescription>
+  const drafting = isLoading || draft !== null || saved;
+
+  if (!drafting) {
+    return (
+      <div className="flex min-h-0 flex-1 flex-col gap-3 p-4">
+        <p className="text-xs text-muted-foreground">
           Paste the call transcript. The assistant drafts a case note; you review it before anything is saved.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
+        </p>
         <Textarea
           value={transcript}
           onChange={(event) => setTranscript(event.target.value)}
           placeholder="Paste the call transcript here"
           aria-label="Call transcript"
-          rows={6}
+          rows={8}
           maxLength={MAX_TRANSCRIPT_LENGTH}
+          className="min-h-40 flex-1 resize-none field-sizing-fixed"
         />
-        <div className="flex flex-wrap gap-2">
-          <Button onClick={generate} disabled={isLoading || !transcript.trim()}>
-            {isLoading ? "Drafting…" : "Draft summary"}
-          </Button>
-          {cannedTranscript && (
-            <Button variant="outline" onClick={() => setTranscript(cannedTranscript.text)} disabled={isLoading}>
-              Use example: {cannedTranscript.label}
-            </Button>
-          )}
-        </div>
-
         {error && (
           <Alert variant="destructive">
             <AlertDescription>Couldn&apos;t draft a summary. Try again in a moment.</AlertDescription>
           </Alert>
         )}
+        <div className="flex gap-2">
+          <Button onClick={generate} disabled={!transcript.trim()}>
+            Draft summary
+          </Button>
+          {cannedTranscript && (
+            <Button
+              variant="outline"
+              onClick={() => setTranscript(cannedTranscript.text)}
+              title={cannedTranscript.label}
+              className="min-w-0 flex-1 justify-start"
+            >
+              <span className="truncate">Use example: {cannedTranscript.label}</span>
+            </Button>
+          )}
+        </div>
+      </div>
+    );
+  }
 
-        {isLoading && object && <StreamingPreview draft={object} />}
+  return (
+    <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
+      {isLoading && (
+        <>
+          <p className="text-xs text-muted-foreground">Drafting from the transcript and this vehicle&apos;s record…</p>
+          {object && <StreamingPreview draft={object} />}
+        </>
+      )}
 
-        {draft && !saved && (
-          <ReviewForm key={JSON.stringify(draft)} vin={vin} cases={cases} draft={draft} onSaved={() => setSaved(true)} />
-        )}
+      {draft && !saved && (
+        <ReviewForm key={JSON.stringify(draft)} vin={vin} cases={cases} draft={draft} onSaved={() => setSaved(true)} />
+      )}
 
-        {saved && (
-          <Alert>
-            <AlertDescription>Saved to the case. It now appears in Case history.</AlertDescription>
-          </Alert>
-        )}
-      </CardContent>
-    </Card>
+      {saved && (
+        <Alert>
+          <AlertDescription>Saved to the case. It now appears in Case history.</AlertDescription>
+        </Alert>
+      )}
+
+      {!isLoading && (
+        <Button variant="outline" size="sm" onClick={reset}>
+          {saved ? "Summarize another call" : "Back to transcript"}
+        </Button>
+      )}
+    </div>
   );
 }
 

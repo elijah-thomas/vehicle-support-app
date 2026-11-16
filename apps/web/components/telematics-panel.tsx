@@ -2,7 +2,7 @@ import { Info, OctagonAlert, TriangleAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { TelematicsEvent } from "@/lib/customer/vehicles";
-import { formatDateTime, formatRelative, ordinal } from "@/lib/format";
+import { formatDateTime, formatRelative, ordinal, telematicsReading } from "@/lib/format";
 import { getTelematicsSnapshot, newestPerCode, occurrences } from "@/lib/telematics";
 
 const severityDisplay = {
@@ -20,7 +20,7 @@ export async function TelematicsPanel({ vin }: { vin: string }) {
   const anchors = newestPerCode(events);
 
   return (
-    <Card id="telematics" className="scroll-mt-6">
+    <Card id="telematics" className="scroll-mt-18">
       <CardHeader>
         <CardTitle>Telematics</CardTitle>
         <CardDescription>Live from the vehicle data service, newest first.</CardDescription>
@@ -33,15 +33,16 @@ export async function TelematicsPanel({ vin }: { vin: string }) {
             {events.map((event) => {
               const { variant, Icon, label } = severityDisplay[event.severity];
               const count = occurrence.get(event.id) ?? 1;
+              const reading = telematicsReading(event.message, event.value);
               const meta = [
-                event.value !== null && String(event.value),
+                reading.value,
                 count > 1 && `${ordinal(count)} time`,
               ].filter(Boolean);
               return (
                 <li
                   key={event.id}
                   id={event.code && anchors.has(event.id) ? `dtc-${event.code}` : undefined}
-                  className="grid scroll-mt-6 grid-cols-[92px_minmax(0,1fr)_auto] items-start gap-x-3 rounded-md px-1 py-1.5 text-sm transition-colors"
+                  className="grid scroll-mt-18 grid-cols-[92px_minmax(0,1fr)_auto] items-start gap-x-3 rounded-md px-1 py-1.5 text-sm transition-colors"
                 >
                   <Badge variant={variant} className="justify-self-start">
                     <Icon data-icon="inline-start" aria-hidden />
@@ -50,7 +51,7 @@ export async function TelematicsPanel({ vin }: { vin: string }) {
                   <div className="min-w-0">
                     <p>
                       {event.code && <span className="mr-1.5 font-mono font-medium">{event.code}</span>}
-                      {event.message}
+                      {reading.label}
                     </p>
                     {meta.length > 0 && <p className="text-xs text-muted-foreground">{meta.join(" · ")}</p>}
                   </div>
