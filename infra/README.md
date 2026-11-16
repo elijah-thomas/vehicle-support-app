@@ -2,7 +2,7 @@
 
 Terraform for everything on the GCP side: the customer's existing systems (Cloud Run API,
 Cloud SQL) and the trust that lets the Vercel app reach them (Workload Identity Federation).
-Why it's shaped this way: `docs/decisions.md` (D3, D18, D19, D20).
+Why it's shaped this way: `docs/decisions.md` (D3, D18, D19, D20, D34).
 
 | File | What it defines |
 |---|---|
@@ -13,12 +13,13 @@ Why it's shaped this way: `docs/decisions.md` (D3, D18, D19, D20).
 | `database.tf` | Cloud SQL Postgres 17 (IAM login on), one database per environment, IAM database users |
 | `registry.tf` | Artifact Registry repo and the dedicated build service account |
 | `services.tf` | Required Google APIs (never disabled on destroy; the project is shared) |
+| `budget.tf` | Monthly spend alert on Gemini (Vertex AI) usage |
 | `sql/grants.sql` | Postgres privileges, which live inside the database and are applied by hand |
 
 ## Run it
 
 ```bash
-cp terraform.tfvars.example terraform.tfvars   # fill in project, Vercel team, migrator email
+cp terraform.tfvars.example terraform.tfvars   # fill in project, Vercel team, migrator, billing account
 export GOOGLE_OAUTH_ACCESS_TOKEN=$(gcloud auth print-access-token)
 terraform init
 terraform plan
