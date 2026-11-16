@@ -632,9 +632,20 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
 
 - **Decision:** Whether the vehicle API scales to zero. After an idle spell, the first request
   waits for Cloud Run to start a container and for the Cloud SQL connector's setup.
-- **Measured against staging:** a first load after idle took ~5 s; warm loads take 0.08–0.3 s.
-  Keeping an instance running aims to bring that first load close to a warm one. Not yet
-  measured.
+- **Measured (Nov 16, Dana's vehicle page, full page including streamed panels):**
+
+  | | First load | Warm loads | API time per request |
+  |---|---|---|---|
+  | Staging, API at zero instances | 6.8 s | 0.36–0.52 s | 3.9–4.3 s cold, ~0.02 s warm |
+  | Production, one instance running | 0.46 s | 0.20–0.31 s | — |
+
+  Cloud Run logs on staging: about 3.8 s from "Starting new instance" to "listening", Cloud SQL
+  connector setup included. The rest of the 6.8 s (about 2.5 s, estimated) was Vercel's side: a
+  cold function, the token exchange, and an empty Runtime Cache after a deploy. Production's
+  function was already warm when measured, so its fully cold first load is likely 2.5–3 s.
+- **Found while measuring:** three requests reaching a service at zero instances started three
+  instances at once, staging's maximum. D46's 3 × 4 connections is exactly what a cold burst
+  uses, so the limit holds.
 - **Options considered:** a Cloud Scheduler job pinging `/health` every ~10 minutes (nearly free,
   but Cloud Run may still stop an idle instance, it warms only one, and it needs its own invoker
   service account); `min_instance_count = 1` on production; neither, only trimming startup.
@@ -645,8 +656,6 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
   1 vCPU and 512 MiB (estimate; confirm in the pricing calculator).
 - **Doesn't fix:** the Vercel side. The Runtime Cache starts empty after each deploy, and each new
   Fluid instance does one token exchange.
-- **To measure:** staging still scales to zero, so it is the comparison. After the next release,
-  time a first load after an idle hour on each, and record both here.
 
 ## D49. Caching past telematics {#telematics-windows}
 
