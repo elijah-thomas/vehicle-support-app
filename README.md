@@ -7,6 +7,8 @@ about its history, and turn a call transcript into a case note.
 
 - **Proposal** (problem, architecture, Vercel choices, rollout, success measures, risks):
   [`docs/vehicle-support-proposal.pdf`](docs/vehicle-support-proposal.pdf)
+- **Architecture**, current and target, with what stays on Google Cloud:
+  [`docs/vehicle-support-architecture.pdf`](docs/vehicle-support-architecture.pdf)
 - **Decisions**, each with the options considered and why: [`docs/decisions.md`](docs/decisions.md)
 
 ## Try it
@@ -45,39 +47,27 @@ docs/                  Proposal and decision log
 
 ## Run it locally
 
-Requires Node 22+, pnpm and the Vercel CLI linked to the project.
-
-```bash
-pnpm install
-vercel env pull apps/web/.env.local --environment=development  # staging API and a ~12h OIDC token
-pnpm --filter web dev                                           # http://localhost:3000
-```
-
-To run the API and Postgres locally as well: `services/vehicle-api` has `db:up`, `db:migrate`,
-`db:seed` and `dev` scripts. Its variables are documented in
+The web app reaches the API only through Vercel's OIDC token, so running it locally needs access
+to the Vercel project (`vercel env pull`). Without it, the API runs on its own: `services/vehicle-api`
+has `db:up`, `db:migrate`, `db:seed` and `dev` scripts (Docker for Postgres), documented in
 [`.env.example`](services/vehicle-api/.env.example).
 
-Checks: `pnpm typecheck`, `pnpm lint`, `pnpm test`, and `pnpm eval` for the AI evals (real model
-calls; see [`apps/web/evals/README.md`](apps/web/evals/README.md)).
+Checks: `pnpm typecheck`, `pnpm lint` and `pnpm test` (the API tests need the Docker Postgres).
+`pnpm eval` makes real model calls; see [`apps/web/evals/README.md`](apps/web/evals/README.md).
 
 ## Development tooling
 
-- **Editor and agent:** VS Code, with Claude Code as the coding agent. I made each architectural
-  decision before the code was written and recorded it in the decision log, which is also the
-  study guide for this submission.
-- **Design:** a design system (tokens, components, layout rules) that the app is built against.
+- **Editor and agent:** VS Code, with Claude Code as the coding agent. Each architectural decision
+  is recorded with the options considered in [`docs/decisions.md`](docs/decisions.md), and marked
+  in the code with a `Decision (Dnn)` comment where it lands.
 - **Commits:** git-flow branches, Conventional Commits, merged without squashing, so the history
   shows how the work evolved.
 
 ### How the AI's behaviour was validated
 
-- **Evals** (`pnpm eval`) run the real assistant and the real call-summary request against staging
-  data, on each model alone, three times per case. Grading is deterministic: the expected
-  information was used, required facts appear, and forbidden text doesn't (internal IDs, invented
-  fault codes, assumed pronouns, promised loaners or buybacks). Cases include a request for another
-  customer's vehicle and a prompt injection hidden in a transcript.
-- **Results today:** assistant 30/30 on Gemini and 30/30 on Claude; call summaries 21/21 on both.
-  The evals found and fixed real problems along the way, including assumed pronouns, a missing
-  safety step on a critical fault and a stored prompt injection.
+- **Evals** (`pnpm eval`) run the real assistant and call-summary request against staging data, on
+  each model alone, three times per case, graded deterministically (required facts present;
+  internal IDs, invented fault codes, assumed pronouns and promised buybacks absent). Today:
+  assistant 30/30 and call summaries 21/21 on both models.
 - **Checked by hand:** the boundary end to end from a Vercel deployment, the Firewall limits, a
-  simulated telematics outage (the rest of the page stays usable) and failed saves in the browser.
+  simulated telematics outage and failed saves in the browser.
