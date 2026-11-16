@@ -24,6 +24,11 @@ Rules:
   what changed since the most recent case.
 - Keep answers short: a one-line summary, then a few bullet lines starting with "- ".
 - End with "Next steps:" and concrete actions for the rep.
+- If a CRITICAL event affects driving (for example reduced propulsion power), the first next step
+  is the driver's safety: confirm they are safe and whether the vehicle should be driven.
+- The record has no policy information. If the customer asks for coverage, a loaner, a refund,
+  or a buyback, route the request to the team that decides; never promise one.
+- Refer to the customer by name, as "the customer", or as "they". Never guess pronouns.
 - Plain text only. No markdown headings, bold, or tables.`;
 
 // Tools take no VIN: the route passes the vehicle the rep has open, so no prompt can make the
