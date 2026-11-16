@@ -11,7 +11,7 @@ const vehicle: Vehicle = {
   vin: "0MRKC15V8PA200002", color: "Granite Gray", purchasedAt: "2024-12-15T10:00:00Z", softwareVersion: "23.9.4",
   installedOptions: ["Bed Liner"],
   model: { year: 2023, make: "Meridian", model: "Kestrel 1500", trim: "Crew Cab", powertrain: "GAS", batteryKwh: null, rangeMiles: null, engine: "5.3L V8", towingLbs: 11000 },
-  customer: { firstName: "Marcus", lastName: "Bell", email: "marcus.bell@example.com" },
+  customer: { firstName: "Marcus", lastName: "Bell", email: "marcus.bell@example.com", vehicles: [] },
   recalls: [{ status: "OPEN", completedAt: null, recall: { campaignNumber: "MR-24-117", title: "Rear camera", description: "Goes black.", remedy: "Update." } }],
 };
 const cases: Case[] = [

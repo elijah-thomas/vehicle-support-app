@@ -51,11 +51,12 @@ describe("POST /cases/:id/notes", () => {
 
   test("refuses a note for a case that belongs to another vehicle", async () => {
     const danaCase = await firstCaseId(VIN.dana);
+    const noteCount = async () => (await call(`/vehicles/${VIN.dana}/cases`)).body[0].notes.length as number;
+    const before = await noteCount();
+
     const { status } = await call(`/cases/${danaCase}/notes`, { method: "POST", json: { ...note, vin: VIN.marcus } });
     expect(status).toBe(404);
-
-    const notes = (await call(`/vehicles/${VIN.dana}/cases`)).body[0].notes;
-    expect(notes).toEqual([]);
+    expect(await noteCount()).toBe(before);
   });
 
   test("refuses a note without the vehicle's VIN", async () => {
@@ -80,6 +81,51 @@ describe("POST /cases/:id/notes", () => {
       method: "POST",
       json: { ...note, vin: VIN.marcus, ...change },
     });
+    expect(status).toBe(400);
+  });
+});
+
+describe("POST /cases/:id/close", () => {
+  async function openTruckCase() {
+    const { body } = await call("/cases", {
+      method: "POST",
+      json: { vin: VIN.jordanTruck, category: "Engine & Emissions", subject: "Coolant warning", description: "P0128 on." },
+    });
+    return body.id as string;
+  }
+
+  test("closes the vehicle's open case with a resolution", async () => {
+    const caseId = await openTruckCase();
+    const { status, body } = await call(`/cases/${caseId}/close`, {
+      method: "POST",
+      json: { vin: VIN.jordanTruck, resolution: "Dealer replaced the thermostat." },
+    });
+    expect(status).toBe(200);
+    expect(body).toMatchObject({ status: "CLOSED", resolution: "Dealer replaced the thermostat." });
+    expect(body.closedAt).toEqual(expect.any(String));
+  });
+
+  test("refuses to close a case twice", async () => {
+    const caseId = await openTruckCase();
+    const close = () => call(`/cases/${caseId}/close`, { method: "POST", json: { vin: VIN.jordanTruck, resolution: "Fixed." } });
+    expect((await close()).status).toBe(200);
+    const { status, body } = await close();
+    expect(status).toBe(409);
+    expect(body.error.code).toBe("conflict");
+  });
+
+  test("refuses a case that belongs to another vehicle, and leaves it open", async () => {
+    const caseId = await openTruckCase();
+    const { status } = await call(`/cases/${caseId}/close`, { method: "POST", json: { vin: VIN.marcus, resolution: "Fixed." } });
+    expect(status).toBe(404);
+
+    const cases = (await call(`/vehicles/${VIN.jordanTruck}/cases`)).body;
+    expect(cases.find((c: { id: string }) => c.id === caseId).status).toBe("OPEN");
+  });
+
+  test("requires a resolution", async () => {
+    const caseId = await openTruckCase();
+    const { status } = await call(`/cases/${caseId}/close`, { method: "POST", json: { vin: VIN.jordanTruck, resolution: "  " } });
     expect(status).toBe(400);
   });
 });

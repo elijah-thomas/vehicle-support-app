@@ -27,7 +27,18 @@ vehiclesRouter.get("/:vin", async (req, res) => {
     include: {
       model: true,
       recalls: { include: { recall: true } },
-      customer: { select: { id: true, firstName: true, lastName: true, email: true } },
+      customer: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          vehicles: {
+            select: { vin: true, model: { select: { year: true, make: true, model: true, trim: true } } },
+            orderBy: { purchasedAt: "desc" },
+          },
+        },
+      },
     },
   });
   if (!vehicle) throw new NotFoundError(`No vehicle with VIN ${vin}`);

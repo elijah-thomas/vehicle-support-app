@@ -25,7 +25,7 @@ const saveSchema = z.object({
 });
 
 export type SaveNoteResult =
-  | { ok: true; noteId: string }
+  | { ok: true; noteId: string; caseId: string }
   // createdCaseId: the new case was created but the note wasn't, so a retry must add to that case.
   | { ok: false; error: string; createdCaseId?: string };
 
@@ -57,7 +57,7 @@ export async function saveNoteAction(input: z.input<typeof saveSchema>): Promise
   try {
     const note = await addCaseNote(targetCaseId, { vin, source: "AI_DRAFT_EDITED", issue, summary, nextSteps });
     updateTag(cacheTags.cases(vin));
-    return { ok: true, noteId: note.id };
+    return { ok: true, noteId: note.id, caseId: targetCaseId };
   } catch (error) {
     if (caseId !== "new") return { ok: false, error: saveError(error) };
     // The case exists now, so show it in the picker and let the retry add only the note.

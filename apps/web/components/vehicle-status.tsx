@@ -1,9 +1,11 @@
-import { Check, FileText, OctagonAlert, ShieldAlert, TriangleAlert, type LucideIcon } from "lucide-react";
+import { Check, ChevronRight, FileText, OctagonAlert, ShieldAlert, TriangleAlert, type LucideIcon } from "lucide-react";
+import Link from "next/link";
 import { Suspense } from "react";
 import { RecordLink } from "@/components/record-link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "cn";
-import { getCases } from "@/lib/customer/vehicles";
+import { caseHref, contactStatus } from "@/lib/cases";
+import { getCaseSnapshot } from "@/lib/case-snapshot";
 import { formatDateTime, formatRelative, ordinal } from "@/lib/format";
 import { loadPanel } from "@/lib/load-panel";
 import { getTelematicsSnapshot, RECENT_WINDOW_DAYS, repeatKey, worstRecentEvent } from "@/lib/telematics";
@@ -88,22 +90,32 @@ async function TelematicsStatus({ vin }: { vin: string }) {
 }
 
 async function CasesStatus({ vin, hasOpenRecalls }: { vin: string; hasOpenRecalls: boolean }) {
-  const loaded = await loadPanel("cases status", () => getCases(vin));
-  const cases = loaded.ok ? loaded.data : null;
-  if (!cases) return null;
+  const loaded = await loadPanel("cases status", () => getCaseSnapshot(vin));
+  const snapshot = loaded.ok ? loaded.data : null;
+  if (!snapshot) return null;
+  const { cases, now } = snapshot;
 
-  const open = cases.filter((supportCase) => supportCase.status === "OPEN").length;
-  if (open === 0) {
+  const open = cases.filter((supportCase) => supportCase.status === "OPEN");
+  if (open.length === 0) {
     if (hasOpenRecalls) return null;
     return <StatusItem className={ORDER.cases} tone="muted" label="No open recalls or cases" plainLabel />;
   }
+  if (open.length > 1) {
+    return <StatusItem className={ORDER.cases} targetId="cases" tone="info" Icon={FileText} label={`${open.length} open cases`} />;
+  }
+
+  // One open case: the chip opens it.
+  const [only] = open;
+  const overdue = contactStatus(only, now).overdue;
   return (
     <StatusItem
       className={ORDER.cases}
-      targetId="cases"
+      href={caseHref(vin, only.id)}
       tone="info"
       Icon={FileText}
-      label={open === 1 ? "1 open case" : `${open} open cases`}
+      label="Open case"
+      detail={only.subject}
+      caption={overdue ? <span className="text-warning">overdue</span> : undefined}
     />
   );
 }
@@ -111,6 +123,7 @@ async function CasesStatus({ vin, hasOpenRecalls }: { vin: string; hasOpenRecall
 function StatusItem({
   className,
   targetId,
+  href,
   tone,
   Icon,
   label,
@@ -120,6 +133,7 @@ function StatusItem({
 }: {
   className: string;
   targetId?: string;
+  href?: string;
   tone: keyof typeof tones;
   Icon?: LucideIcon;
   label: string;
@@ -137,17 +151,20 @@ function StatusItem({
     </>
   );
   const itemClass = cn("inline-flex h-7 max-w-full items-center gap-1.5 rounded-md pr-2 pl-1.5 text-[13px]", bg);
+  const linkClass = cn(
+    itemClass,
+    "transition-shadow hover:ring-1 hover:ring-foreground/15 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+  );
 
   return (
     <li className={cn("max-w-full", className)}>
-      {targetId ? (
-        <RecordLink
-          targetId={targetId}
-          className={cn(
-            itemClass,
-            "transition-shadow hover:ring-1 hover:ring-foreground/15 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
-          )}
-        >
+      {href ? (
+        <Link href={href} className={linkClass}>
+          {content}
+          <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+        </Link>
+      ) : targetId ? (
+        <RecordLink targetId={targetId} className={linkClass}>
           {content}
         </RecordLink>
       ) : (

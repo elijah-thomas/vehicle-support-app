@@ -199,35 +199,95 @@ async function seedCases() {
   const customer = (email: string) =>
     prisma.customer.findUniqueOrThrow({ where: { email } }).then((c) => c.id);
 
+  // Each visit leaves a note thread. The open case's last contact is 11 days ago, so it is always
+  // overdue (more than 5 business days); Marcus's case was contacted yesterday, so it is current.
   const dana = await customer("dana.whitfield@example.com");
-  await prisma.case.createMany({
-    data: [
-      {
-        vin: "0MRAE4LR5RA100001", customerId: dana, status: "CLOSED", category: "Battery & Charging",
-        subject: "Warning light, reduced charging speed", openedAt: daysAgo(238), closedAt: daysAgo(230),
-        description: "Customer reports a battery warning light and slower DC fast charging.",
-        resolution: "Dealer cleared P0C73 and reflashed thermal management software.",
+  await prisma.case.create({
+    data: {
+      vin: "0MRAE4LR5RA100001", customerId: dana, status: "CLOSED", category: "Battery & Charging",
+      subject: "Warning light, reduced charging speed", openedAt: daysAgo(238), closedAt: daysAgo(230),
+      description: "Customer reports a battery warning light and slower DC fast charging.",
+      resolution: "Dealer cleared P0C73 and reflashed thermal management software.",
+      notes: {
+        create: [
+          {
+            source: "REP", issue: "Battery warning light and slower DC fast charging",
+            summary: "Dana reported the battery warning light and slower fast charging. Telematics shows P0C73.",
+            nextSteps: ["Book a dealer diagnostic"], createdAt: daysAgo(238),
+          },
+          {
+            source: "REP", issue: "Repair completed",
+            summary: "Dealer cleared P0C73 and reflashed the thermal management software. Dana confirmed charging speed is back to normal.",
+            nextSteps: ["Close the case"], createdAt: daysAgo(230),
+          },
+        ],
       },
-      {
-        vin: "0MRAE4LR5RA100001", customerId: dana, status: "CLOSED", category: "Battery & Charging",
-        subject: "Battery warning light returned", openedAt: daysAgo(128), closedAt: daysAgo(115),
-        description: "Same warning as before. Customer frustrated about a second visit.",
-        resolution: "Dealer replaced battery coolant pump under warranty.",
+    },
+  });
+  await prisma.case.create({
+    data: {
+      vin: "0MRAE4LR5RA100001", customerId: dana, status: "CLOSED", category: "Battery & Charging",
+      subject: "Battery warning light returned", openedAt: daysAgo(128), closedAt: daysAgo(115),
+      description: "Same warning as before. Customer frustrated about a second visit.",
+      resolution: "Dealer replaced battery coolant pump under warranty.",
+      notes: {
+        create: [
+          {
+            source: "AI_DRAFT_EDITED", issue: "Battery warning light returned (P0C73, second time)",
+            summary: "Same warning as the first visit. Dana is frustrated about a second dealer visit.",
+            nextSteps: ["Book a dealer visit", "Ask the dealer to check the coolant pump, not only the software"],
+            createdAt: daysAgo(128),
+          },
+          {
+            source: "REP", issue: "Dealer status check",
+            summary: "Dealer is waiting on a replacement coolant pump.",
+            nextSteps: ["Call Dana when the part arrives"], createdAt: daysAgo(121),
+          },
+          {
+            source: "REP", issue: "Repair completed",
+            summary: "Coolant pump replaced under warranty. Warning cleared.",
+            nextSteps: ["Close the case"], createdAt: daysAgo(115),
+          },
+        ],
       },
-      {
-        vin: "0MRAE4LR5RA100001", customerId: dana, status: "OPEN", category: "Battery & Charging",
-        subject: "Reduced power warning on highway", openedAt: daysAgo(11),
-        description: "Vehicle limited propulsion power on the highway. Customer asking for a buyback.",
+    },
+  });
+  await prisma.case.create({
+    data: {
+      vin: "0MRAE4LR5RA100001", customerId: dana, status: "OPEN", category: "Battery & Charging",
+      subject: "Reduced power warning on highway", openedAt: daysAgo(11),
+      description: "Vehicle limited propulsion power on the highway. Customer asking for a buyback.",
+      notes: {
+        create: {
+          source: "REP", issue: "Reduced propulsion power on the highway (P0C73, third occurrence)",
+          summary: "Dana is asking for a buyback after two earlier repairs. Request sent to the buyback review team.",
+          nextSteps: ["Call Dana with the review team's decision"], createdAt: daysAgo(11),
+        },
       },
-    ],
+    },
   });
 
+  // The notes never mention the recall: the rep hasn't connected the symptom to it yet.
   const marcus = await customer("marcus.bell@example.com");
   await prisma.case.create({
     data: {
       vin: "0MRKC15V8PA200002", customerId: marcus, status: "OPEN", category: "Electrical",
       subject: "Backup camera goes black", openedAt: daysAgo(5),
       description: "Backup camera screen goes black for a few seconds while reversing, about twice a week.",
+      notes: {
+        create: [
+          {
+            source: "AI_DRAFT_EDITED", issue: "Backup camera screen goes black while reversing",
+            summary: "Happens about twice a week for a few seconds. Advised restarting the infotainment system as a workaround.",
+            nextSteps: ["Follow up if it keeps happening"], createdAt: daysAgo(5),
+          },
+          {
+            source: "REP", issue: "Follow-up call",
+            summary: "The camera went black again twice this week. Restarting the infotainment system didn't help.",
+            nextSteps: ["Book a dealer visit"], createdAt: daysAgo(1),
+          },
+        ],
+      },
     },
   });
 

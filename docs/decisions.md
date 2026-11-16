@@ -806,3 +806,61 @@ why. To change one, add a new entry that supersedes it rather than editing histo
   checked" chips appear only when it reaches for older telematics. The evals showed the loop added
   nothing, so the decision moved into code, and the tool stays for the one choice the model
   really makes.
+
+## D42. Case view {#case-view}
+
+- **Decision:** How a rep reads and works one case, after a UX audit of the vehicle page found
+  that "1 open case" led nowhere, an open case showed only its first line, a neglected case
+  looked the same as a current one, and the only way to write a note was an AI draft.
+- **Options considered:** the audit's full proposal (case numbers, escalation, owner, priority,
+  waiting states, note authors, a fault history route, dealer repairs) or a trimmed version
+  shaped for one rep.
+- **Choice:** the trimmed version, with **no change to the customer's schema**:
+  - **Routes:** `/vehicles/[vin]/cases/[caseId]` beside the vehicle page. The assistant moved
+    into `vehicles/[vin]/layout.tsx`, so the chat and an unsaved call-summary draft survive moving
+    between the vehicle and its cases. `not-found.tsx` moved up to `vehicles/`, so a bad VIN or
+    case replaces the whole view instead of showing an assistant for a vehicle that isn't there.
+  - **Case view:** status, an overdue banner, a quick rep note (the same fields as a reviewed call
+    summary), Close case with a required resolution, the activity thread, and related faults.
+  - **Identifiers:** the case's existing ID in the URL; the UI names cases by subject and date, as
+    the agent does (D25), so the agent's no-IDs rule is unchanged.
+  - **API:** `POST /cases/:id/close` (`vin` + `resolution`; same ownership check as D36; 409 if
+    already closed, checked in the update itself so two closes can't both win). The vehicle read
+    now lists the owner's vehicles (VIN and model only), for customers with more than one. The
+    phone stays out (D35).
+  - **Overdue:** an open case with more than 5 business days since its newest note (or opening),
+    Monday to Friday in UTC, holidays ignored. Worked out in the web app (`lib/cases.ts`): it's
+    this desk's policy, not the customer's data.
+  - **Related faults:** coded faults logged in the 7 days before the case opened, and earlier
+    cases matched to the same code. Cases have no link to telematics, so the page says it's a
+    match by date.
+  - **Caching:** the case view picks its case from the cached case list (`cases:{vin}`, D24);
+    saving a note or closing a case clears that tag. Overdue needs today's date, so one clock
+    reading per request (`lib/case-snapshot.ts`) is shared by the status row, Case history, and
+    the case view, behind their Suspense boundaries. Both routes still build as Partial Prerender.
+  - **Call summary:** "Save to" defaults to the case the rep has open.
+  - **Seed:** note threads on Dana's three cases and Marcus's open case, written to the rules the
+    evals enforce. Dana's open case has no contact for 11 days (always overdue); Marcus's was
+    contacted yesterday, and his notes never mention the recall, so linking it is still the
+    agent's job.
+- **Why not escalation:** it adds an enum, a migration, an endpoint and a button to say what
+  Dana's latest note already says ("Request sent to the buyback review team"), and the agent
+  reads notes.
+- **Why not case numbers:** a migration, plus a change to the agent's no-IDs rule, for a label.
+- **Cut, and why:** owner, priority, and waiting states need rep identity, which is out of scope;
+  note authors say nothing with one rep; dealer repairs live in another customer system; a fault
+  history route repeats the related-faults section and the agent's recurring-fault answer; a
+  standalone New case button repeats the call summary's.
+- **Production path:** a per-case read (`GET /vehicles/:vin/cases/:id`) and per-case cache tag
+  once customers have hundreds of cases; a holiday calendar and per-tier targets for overdue;
+  a real case-to-fault link in the case system.
+- **Rollout note:** the web app now requires the owner's vehicle list in the vehicle read, so the
+  API deploys before the web app (as in D36).
+- **Agent context unchanged:** the model's `owner` lists name and email explicitly, so the new
+  vehicle list doesn't reach it.
+- **Found while testing:** with Marcus's follow-up note written as "Marcus says the camera went
+  black again", Claude's call summary wrote "he" in 3 of 3 runs; the note now states the fact
+  without reported speech, and passed 5 of 5. Gemini wrote "Attempt a callback to Dana" for a
+  dropped call, which the grader missed; the check now accepts "callback" as well as "call … back".
+- **Results (3 runs per case, against the new seed):** agent 30/30 on both models; call
+  summaries 21/21 on both.

@@ -1,4 +1,5 @@
 import { ShieldAlert } from "lucide-react";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent } from "@/components/ui/card";
@@ -32,6 +33,7 @@ export async function VehicleSummary({ vin }: { vin: string }) {
   const openRecalls = vehicle.recalls.filter((r) => r.status === "OPEN");
   const name = `${model.year} ${model.make} ${model.model} ${model.trim}`;
   const owner = `${customer.firstName} ${customer.lastName}`;
+  const otherVehicles = customer.vehicles.filter((other) => other.vin !== vehicle.vin);
 
   return (
     <div className="space-y-4">
@@ -60,6 +62,19 @@ export async function VehicleSummary({ vin }: { vin: string }) {
             <p className="mt-0.5 text-xs text-muted-foreground">
               <span className="font-mono text-foreground">{vehicle.vin}</span> · {owner} · {customer.email}
             </p>
+            {otherVehicles.length > 0 && (
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Also owns:{" "}
+                {otherVehicles.map((other, index) => (
+                  <span key={other.vin}>
+                    {index > 0 && ", "}
+                    <Link href={`/vehicles/${other.vin}`} className="text-primary underline-offset-4 hover:underline">
+                      {other.model.year} {other.model.make} {other.model.model} {other.model.trim}
+                    </Link>
+                  </span>
+                ))}
+              </p>
+            )}
           </div>
           <VehicleStatus vin={vin} openRecallCampaigns={openRecalls.map(({ recall }) => recall.campaignNumber)} />
           <dl className="grid grid-cols-2 gap-x-6 gap-y-3 border-t pt-3 sm:grid-cols-4">

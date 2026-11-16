@@ -2,21 +2,23 @@
 
 import { useObject } from "@ai-sdk/react";
 import { CircleAlert, CircleCheck, TriangleAlert } from "lucide-react";
+import Link from "next/link";
+import { useParams } from "next/navigation";
 import { useState, useTransition } from "react";
 import { saveNoteAction, type SaveNoteResult } from "@/app/vehicles/[vin]/save-note-action";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { RecordLink } from "@/components/record-link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { caseHref } from "@/lib/cases";
 import { type CallSummary as Draft, callSummarySchema, type CallType, MAX_TRANSCRIPT_LENGTH } from "@/lib/call-summary-schema";
 import { aiErrorCode, rateLimitAwareFetch, type AiErrorCode } from "@/lib/ai-request-error";
 import { flashWhenPresent } from "@/lib/flash-element";
 
 export type CaseOption = { id: string; label: string; open: boolean; subject: string };
 
-type Saved = { noteId: string; caseSubject: string };
+type Saved = { noteId: string; caseId: string; caseSubject: string };
 
 type Props = {
   vin: string;
@@ -114,12 +116,15 @@ export function CallSummary({ vin, cases, cannedTranscript }: Props) {
       {saved && (
         <Alert variant="success" role="status">
           <CircleCheck aria-hidden />
-          <AlertTitle>Saved to case history</AlertTitle>
+          <AlertTitle>Saved to the case</AlertTitle>
           <AlertDescription className="text-foreground">
             Added to &ldquo;{saved.caseSubject}&rdquo;.{" "}
-            <RecordLink targetId={`note-${saved.noteId}`} className="font-medium underline underline-offset-2">
-              Show in Case history
-            </RecordLink>
+            <Link
+              href={`${caseHref(vin, saved.caseId)}#note-${saved.noteId}`}
+              className="font-medium underline underline-offset-2"
+            >
+              Open the case
+            </Link>
           </AlertDescription>
         </Alert>
       )}
@@ -158,8 +163,10 @@ function ReviewForm({
   draft: Draft;
   onSaved: (saved: Saved) => void;
 }) {
-  const latestOpen = cases.find((c) => c.open);
-  const [caseId, setCaseId] = useState(latestOpen?.id ?? "new");
+  // The case the rep has open, else the most recent open case. See docs/decisions.md#case-view
+  const params = useParams<{ caseId?: string }>();
+  const defaultCase = cases.find((c) => c.id === params.caseId) ?? cases.find((c) => c.open);
+  const [caseId, setCaseId] = useState(defaultCase?.id ?? "new");
   const [issue, setIssue] = useState(draft.issue);
   const [summary, setSummary] = useState(draft.summary);
   const [nextSteps, setNextSteps] = useState(draft.nextSteps.join("\n"));
@@ -194,7 +201,7 @@ function ReviewForm({
       }
       if (result.ok) {
         const caseSubject = caseId === "new" ? subject : (options.find((c) => c.id === caseId)?.subject ?? subject);
-        onSaved({ noteId: result.noteId, caseSubject });
+        onSaved({ noteId: result.noteId, caseId: result.caseId, caseSubject });
         return;
       }
       if (result.createdCaseId) setCaseId(result.createdCaseId);

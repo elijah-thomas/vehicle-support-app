@@ -19,3 +19,10 @@ export function addCaseNote(
     body: JSON.stringify(note),
   });
 }
+
+export function closeCase(caseId: string, input: { vin: string; resolution: string }) {
+  return vehicleApi(`/cases/${encodeURIComponent(caseId)}/close`, createdSchema, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
