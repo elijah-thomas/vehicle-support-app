@@ -1,0 +1,51 @@
+{
+  "action": {
+    "mitigate": {
+      "action": "rate_limit",
+      "actionDuration": null,
+      "rateLimit": {
+        "action": "rate_limit",
+        "algo": "fixed_window",
+        "keys": [
+          "ip"
+        ],
+        "limit": 20,
+        "window": 60
+      },
+      "redirect": null
+    }
+  },
+  "active": true,
+  "conditionGroup": [
+    {
+      "conditions": [
+        {
+          "op": "eq",
+          "type": "method",
+          "value": "POST"
+        },
+        {
+          "op": "pre",
+          "type": "path",
+          "value": "/api/agent"
+        }
+      ]
+    },
+    {
+      "conditions": [
+        {
+          "op": "eq",
+          "type": "method",
+          "value": "POST"
+        },
+        {
+          "op": "pre",
+          "type": "path",
+          "value": "/api/call-summary"
+        }
+      ]
+    }
+  ],
+  "description": "20 requests per minute per IP to the agent and call-summary routes (model spend)",
+  "name": "Rate limit AI endpoints"
+}

@@ -101,8 +101,8 @@ Rules for collaborating:
   - `develop`: integration branch. All work branches start here and merge back here.
   - `feat/<short-name>`, `fix/<short-name>`, `docs/<short-name>`: one branch per piece of work,
     branched from `develop`.
-  - `release/X.Y.Z` (semver): cut from `develop`, merged into `master` and back into `develop`,
-    then tagged `vX.Y.Z`.
+  - `release/YY.MM.DD.N` (date-based, D42; N counts releases that day, starting at 1): cut from
+    `develop`, merged into `master` and back into `develop`, then tagged `vYY.MM.DD.N`.
 - Merge with `--no-ff` so each branch stays visible in history. Never squash.
 - Propose a commit at each natural stopping point (message included); commit only after I
   approve. The history is part of the submission and should show how the work evolved.
@@ -113,10 +113,11 @@ Rules for collaborating:
 
 ## Stack
 
-**Settled:** Next.js 16 (App Router), React 19, TypeScript `strict`, Tailwind CSS, pnpm
+**Settled:** Next.js 16 (App Router), React 19, TypeScript `strict`, Tailwind CSS + shadcn/ui
+(Base UI, D13), pnpm
 workspaces, Zod at every boundary. AI SDK + AI Gateway (BYOK GCP credentials), Cache
 Components, Fluid Compute, Vercel Firewall rate limiting. Express on Cloud Run, Cloud SQL
-Postgres. See `docs/decisions.md`.
+Postgres via Prisma (D12). See `docs/decisions.md`.
 
 Vercel OIDC → GCP Workload Identity Federation → Cloud Run IAM for boundary auth (D3).
 
@@ -144,15 +145,20 @@ pnpm-workspace monorepo. Each app deploys independently.
 ```
 apps/web/                 Next.js app → Vercel (Git integration, root directory apps/web)
   app/                    Routes only. Thin: compose components, call lib/. No business logic.
-  components/             Shared UI. One component per file, PascalCase filenames.
+  components/             Shared UI. One component per file, kebab-case filenames (shadcn style).
+    ui/                   shadcn components. Add with `pnpm dlx shadcn@latest add <name>`.
   lib/
     customer/             THE BOUNDARY: clients for the systems that stay on GCP. Everything
                           that talks to them lives here and only here.
     env.ts                Zod-validated env vars; the only place process.env is read.
   evals/                  Canned prompts + expected behavior for validating the AI.
 services/vehicle-api/     Express API → Cloud Run (GitHub Actions). Owns the Postgres schema.
-  db/                     Migrations and synthetic seed data.
-.github/workflows/        CI and GCP deploys.
+  prisma/                 schema.prisma, migrations, seed.ts (synthetic data).
+  src/                    Express server; src/generated/ is Prisma output (gitignored).
+  docker-compose.yml      Local Postgres 17 on port 5440.
+infra/                    Terraform for GCP (D18). Never change GCP by hand; edit here and
+                          `terraform plan` first. sql/ holds Postgres GRANTs Terraform can't manage.
+.github/workflows/        deploy-api.yml: develop → staging, master → production (D22, D23).
 docs/                     decisions.md, architecture, rollout plan, submission write-up.
 ```
 

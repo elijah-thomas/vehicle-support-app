@@ -1,0 +1,134 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
+  --font-heading: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-destructive-soft: var(--destructive-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-scrim: var(--scrim);
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+
+  --shadow-sm: 0 1px 2px rgba(28, 27, 25, 0.06);
+  --shadow-md: 0 4px 12px rgba(28, 27, 25, 0.1), 0 1px 2px rgba(28, 27, 25, 0.06);
+  --shadow-lg: 0 12px 32px rgba(28, 27, 25, 0.16);
+
+  --spacing-control-sm: 28px;
+  --spacing-control-md: 32px;
+  --spacing-control-lg: 40px;
+  --spacing-agent-panel-md: 360px;
+  --spacing-agent-panel: 400px;
+  --container-content: 1440px;
+}
+
+:root {
+  --background: #f7f6f3;
+  --foreground: #1c1b19;
+  --card: #ffffff;
+  --card-foreground: #1c1b19;
+  --popover: #ffffff;
+  --popover-foreground: #1c1b19;
+  --primary: #0e6e6e;
+  --primary-foreground: #ffffff;
+  --secondary: #efede8;
+  --secondary-foreground: #1c1b19;
+  --muted: #efede8;
+  --muted-foreground: #5e5a53;
+  --accent: #e3efee;
+  --accent-foreground: #0b5c5c;
+  --destructive: #b42318;
+  --destructive-soft: #fbe9e7;
+  --border: #e2dfd8;
+  --input: #8c877d;
+  --ring: #0e6e6e;
+
+  --success: #1f7a3d;
+  --success-soft: #e6f2e9;
+  --warning: #8a5300;
+  --warning-soft: #fbefd9;
+  --info: #1f5fad;
+  --info-soft: #e6eef8;
+  --scrim: rgba(28, 27, 25, 0.45);
+
+  --chart-1: #0e6e6e;
+  --chart-2: #1f5fad;
+  --chart-3: #8a5300;
+  --chart-4: #5e5a53;
+  --chart-5: #1f7a3d;
+  --radius: 10px;
+
+  --sidebar: #ffffff;
+  --sidebar-foreground: #1c1b19;
+  --sidebar-primary: #0e6e6e;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e3efee;
+  --sidebar-accent-foreground: #0b5c5c;
+  --sidebar-border: #e2dfd8;
+  --sidebar-ring: #0e6e6e;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}
+
+/* Flash for the row an assistant reference points at (components/agent-reference.tsx).
+   Unlayered so it wins over the target's own background utility. */
+[data-highlight] {
+  background-color: var(--color-accent);
+}

@@ -1,0 +1,42 @@
+{
+  "action": {
+    "mitigate": {
+      "action": "rate_limit",
+      "actionDuration": null,
+      "rateLimit": {
+        "action": "rate_limit",
+        "algo": "fixed_window",
+        "keys": [
+          "ip"
+        ],
+        "limit": 30,
+        "window": 60
+      },
+      "redirect": null
+    }
+  },
+  "active": true,
+  "conditionGroup": [
+    {
+      "conditions": [
+        {
+          "op": "eq",
+          "type": "method",
+          "value": "POST"
+        },
+        {
+          "op": "pre",
+          "type": "path",
+          "value": "/vehicles/"
+        },
+        {
+          "key": "next-action",
+          "op": "ex",
+          "type": "header"
+        }
+      ]
+    }
+  ],
+  "description": "30 Server Action requests per minute per IP on vehicle pages (writes to the customer CRM)",
+  "name": "Rate limit note saves"
+}

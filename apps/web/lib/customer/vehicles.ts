@@ -1,0 +1,38 @@
+import "server-only";
+import { cacheLife, cacheTag } from "next/cache";
+import { connection } from "next/server";
+import { cacheTags } from "./cache-tags";
+import { type Case, fetchCases, fetchTelematics, fetchVehicle, type TelematicsEvent, type Vehicle } from "./vehicle-records";
+
+export type { Case, TelematicsEvent, Vehicle };
+
+// Specs never change and recall status changes rarely, so this is cached for hours in Vercel's
+// shared Runtime Cache. It includes the owner's name: cached personal data, kept short-lived.
+// See docs/decisions.md#vehicle-page-caching
+export async function getVehicle(vin: string): Promise<Vehicle | null> {
+  "use cache: remote";
+  cacheTag(cacheTags.vehicle(vin));
+
+  const vehicle = await fetchVehicle(vin);
+  // Don't remember "not found" for hours; the VIN may be registered soon.
+  if (vehicle) cacheLife("hours");
+  else cacheLife("minutes");
+  return vehicle;
+}
+
+// Cached briefly. Saving a note clears this tag at once; the short lifetime covers cases other
+// reps add in the existing CRM, which this app never hears about.
+// Returns null when the VIN doesn't exist; the vehicle summary shows "not found" for the page.
+export async function getCases(vin: string): Promise<Case[] | null> {
+  "use cache: remote";
+  cacheTag(cacheTags.cases(vin));
+  cacheLife("minutes");
+
+  return fetchCases(vin);
+}
+
+// Never cached: a rep needs current fault codes. connection() marks this as request-time work.
+export async function getTelematics(vin: string, limit = 50): Promise<TelematicsEvent[] | null> {
+  await connection();
+  return fetchTelematics(vin, limit);
+}
