@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { CaseDetail } from "@/components/case-detail";
 import { CaseVehicleHeader } from "@/components/case-vehicle-header";
-import { PanelSkeleton } from "@/components/panel-skeleton";
+import { CaseDetailSkeleton } from "@/components/case-detail-skeleton";
 import { Skeleton } from "@/components/ui/skeleton";
 import { WithVin } from "@/components/with-vin";
 
@@ -17,7 +17,7 @@ export default function CasePage({ params }: PageProps<"/vehicles/[vin]/cases/[c
         </Suspense>
       </div>
       <div className="order-3">
-        <Suspense fallback={<PanelSkeleton rows={8} />}>
+        <Suspense fallback={<CaseDetailSkeleton />}>
           <CaseFromParams params={params} />
         </Suspense>
       </div>

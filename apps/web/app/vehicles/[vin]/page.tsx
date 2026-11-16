@@ -3,6 +3,7 @@ import { CaseHistory } from "@/components/case-history";
 import { PanelSkeleton } from "@/components/panel-skeleton";
 import { TelematicsPanel } from "@/components/telematics-panel";
 import { VehicleSummary } from "@/components/vehicle-summary";
+import { VehicleSummarySkeleton } from "@/components/vehicle-summary-skeleton";
 import { WithVin } from "@/components/with-vin";
 
 // The page itself is a static shell: layout, headings, and skeletons arrive instantly.
@@ -15,16 +16,16 @@ export default function VehiclePage({ params }: PageProps<"/vehicles/[vin]">) {
   return (
     <>
       <div className="order-1">
-        <Suspense fallback={<PanelSkeleton rows={6} />}>
+        <Suspense fallback={<VehicleSummarySkeleton />}>
           <WithVin params={params}>{(vin) => <VehicleSummary vin={vin} />}</WithVin>
         </Suspense>
       </div>
 
       <div className="order-3 grid gap-6 xl:grid-cols-2">
-        <Suspense fallback={<PanelSkeleton />}>
+        <Suspense fallback={<PanelSkeleton title="Telematics" rows={8} rowClassName="h-8 w-full" />}>
           <WithVin params={params}>{(vin) => <TelematicsPanel vin={vin} />}</WithVin>
         </Suspense>
-        <Suspense fallback={<PanelSkeleton />}>
+        <Suspense fallback={<PanelSkeleton title="Case history" rows={3} rowClassName="h-16 w-full" />}>
           <WithVin params={params}>{(vin) => <CaseHistory vin={vin} />}</WithVin>
         </Suspense>
       </div>

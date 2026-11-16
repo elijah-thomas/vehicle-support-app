@@ -230,6 +230,11 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
   | Customer search by email | Not cached; Server Action, so the email never appears in a URL | — |
 
   No vehicle pages are prerendered at build time.
+- **What the shell holds:** panel titles and skeletons shaped like each panel, so the layout
+  doesn't jump as data arrives. The assistant's fallback is its real empty state (sources,
+  prompts, input, transcript box), disabled until the VIN resolves. Considered: reading the VIN
+  with `useParams()` so the whole chat prerenders. Not tried, since a param read during prerender
+  may need its own Suspense boundary anyway.
 - **Why remote:** in-memory entries live per instance, so `updateTag` after a save could leave
   another instance serving old cases. The Runtime Cache is shared and environment-isolated. It
   starts empty after each deploy.

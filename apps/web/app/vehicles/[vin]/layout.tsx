@@ -1,8 +1,8 @@
 import { Suspense } from "react";
 import { AgentChat } from "@/components/agent-chat";
 import { AssistantPanel } from "@/components/assistant-panel";
+import { CallSummary } from "@/components/call-summary";
 import { CallSummaryPanel } from "@/components/call-summary-panel";
-import { Skeleton } from "@/components/ui/skeleton";
 import { WithVin } from "@/components/with-vin";
 
 // Decision (D42): the assistant lives in the layout, so moving between the vehicle and its cases
@@ -21,12 +21,12 @@ export default function VehicleLayout({ children, params }: LayoutProps<"/vehicl
         >
           <AssistantPanel
             ask={
-              <Suspense fallback={<ChatSkeleton />}>
+              <Suspense fallback={<AgentChat vin={null} />}>
                 <WithVin params={params}>{(vin) => <AgentChat vin={vin} />}</WithVin>
               </Suspense>
             }
             callSummary={
-              <Suspense fallback={<ChatSkeleton />}>
+              <Suspense fallback={<CallSummary vin={null} cases={[]} />}>
                 <WithVin params={params}>{(vin) => <CallSummaryPanel vin={vin} />}</WithVin>
               </Suspense>
             }
@@ -34,14 +34,5 @@ export default function VehicleLayout({ children, params }: LayoutProps<"/vehicl
         </aside>
       </div>
     </main>
-  );
-}
-
-function ChatSkeleton() {
-  return (
-    <div className="space-y-3 p-4">
-      <Skeleton className="h-4 w-48" />
-      <Skeleton className="h-4 w-full" />
-    </div>
   );
 }
