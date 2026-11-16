@@ -52,15 +52,16 @@ export async function saveNoteAction(input: z.input<typeof saveSchema>): Promise
     }
   }
 
-  // Read-your-own-writes: the next render waits for fresh cases instead of serving the cached list.
-  // See docs/decisions.md#vehicle-page-caching
+  // Decision (D24): updateTag gives read-your-own-writes: the next render waits for fresh cases
+  // instead of serving the cached list. See docs/decisions.md#vehicle-page-caching
   try {
     const note = await addCaseNote(targetCaseId, { vin, source: "AI_DRAFT_EDITED", issue, summary, nextSteps });
     updateTag(cacheTags.cases(vin));
     return { ok: true, noteId: note.id, caseId: targetCaseId };
   } catch (error) {
     if (caseId !== "new") return { ok: false, error: saveError(error) };
-    // The case exists now, so show it in the picker and let the retry add only the note.
+    // Decision (D33): the case exists now, so show it in the picker and let the retry add only the
+    // note. Trade-off: the case can be left without a note; a transactional API call is the fix.
     // See docs/decisions.md#save-feedback
     updateTag(cacheTags.cases(vin));
     return {

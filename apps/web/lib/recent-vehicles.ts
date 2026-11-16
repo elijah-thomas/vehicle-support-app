@@ -1,5 +1,6 @@
-// Vehicles opened in this browser, newest first. Only VIN, vehicle name and owner name are kept,
-// never emails. See docs/decisions.md#lookup-and-layout
+// Decision (D32): suggestions come from this browser, not a server prefix search, which would let
+// anyone list customers. Only VIN, vehicle name and owner name are kept, never emails.
+// See docs/decisions.md#lookup-and-layout
 export type RecentVehicle = { vin: string; name: string; owner: string; openedAt: string };
 
 const KEY = "vs:recent";

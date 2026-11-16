@@ -3,8 +3,10 @@ import { parseAgentRequest } from "@/lib/ai/agent-request";
 import { cachedLoaders, createVehicleAgent } from "@/lib/ai/vehicle-agent";
 import { loadVehicleRecord } from "@/lib/ai/vehicle-record";
 
-// Public endpoint, so every request is bounded before the model runs (lib/ai/agent-request.ts),
-// and Vercel Firewall rate-limits in front of this. See docs/decisions.md#rate-limiting
+// Decision (D29, D38): a public endpoint, so Vercel Firewall rate-limits it at the edge and every
+// request is checked before the model runs (lib/ai/agent-request.ts). Why: a blocked request
+// costs no compute and no tokens. Trade-off: per-IP, so spend alerts are the backstop.
+// See docs/decisions.md#rate-limits
 export async function POST(request: Request) {
   const parsed = parseAgentRequest(await request.json().catch(() => null));
   if (!parsed.ok) return errorResponse(parsed.code, parsed.status);

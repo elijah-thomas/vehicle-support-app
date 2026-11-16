@@ -17,7 +17,10 @@ async function poolConfig(): Promise<PoolConfig> {
     ipType: IpAddressTypes.PUBLIC,
     authType: AuthTypes.IAM,
   });
-  return { ...connection, user: env.DB_IAM_USER, database: env.DB_NAME, max: 5 };
+  // Decision (D46): 4 connections per instance, so both environments at max scale (2 × 3 instances
+  // × 4 = 24) fit db-f1-micro's ~25. Raising max instances means revisiting this.
+  // See docs/decisions.md#concurrency
+  return { ...connection, user: env.DB_IAM_USER, database: env.DB_NAME, max: 4 };
 }
 
 const adapter = new PrismaPg(await poolConfig());

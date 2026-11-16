@@ -33,6 +33,8 @@ resource "google_cloud_run_v2_service" "api" {
   template {
     service_account = google_service_account.api[each.key].email
 
+    # Decision (D46): 3 instances × 4 pool connections × 2 environments must fit the database's
+    # connection limit. See docs/decisions.md#concurrency
     scaling {
       max_instance_count = 3
     }

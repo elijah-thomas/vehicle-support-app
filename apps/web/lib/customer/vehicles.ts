@@ -6,8 +6,9 @@ import { type Case, fetchCases, fetchTelematics, fetchVehicle, type TelematicsEv
 
 export type { Case, TelematicsEvent, Vehicle };
 
-// Specs never change and recall status changes rarely, so this is cached for hours in Vercel's
-// shared Runtime Cache. It includes the owner's name: cached personal data, kept short-lived.
+// Decision (D24): cached for hours in Vercel's shared Runtime Cache ("use cache: remote").
+// Why: specs never change and recall status rarely does; a shared cache lets updateTag reach
+// every instance. Trade-off: the owner's name is cached personal data, kept short-lived.
 // See docs/decisions.md#vehicle-page-caching
 export async function getVehicle(vin: string): Promise<Vehicle | null> {
   "use cache: remote";
