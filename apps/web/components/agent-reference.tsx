@@ -1,6 +1,7 @@
 "use client";
 
-const HIGHLIGHT_MS = 1500;
+import { flashElement } from "@/lib/flash-element";
+
 const chipClass = "rounded-sm bg-muted px-1 font-mono text-xs";
 
 // Answers only exist in the browser (they stream in after a question), so reading the DOM during
@@ -17,12 +18,8 @@ export function AgentReference({ label, targetId }: { label: string; targetId: s
         const target = document.getElementById(targetId);
         if (!target) return;
         event.preventDefault();
-        const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-        target.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "center" });
         history.replaceState(null, "", `#${targetId}`);
-        if (reduceMotion) return;
-        target.setAttribute("data-highlight", "");
-        window.setTimeout(() => target.removeAttribute("data-highlight"), HIGHLIGHT_MS);
+        flashElement(target);
       }}
     >
       {label}
