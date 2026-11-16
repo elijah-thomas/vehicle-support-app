@@ -232,8 +232,16 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
   starts empty after each deploy.
 - **Why these lifetimes:** specs never change; recall status rarely does. Cases also change in the
   existing CRM, which never tells this app, so a short lifetime bounds staleness there.
-- **Personal data:** owner names, emails, and case text are cached briefly, in one region,
-  isolated per environment. Flagged as a customer approval item.
+- **Accepted staleness:** `hours` refreshes after an hour and keeps an entry up to a day. A recall
+  completed, or owner details changed, in the CRM can show here for about an hour. Recalls are
+  rare, so refreshing more often would cost GCP calls for almost no gain. Nothing clears
+  `vehicle:{vin}` today; the tag is the hook for the production path.
+- **Personal data:** owner names and emails are cached up to a day, case text up to an hour, in
+  one region, isolated per environment. Flagged as a customer approval item.
+- **Production path:** the CRM emits change events (customer updated, recall completed, case
+  changed) to an authenticated Vercel route that calls `revalidateTag` for that VIN. Then
+  lifetimes can grow, since staleness no longer depends on them. Not built: a demo has no CRM
+  writing behind its back.
 - **Measured against staging:** first load ~5 s (scaled to zero, token exchange, connector
   setup); warm loads 0.08–0.3 s.
 

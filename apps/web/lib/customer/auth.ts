@@ -17,10 +17,18 @@ const federated = new IdentityPoolClient({
 
 // Reused across requests on the same Fluid Compute instance; refreshed shortly before expiry.
 let cached: { token: string; expiresAt: number } | undefined;
+// A page fires several API calls at once; on a cold instance they share one exchange.
+let pending: Promise<string> | undefined;
 
 export async function getVehicleApiIdToken(): Promise<string> {
   if (cached && cached.expiresAt - Date.now() > 5 * 60_000) return cached.token;
+  pending ??= mintIdToken().finally(() => {
+    pending = undefined;
+  });
+  return pending;
+}
 
+async function mintIdToken(): Promise<string> {
   const { token: accessToken } = await federated.getAccessToken();
   const response = await fetch(
     `https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/${env.GCP_SERVICE_ACCOUNT_EMAIL}:generateIdToken`,
