@@ -1,19 +1,26 @@
 import { ShieldAlert } from "lucide-react";
 import { notFound } from "next/navigation";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { RecordVisit } from "@/components/record-visit";
 import { VehicleStatus } from "@/components/vehicle-status";
 import { getVehicle, type Vehicle } from "@/lib/customer/vehicles";
 import { formatDate } from "@/lib/format";
 
-function specs(model: Vehicle["model"]) {
+const powertrainLabel = { EV: "Electric", HYBRID: "Hybrid", GAS: "Gas" } as const;
+
+function specs(vehicle: Vehicle) {
+  const { model } = vehicle;
   return [
-    ["Powertrain", model.powertrain],
+    ["Powertrain", powertrainLabel[model.powertrain]],
     ["Battery", model.batteryKwh && `${model.batteryKwh} kWh`],
-    ["Range", model.rangeMiles && `${model.rangeMiles} mi`],
     ["Engine", model.engine],
+    ["Range", model.rangeMiles && `${model.rangeMiles.toLocaleString("en-US")} mi`],
     ["Towing", model.towingLbs && `${model.towingLbs.toLocaleString("en-US")} lbs`],
+    ["Color", vehicle.color],
+    ["Purchased", formatDate(vehicle.purchasedAt)],
+    ["Software", vehicle.softwareVersion],
+    ["Options", vehicle.installedOptions.join(", ")],
   ].filter((row): row is [string, string] => Boolean(row[1]));
 }
 
@@ -23,15 +30,18 @@ export async function VehicleSummary({ vin }: { vin: string }) {
 
   const { model, customer } = vehicle;
   const openRecalls = vehicle.recalls.filter((r) => r.status === "OPEN");
+  const name = `${model.year} ${model.make} ${model.model} ${model.trim}`;
+  const owner = `${customer.firstName} ${customer.lastName}`;
 
   return (
     <div className="space-y-4">
+      <RecordVisit vin={vehicle.vin} name={name} owner={owner} />
       {openRecalls.map(({ recall }) => (
         <Alert
           key={recall.campaignNumber}
           id={`recall-${recall.campaignNumber}`}
           variant="warning"
-          className="scroll-mt-6 transition-colors"
+          className="scroll-mt-18 transition-colors"
         >
           <ShieldAlert aria-hidden />
           <AlertTitle>
@@ -44,47 +54,24 @@ export async function VehicleSummary({ vin }: { vin: string }) {
       ))}
 
       <Card>
-        <CardHeader>
-          <CardTitle className="text-xl">
-            {model.year} {model.make} {model.model} {model.trim}
-          </CardTitle>
-          <CardDescription className="font-mono">{vehicle.vin}</CardDescription>
-          <div className="mt-2">
-            <VehicleStatus vin={vin} openRecallCampaigns={openRecalls.map(({ recall }) => recall.campaignNumber)} />
+        <CardContent className="space-y-3">
+          <div>
+            <h1 className="text-xl font-semibold tracking-tight">{name}</h1>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              <span className="font-mono text-foreground">{vehicle.vin}</span> · {owner} · {customer.email}
+            </p>
           </div>
-        </CardHeader>
-        <CardContent className="grid gap-6 sm:grid-cols-2">
-          <dl className="space-y-1 text-sm">
-            <Row label="Owner" value={`${customer.firstName} ${customer.lastName} · ${customer.email}`} />
-            <Row label="Color" value={vehicle.color} />
-            <Row label="Purchased" value={formatDate(vehicle.purchasedAt)} />
-            <Row label="Software" value={vehicle.softwareVersion} />
-          </dl>
-          <dl className="space-y-1 text-sm">
-            {specs(model).map(([label, value]) => (
-              <Row key={label} label={label} value={value} />
+          <VehicleStatus vin={vin} openRecallCampaigns={openRecalls.map(({ recall }) => recall.campaignNumber)} />
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-3 border-t pt-3 sm:grid-cols-4">
+            {specs(vehicle).map(([label, value]) => (
+              <div key={label}>
+                <dt className="text-xs text-muted-foreground">{label}</dt>
+                <dd className="text-sm">{value}</dd>
+              </div>
             ))}
           </dl>
-          {vehicle.installedOptions.length > 0 && (
-            <div className="flex flex-wrap gap-1 sm:col-span-2">
-              {vehicle.installedOptions.map((option) => (
-                <Badge key={option} variant="secondary">
-                  {option}
-                </Badge>
-              ))}
-            </div>
-          )}
         </CardContent>
       </Card>
-    </div>
-  );
-}
-
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex gap-2">
-      <dt className="w-24 shrink-0 text-muted-foreground">{label}</dt>
-      <dd>{value}</dd>
     </div>
   );
 }

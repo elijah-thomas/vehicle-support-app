@@ -2,13 +2,14 @@
 
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
-import { ArrowUp, CircleAlert, Sparkles, Square, TriangleAlert } from "lucide-react";
+import { ArrowUp, CircleAlert, Square, TriangleAlert } from "lucide-react";
+import { cn } from "cn";
 import { useEffect, useRef, useState } from "react";
 import { AgentAnswer } from "@/components/agent-answer";
 import { AgentToolStep } from "@/components/agent-tool-step";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import type { VehicleAgentMessage } from "@/lib/ai/vehicle-agent";
 
@@ -19,6 +20,8 @@ const primaryPrompts = [
 ];
 const morePrompts = ["What changed since the last contact?", "Could an open recall explain the complaint?"];
 const allPrompts = [...primaryPrompts, ...morePrompts];
+
+const sources = ["Vehicle, specs, recalls", "Telematics", "Case history"];
 
 const MAX_TEXT_LENGTH = 2000;
 const MAX_FOLLOW_UPS = 2;
@@ -89,36 +92,45 @@ export function AgentChat({ vin }: { vin: string }) {
       : [];
 
   return (
-    <Card className="h-full gap-0 py-0">
-      <CardHeader className="border-b py-3">
-        <CardTitle className="flex items-center gap-2 font-semibold">
-          <Sparkles className="size-4 text-primary" aria-hidden />
-          Assistant
-        </CardTitle>
-        <CardDescription>Answers use only this vehicle&apos;s record and show what was checked.</CardDescription>
-      </CardHeader>
-
-      <CardContent
+    <>
+      <div
         ref={logRef}
         role="log"
         aria-live="polite"
         aria-busy={busy}
-        className="max-h-[60vh] min-h-40 flex-1 space-y-5 overflow-y-auto py-4 lg:max-h-none"
+        className={cn(
+          "max-h-[60vh] min-h-40 flex-1 overflow-y-auto p-4 lg:max-h-none",
+          messages.length === 0 ? "flex flex-col justify-between gap-6" : "space-y-5",
+        )}
       >
         {messages.length === 0 && (
-          <div className="space-y-2">
-            <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Start with</p>
-            <div className="flex flex-col items-start gap-2">
-              {(showMore ? allPrompts : primaryPrompts).map((prompt) => (
-                <PromptButton key={prompt} prompt={prompt} onAsk={ask} />
-              ))}
-              {!showMore && (
-                <Button variant="ghost" size="sm" className="text-accent-foreground" onClick={() => setShowMore(true)}>
-                  {morePrompts.length} more questions
-                </Button>
-              )}
+          <>
+            <div className="space-y-2">
+              <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                Answers use only this vehicle&apos;s record
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {sources.map((source) => (
+                  <Badge key={source} variant="secondary">
+                    {source}
+                  </Badge>
+                ))}
+              </div>
             </div>
-          </div>
+            <div className="space-y-2">
+              <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Start with</p>
+              <div className="flex flex-col items-start gap-2">
+                {(showMore ? allPrompts : primaryPrompts).map((prompt) => (
+                  <PromptButton key={prompt} prompt={prompt} onAsk={ask} />
+                ))}
+                {!showMore && (
+                  <Button variant="ghost" size="sm" className="text-accent-foreground" onClick={() => setShowMore(true)}>
+                    {morePrompts.length} more questions
+                  </Button>
+                )}
+              </div>
+            </div>
+          </>
         )}
 
         {messages.map((message) =>
@@ -170,7 +182,7 @@ export function AgentChat({ vin }: { vin: string }) {
             <AlertDescription className="text-foreground">{failure.text}</AlertDescription>
           </Alert>
         )}
-      </CardContent>
+      </div>
 
       <form
         onSubmit={(event) => {
@@ -196,6 +208,6 @@ export function AgentChat({ vin }: { vin: string }) {
           </Button>
         )}
       </form>
-    </Card>
+    </>
   );
 }
