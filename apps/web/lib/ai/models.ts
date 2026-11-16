@@ -14,3 +14,13 @@ export const gatewayOptions = {
   // Hard filter: Gemini only via Vertex, Claude only via Anthropic.
   only: ["vertex", "anthropic"],
 } satisfies GatewayProviderOptions;
+
+export type ModelChoice = { id: string; gateway: Pick<GatewayProviderOptions, "models" | "only"> };
+
+export const defaultModel: ModelChoice = { id: PRIMARY_MODEL, gateway: gatewayOptions };
+
+// Each model alone, with no fallback, so an eval score belongs to the model it names.
+export const evalModels = {
+  gemini: { id: PRIMARY_MODEL, gateway: { only: ["vertex"] } },
+  claude: { id: FALLBACK_MODELS[0], gateway: { only: ["anthropic"] } },
+} satisfies Record<string, ModelChoice>;

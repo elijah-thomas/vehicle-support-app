@@ -3,7 +3,15 @@ import { isStepCount, ToolLoopAgent, tool, type InferAgentUIMessage } from "ai";
 import { z } from "zod";
 import { getCases, getTelematics, getVehicle } from "@/lib/customer/vehicles";
 import { casesForModel, telematicsForModel } from "./model-context";
-import { gatewayOptions, PRIMARY_MODEL } from "./models";
+import { defaultModel, type ModelChoice } from "./models";
+
+export type VehicleLoaders = {
+  getVehicle: typeof getVehicle;
+  getTelematics: typeof getTelematics;
+  getCases: typeof getCases;
+};
+
+const cachedLoaders: VehicleLoaders = { getVehicle, getTelematics, getCases };
 
 const instructions = `You help a customer support rep at Meridian Motors on a live call.
 The rep has one vehicle open. Use the tools to look at its record before answering.
@@ -16,15 +24,24 @@ Rules:
   what changed since the most recent case.
 - Keep answers short: a one-line summary, then a few bullet lines starting with "- ".
 - End with "Next steps:" and concrete actions for the rep.
+- If a CRITICAL event affects driving (for example reduced propulsion power), the first next step
+  is the driver's safety: confirm they are safe and whether the vehicle should be driven.
+- The record has no policy information. If the customer asks for coverage, a loaner, a refund,
+  or a buyback, route the request to the team that decides; never promise one.
+- Refer to the customer by name, as "the customer", or as "they". Never guess pronouns.
 - Plain text only. No markdown headings, bold, or tables.`;
 
 // Tools take no VIN: the route passes the vehicle the rep has open, so no prompt can make the
 // agent read another customer's record. See docs/decisions.md#agent
-export function createVehicleAgent(vin: string) {
+// Evals pass a single model and uncached loaders; the route uses the defaults.
+export function createVehicleAgent(
+  vin: string,
+  { model = defaultModel, loaders = cachedLoaders }: { model?: ModelChoice; loaders?: VehicleLoaders } = {},
+) {
   return new ToolLoopAgent({
-    model: PRIMARY_MODEL,
+    model: model.id,
     instructions,
-    providerOptions: { gateway: gatewayOptions },
+    providerOptions: { gateway: model.gateway },
     stopWhen: isStepCount(6),
     // No output-token cap: a cut-off answer is worse than a long one. Cost per message is bounded
     // by the step cap, input caps in the route, and the Firewall rate limit.
@@ -34,19 +51,19 @@ export function createVehicleAgent(vin: string) {
       getVehicle: tool({
         description: "Vehicle details, owner, factory specs, installed options, and recalls with their status.",
         inputSchema: z.object({}),
-        execute: () => getVehicle(vin),
+        execute: () => loaders.getVehicle(vin),
       }),
       getTelematics: tool({
         description: "Recent telematics events, newest first: fault codes (DTC), battery, odometer, software.",
         inputSchema: z.object({
           limit: z.number().int().min(1).max(50).default(20).describe("How many recent events to return"),
         }),
-        execute: async ({ limit }) => telematicsForModel(await getTelematics(vin, limit)),
+        execute: async ({ limit }) => telematicsForModel(await loaders.getTelematics(vin, limit)),
       }),
       getCases: tool({
         description: "Support cases for this vehicle, newest first, with resolutions and saved call notes.",
         inputSchema: z.object({}),
-        execute: async () => casesForModel(await getCases(vin)),
+        execute: async () => casesForModel(await loaders.getCases(vin)),
       }),
     },
   });
