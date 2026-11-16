@@ -307,6 +307,8 @@ why. To change one, add a new entry that supersedes it rather than editing histo
 
 ## D25. Vehicle agent {#agent}
 
+*Data loading and the prompt were redesigned in D41; scope, models, and limits still hold.*
+
 - **Decision:** How the AI assistant is scoped, powered, and bounded.
 - **Choice:** A `ToolLoopAgent` (AI SDK 7) behind `POST /api/agent`, shown as a chat panel on
   the vehicle page with five canned prompts and visible tool calls.
@@ -744,3 +746,57 @@ why. To change one, add a new entry that supersedes it rather than editing histo
   - **Chat:** a failed answer offers Try again (`regenerate()`).
 - **Options considered:** a client error boundary per panel (catches render errors too, but needs a
   class component or a dependency, and server-side failures are the ones that happen here).
+
+## D41. Load the record before the agent runs {#agent-context}
+
+- **Decision:** Whether the agent fetches the vehicle's data itself (a tool loop) or gets it up
+  front, and how its prompt is built.
+- **Finding:** in every eval run, both models called all three tools for every question, usually
+  in one parallel step. That first model round-trip decided nothing.
+- **Options considered:**
+  - **Load up front, keep a tool for depth:** the route loads the record; one optional tool for
+    older telematics.
+  - **Force the first step to call the tools** (`prepareStep` with `toolChoice`): keeps the loop,
+    but Claude rejects forced tool choice with thinking on, so the fallback would fail.
+  - **Keep the loop as it was.**
+- **Choice:** load up front (research: Anthropic's "Building effective agents" and "Effective
+  context engineering").
+  - **The record:** vehicle, cases, and the 20 newest telematics events, loaded with the page's
+    cached fetchers. It goes in as its own system message, in `<vehicle_record>` tags, after a
+    static prompt that providers can cache. A source that fails is marked `unavailable` and the
+    model says so (as the page does, D40).
+  - **Shaped for the model** (`lib/ai/model-context.ts`): no internal IDs, dates already in
+    "Nov 9, 2026" form, and repeat counts per fault code computed in code. The call summary uses the
+    same formatter.
+  - **One tool:** `getTelematics` for history older than the record, with a fuller description of
+    when to use it. Step cap 3.
+  - **The prompt:** sections (`<role>`, `<grounding>`, `<output_format>`, `<safety_and_policy>`,
+    `<examples>`), rules stated with their reasons, and three short examples about a fictional
+    vehicle (a recurring fault, a safety-first answer, an off-topic decline).
+  - **History:** earlier turns' tool results are dropped on the server. They came from the browser,
+    so they could be forged, and the record is reloaded each turn. Text and reasoning parts stay,
+    because Gemini needs its reasoning sent back as it was.
+  - **AI Gateway:** `caching: 'auto'` (Anthropic needs it; Gemini caches on its own) and
+    `tags: ['feature:agent' | 'feature:call-summary']` for spend and latency by feature.
+- **Results (10 agent cases × 3 runs, same cases before and after):**
+
+  | | Before | After |
+  |---|---|---|
+  | Gemini pass rate · median · tokens | 30/30 · 4.7s · 1,416 | 30/30 · 2.6s · 1,602 |
+  | Claude pass rate · median · tokens | 29/30 · 5.4s · 3,399 | 30/30 · 4.0s · 2,696 |
+  | Model steps per answer | 2 | 1 |
+
+  Gemini uses slightly more tokens (the examples and the record ride on every request), but
+  answers almost twice as fast. Claude made no pronoun slips in 30 answers after the rule gained
+  its reason. Call summaries: 21/21 on both models.
+- **Found while testing:** Claude classified a call about a *different* vehicle as `other`, because
+  `vehicle_issue` said "the vehicle". It now says "a vehicle, even one that may not match the
+  record", so the mismatch lands in the next steps instead of a misleading "not a vehicle issue"
+  warning.
+- **Not adopted from the research:** an output-token cap (D25 decided against it); provider
+  timeouts for Gemini's slow tail (whether a timeout falls through to Claude is unverified, so
+  check Gateway Logs first); OpenTelemetry tracing (two new packages; listed as a production step).
+- **Trade-off for the interview:** the assistant does less visible "agent" work: the "sources
+  checked" chips appear only when it reaches for older telematics. The evals showed the loop added
+  nothing, so the decision moved into code, and the tool stays for the one choice the model
+  really makes.
