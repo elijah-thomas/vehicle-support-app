@@ -1,16 +1,20 @@
 "use client";
 
 import { useObject } from "@ai-sdk/react";
+import { CircleAlert, CircleCheck } from "lucide-react";
 import { useState, useTransition } from "react";
-import { saveNoteAction } from "@/app/vehicles/[vin]/save-note-action";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { saveNoteAction, type SaveNoteResult } from "@/app/vehicles/[vin]/save-note-action";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { type CallSummary as Draft, callSummarySchema, MAX_TRANSCRIPT_LENGTH } from "@/lib/call-summary-schema";
+import { flashWhenPresent } from "@/lib/flash-element";
 
-export type CaseOption = { id: string; label: string; open: boolean };
+export type CaseOption = { id: string; label: string; open: boolean; subject: string };
+
+type Saved = { noteId: string; caseSubject: string };
 
 type Props = {
   vin: string;
@@ -23,7 +27,7 @@ type Props = {
 export function CallSummary({ vin, cases, cannedTranscript }: Props) {
   const [transcript, setTranscript] = useState("");
   const [draft, setDraft] = useState<Draft | null>(null);
-  const [saved, setSaved] = useState(false);
+  const [saved, setSaved] = useState<Saved | null>(null);
 
   const { object, submit, isLoading, error } = useObject({
     api: "/api/call-summary",
@@ -33,16 +37,21 @@ export function CallSummary({ vin, cases, cannedTranscript }: Props) {
 
   function reset() {
     setDraft(null);
-    setSaved(false);
+    setSaved(null);
+  }
+
+  function onSaved(result: Saved) {
+    setSaved(result);
+    flashWhenPresent(`note-${result.noteId}`);
   }
 
   function generate() {
     setDraft(null);
-    setSaved(false);
+    setSaved(null);
     submit({ vin, transcript });
   }
 
-  const drafting = isLoading || draft !== null || saved;
+  const drafting = isLoading || draft !== null || saved !== null;
 
   if (!drafting) {
     return (
@@ -93,12 +102,26 @@ export function CallSummary({ vin, cases, cannedTranscript }: Props) {
       )}
 
       {draft && !saved && (
-        <ReviewForm key={JSON.stringify(draft)} vin={vin} cases={cases} draft={draft} onSaved={() => setSaved(true)} />
+        <ReviewForm key={JSON.stringify(draft)} vin={vin} cases={cases} draft={draft} onSaved={onSaved} />
       )}
 
       {saved && (
-        <Alert>
-          <AlertDescription>Saved to the case. It now appears in Case history.</AlertDescription>
+        <Alert variant="success" role="status">
+          <CircleCheck aria-hidden />
+          <AlertTitle>Saved to case history</AlertTitle>
+          <AlertDescription className="text-foreground">
+            Added to &ldquo;{saved.caseSubject}&rdquo;.{" "}
+            <a
+              href={`#note-${saved.noteId}`}
+              onClick={(event) => {
+                event.preventDefault();
+                flashWhenPresent(`note-${saved.noteId}`);
+              }}
+              className="font-medium underline underline-offset-2"
+            >
+              Show in Case history
+            </a>
+          </AlertDescription>
         </Alert>
       )}
 
@@ -134,7 +157,7 @@ function ReviewForm({
   vin: string;
   cases: CaseOption[];
   draft: Draft;
-  onSaved: () => void;
+  onSaved: (saved: Saved) => void;
 }) {
   const latestOpen = cases.find((c) => c.open);
   const [caseId, setCaseId] = useState(latestOpen?.id ?? "new");
@@ -146,19 +169,37 @@ function ReviewForm({
   const [error, setError] = useState<string | null>(null);
   const [saving, startSaving] = useTransition();
 
+  // A case created by an earlier, half-finished save may not be in the refreshed list yet.
+  const options =
+    caseId !== "new" && !cases.some((c) => c.id === caseId)
+      ? [...cases, { id: caseId, label: `New case · ${subject}`, open: true, subject }]
+      : cases;
+
   function save() {
     setError(null);
     startSaving(async () => {
-      const result = await saveNoteAction({
-        vin,
-        caseId,
-        newCase: caseId === "new" ? { subject, category } : undefined,
-        issue,
-        summary,
-        nextSteps: nextSteps.split("\n").map((s) => s.trim()).filter(Boolean),
-      });
-      if (result.ok) onSaved();
-      else setError(result.error);
+      let result: SaveNoteResult;
+      try {
+        result = await saveNoteAction({
+          vin,
+          caseId,
+          newCase: caseId === "new" ? { subject, category } : undefined,
+          issue,
+          summary,
+          nextSteps: nextSteps.split("\n").map((s) => s.trim()).filter(Boolean),
+        });
+      } catch {
+        // Rate limited at the edge, offline, or timed out: the action never answered.
+        setError("The save didn't go through. Your edits are still here. Try again in a moment.");
+        return;
+      }
+      if (result.ok) {
+        const caseSubject = caseId === "new" ? subject : (options.find((c) => c.id === caseId)?.subject ?? subject);
+        onSaved({ noteId: result.noteId, caseSubject });
+        return;
+      }
+      if (result.createdCaseId) setCaseId(result.createdCaseId);
+      setError(result.error);
     });
   }
 
@@ -187,7 +228,7 @@ function ReviewForm({
           onChange={(e) => setCaseId(e.target.value)}
           className="h-9 w-full rounded-md border bg-transparent px-3 text-sm"
         >
-          {cases.map((c) => (
+          {options.map((c) => (
             <option key={c.id} value={c.id}>
               {c.label}
             </option>
@@ -210,8 +251,9 @@ function ReviewForm({
       )}
 
       {error && (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
+        <Alert variant="destructive" role="alert">
+          <CircleAlert aria-hidden />
+          <AlertDescription className="text-foreground">{error}</AlertDescription>
         </Alert>
       )}
 

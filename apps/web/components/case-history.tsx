@@ -37,7 +37,11 @@ export async function CaseHistory({ vin }: { vin: string }) {
               </p>
             )}
             {supportCase.notes.map((note) => (
-              <div key={note.id} className="rounded-md bg-muted p-3">
+              <div
+                key={note.id}
+                id={`note-${note.id}`}
+                className="scroll-mt-18 rounded-md bg-muted p-3 transition-colors"
+              >
                 <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                   Note · {formatDate(note.createdAt)}
                   {note.source === "AI_DRAFT_EDITED" && <Badge variant="info">AI draft, reviewed by rep</Badge>}
