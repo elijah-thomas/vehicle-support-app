@@ -51,11 +51,12 @@ describe("POST /cases/:id/notes", () => {
 
   test("refuses a note for a case that belongs to another vehicle", async () => {
     const danaCase = await firstCaseId(VIN.dana);
+    const noteCount = async () => (await call(`/vehicles/${VIN.dana}/cases`)).body[0].notes.length as number;
+    const before = await noteCount();
+
     const { status } = await call(`/cases/${danaCase}/notes`, { method: "POST", json: { ...note, vin: VIN.marcus } });
     expect(status).toBe(404);
-
-    const notes = (await call(`/vehicles/${VIN.dana}/cases`)).body[0].notes;
-    expect(notes).toEqual([]);
+    expect(await noteCount()).toBe(before);
   });
 
   test("refuses a note without the vehicle's VIN", async () => {
