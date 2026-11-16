@@ -699,18 +699,24 @@ why. To change one, add a new entry that supersedes it rather than editing histo
 - **Decision:** What Meridian's console runs on today, which the proposal and architecture
   diagrams compare the build against.
 - **Options:** A client-rendered single-page app served from one region; Next.js self-hosted on
-  GKE behind Cloud CDN, with an assistant already built on Vertex AI; the same app on VMs.
-- **Choice:** Next.js on GKE in `us-central1` behind Cloud CDN and a load balancer, with a Redis
-  cache handler shared by the pods. An assistant route calls Gemini through the Vertex AI SDK,
+  GKE behind Cloud CDN, with an assistant already built on Vertex AI; the same app on VMs; a
+  shared Next.js cache on Redis (Memorystore).
+- **Choice:** Next.js on GKE in `us-central1` behind Cloud CDN and a load balancer, with Next.js's
+  default cache on each pod's own disk. An assistant route calls Gemini through the Vertex AI SDK,
   with hand-written tool calls. Releases go through Cloud Build and Argo CD to one shared staging
   namespace. The APIs and Postgres sit in the private network.
 - **Why:** An enterprise that has invested in this console would already have a CDN and a modern
   framework, and a reviewer would see through a weaker starting point. The case then rests on
   what a CDN can't fix (personal vehicle pages render at origin), what self-hosting Next.js costs
-  (a cache handler, upgrades, version skew during rolling deploys), the missing per-change
+  (a cache per pod, upgrades, version skew during rolling deploys), the missing per-change
   previews, and a single-provider assistant. It uses all three roles cleanly: replace the
   self-hosted Next.js platform, augment the Vertex agent with AI Gateway (Gemini on Vertex stays
   primary, D11), and connect to the systems that stay.
+- **Why no Redis:** a shared cache handler is built for content-heavy sites with ISR, not a
+  per-customer internal tool, and it's one more system for the app team to run. With a cache on
+  each pod, specs and recalls are reused, but cases go uncached: a saved note clears only the pod
+  that handled the save, and every rolling deploy or scale-out starts with empty caches. A shared
+  Runtime Cache with `updateTag` on save (D24) is what makes caching cases safe.
 - **Relation to D1:** D1's Connect role and scope stand. The lead pain moves from "reps assemble
   each vehicle's story across screens" to slow dynamic pages, self-hosting cost, and an
   assistant with no fallback; the screens problem remains as a secondary pain.
