@@ -24,3 +24,9 @@ export const evalModels = {
   gemini: { id: PRIMARY_MODEL, gateway: { only: ["vertex"] } },
   claude: { id: FALLBACK_MODELS[0], gateway: { only: ["anthropic"] } },
 } satisfies Record<string, ModelChoice>;
+
+// Per-feature gateway options: cache the static prefix (Anthropic needs this; Gemini caches on its
+// own) and tag requests so spend and latency can be split by feature in AI Gateway.
+export function gatewayOptionsFor(model: ModelChoice, feature: "agent" | "call-summary") {
+  return { ...model.gateway, caching: "auto" as const, tags: [`feature:${feature}`] };
+}

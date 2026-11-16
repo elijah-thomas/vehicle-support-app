@@ -9,9 +9,10 @@ describe("accepts what the chat UI sends", () => {
   test("a first question, with the VIN normalized", () => {
     expect(parseAgentRequest({ vin: VIN.toLowerCase(), messages: [user("Anything wrong?")] })).toMatchObject({ ok: true, vin: VIN });
   });
-  test("a follow-up, keeping the assistant's tool results", () => {
+  test("a follow-up, dropping earlier tool results but keeping the answer's text", () => {
     const parsed = parseAgentRequest({ vin: VIN, messages: [user("Status?"), assistant, user("And the recall?")] });
     expect(parsed.ok && parsed.messages).toHaveLength(3);
+    expect(parsed.ok && parsed.messages[1].parts).toEqual([{ type: "text", text: "Open recall." }]);
   });
   test("a long conversation, judged only on the messages the model will see", () => {
     const old = { id: "a", role: "assistant", parts: [{ type: "text", text: "x".repeat(90_000) }] };

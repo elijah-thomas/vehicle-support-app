@@ -1,6 +1,7 @@
 import { createAgentUIStreamResponse } from "ai";
 import { parseAgentRequest } from "@/lib/ai/agent-request";
-import { createVehicleAgent } from "@/lib/ai/vehicle-agent";
+import { cachedLoaders, createVehicleAgent } from "@/lib/ai/vehicle-agent";
+import { loadVehicleRecord } from "@/lib/ai/vehicle-record";
 
 // Public endpoint, so every request is bounded before the model runs (lib/ai/agent-request.ts),
 // and Vercel Firewall rate-limits in front of this. See docs/decisions.md#rate-limiting
@@ -9,8 +10,11 @@ export async function POST(request: Request) {
   if (!parsed.ok) return errorResponse(parsed.code, parsed.status);
 
   try {
+    const record = await loadVehicleRecord(parsed.vin, cachedLoaders);
+    if (!record) return errorResponse("not_found", 404);
+
     return await createAgentUIStreamResponse({
-      agent: createVehicleAgent(parsed.vin),
+      agent: createVehicleAgent(record),
       uiMessages: parsed.messages,
       // Failures after streaming starts reach the client as this text, so it parses like a 500.
       onError: (error) => {
@@ -24,6 +28,6 @@ export async function POST(request: Request) {
   }
 }
 
-function errorResponse(code: "invalid_request" | "too_long" | "agent_failed", status: number) {
+function errorResponse(code: "invalid_request" | "too_long" | "not_found" | "agent_failed", status: number) {
   return Response.json({ error: { code } }, { status });
 }
