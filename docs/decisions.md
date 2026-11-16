@@ -435,7 +435,7 @@ why. To change one, add a new entry that supersedes it rather than editing histo
   budget alert), since AI Gateway budgets don't cap BYOK (D9). In production, rep login (out of
   scope) would let the limit key on the user instead of the IP.
 
-## D30. Lookup suggestions and a page that fits the screen {#lookup-and-layout}
+## D32. Lookup suggestions and a page that fits the screen {#lookup-and-layout}
 
 - **Decision:** How the vehicle page fits a laptop screen, where Call summary lives, how
   telematics units are shown, and what the lookup suggests.
@@ -462,10 +462,10 @@ why. To change one, add a new entry that supersedes it rather than editing histo
 - **Telematics units:**
   - **Options:** derive the unit in the web app from the message text; add `unit` to the
     telematics API contract (D16/D17: migration, seed, API and schema changes).
-  - **Choice:** derive it (`lib/format.ts`): the trailing "(miles)" or "(%)", and "°C" when the
-    message mentions temperature. `type` can't be used: `BATTERY` covers both pack temperature
-    and state of health. Brittle by design; the production fix is a `unit` field in the
-    customer's API. The agent still reads the raw message, so its answers don't change.
+  - **Choice:** derive it (`lib/format.ts`) from the message's trailing parenthesis: "(miles)",
+    "(%)", "(°C)" (the seed gained "(°C)" in D30). `type` can't be used: `BATTERY` covers both
+    pack temperature and state of health. Brittle by design; the production fix is a `unit` field
+    in the customer's API. The agent still reads the raw message, so its answers don't change.
 - **Lookup suggestions:**
   - **Options:** client-only (recents in this browser, demo stories, live VIN/email checks);
     server prefix search (`GET /customers/search?q=`); client-only with recents storing no
