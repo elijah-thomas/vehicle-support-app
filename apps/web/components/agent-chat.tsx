@@ -42,19 +42,23 @@ function errorCopy(error: Error) {
   }
 }
 
-function PromptButton({ prompt, onAsk }: { prompt: string; onAsk: (prompt: string) => void }) {
+function PromptButton({ prompt, onAsk, disabled }: { prompt: string; onAsk: (prompt: string) => void; disabled?: boolean }) {
   return (
     <button
       type="button"
       onClick={() => onAsk(prompt)}
-      className="h-7 rounded-md border border-input bg-card px-2 text-left text-xs font-medium hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      disabled={disabled}
+      className="h-7 rounded-md border border-input bg-card px-2 text-left text-xs font-medium hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50"
     >
       {prompt}
     </button>
   );
 }
 
-export function AgentChat({ vin }: { vin: string }) {
+// vin is null while the page's params resolve: the same empty state renders disabled, so it can be
+// the Suspense fallback and prerender in the static shell. See docs/decisions.md#vehicle-page-caching
+export function AgentChat({ vin }: { vin: string | null }) {
+  const loading = vin === null;
   const [input, setInput] = useState("");
   const [showMore, setShowMore] = useState(false);
   const { messages, sendMessage, regenerate, status, error, stop } = useChat<VehicleAgentMessage>({
@@ -68,7 +72,7 @@ export function AgentChat({ vin }: { vin: string }) {
   }, [messages, status]);
 
   function ask(text: string) {
-    if (!text.trim() || busy) return;
+    if (!text.trim() || busy || loading) return;
     sendMessage({ text });
     setInput("");
   }
@@ -88,7 +92,7 @@ export function AgentChat({ vin }: { vin: string }) {
         ref={logRef}
         role="log"
         aria-live="polite"
-        aria-busy={busy}
+        aria-busy={busy || loading}
         className={cn(
           "max-h-[60vh] min-h-40 flex-1 overflow-y-auto p-4 lg:max-h-none",
           messages.length === 0 ? "flex flex-col justify-between gap-6" : "space-y-5",
@@ -112,10 +116,16 @@ export function AgentChat({ vin }: { vin: string }) {
               <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Start with</p>
               <div className="flex flex-col items-start gap-2">
                 {(showMore ? allPrompts : primaryPrompts).map((prompt) => (
-                  <PromptButton key={prompt} prompt={prompt} onAsk={ask} />
+                  <PromptButton key={prompt} prompt={prompt} onAsk={ask} disabled={loading} />
                 ))}
                 {!showMore && (
-                  <Button variant="ghost" size="sm" className="text-accent-foreground" onClick={() => setShowMore(true)}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-accent-foreground"
+                    onClick={() => setShowMore(true)}
+                    disabled={loading}
+                  >
                     {morePrompts.length} more questions
                   </Button>
                 )}
@@ -195,6 +205,7 @@ export function AgentChat({ vin }: { vin: string }) {
           placeholder="Ask about this vehicle"
           aria-label="Ask about this vehicle"
           maxLength={MAX_TEXT_LENGTH}
+          disabled={loading}
         />
         {busy ? (
           <Button type="button" variant="outline" size="icon" onClick={() => stop()} aria-label="Stop answering">
