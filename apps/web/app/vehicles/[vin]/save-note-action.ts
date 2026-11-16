@@ -3,7 +3,7 @@
 import { updateTag } from "next/cache";
 import { z } from "zod";
 import { cacheTags } from "@/lib/customer/cache-tags";
-import { addCaseNote, createCase } from "@/lib/customer/cases";
+import { addCaseNote, createCaseWithNote } from "@/lib/customer/cases";
 import { VehicleApiError } from "@/lib/customer/vehicle-api";
 import { VIN_PATTERN } from "@/lib/format";
 
@@ -26,8 +26,7 @@ const saveSchema = z.object({
 
 export type SaveNoteResult =
   | { ok: true; noteId: string; caseId: string }
-  // createdCaseId: the new case was created but the note wasn't, so a retry must add to that case.
-  | { ok: false; error: string; createdCaseId?: string };
+  | { ok: false; error: string };
 
 function saveError(error: unknown) {
   if (!(error instanceof VehicleApiError)) return "Couldn't reach the case system. Try again in a moment.";
@@ -42,32 +41,19 @@ export async function saveNoteAction(input: z.input<typeof saveSchema>): Promise
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid note" };
   const { vin, caseId, newCase, issue, summary, nextSteps } = parsed.data;
 
-  let targetCaseId = caseId;
-  if (caseId === "new") {
-    if (!newCase) return { ok: false, error: "A new case needs a subject and category" };
-    try {
-      targetCaseId = (await createCase({ vin, ...newCase, description: summary })).id;
-    } catch (error) {
-      return { ok: false, error: saveError(error) };
-    }
-  }
+  const note = { source: "AI_DRAFT_EDITED" as const, issue, summary, nextSteps };
+  if (caseId === "new" && !newCase) return { ok: false, error: "A new case needs a subject and category" };
 
-  // Decision (D24): updateTag gives read-your-own-writes: the next render waits for fresh cases
-  // instead of serving the cached list. See docs/decisions.md#vehicle-page-caching
   try {
-    const note = await addCaseNote(targetCaseId, { vin, source: "AI_DRAFT_EDITED", issue, summary, nextSteps });
+    const saved =
+      caseId === "new"
+        ? await createCaseWithNote({ vin, ...newCase!, description: summary, note })
+        : { caseId, noteId: (await addCaseNote(caseId, { vin, ...note })).id };
+    // Decision (D24): updateTag gives read-your-own-writes: the next render waits for fresh cases
+    // instead of serving the cached list. See docs/decisions.md#vehicle-page-caching
     updateTag(cacheTags.cases(vin));
-    return { ok: true, noteId: note.id, caseId: targetCaseId };
+    return { ok: true, ...saved };
   } catch (error) {
-    if (caseId !== "new") return { ok: false, error: saveError(error) };
-    // Decision (D33): the case exists now, so show it in the picker and let the retry add only the
-    // note. Trade-off: the case can be left without a note; a transactional API call is the fix.
-    // See docs/decisions.md#save-feedback
-    updateTag(cacheTags.cases(vin));
-    return {
-      ok: false,
-      createdCaseId: targetCaseId,
-      error: `The new case was created, but the note wasn't saved. ${saveError(error)}`,
-    };
+    return { ok: false, error: saveError(error) };
   }
 }

@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { VehicleApiError } from "@/lib/customer/vehicle-api";
 
-const createCase = vi.fn();
+const createCaseWithNote = vi.fn();
 const addCaseNote = vi.fn();
 const updateTag = vi.fn();
-vi.mock("@/lib/customer/cases", () => ({ createCase, addCaseNote }));
+vi.mock("@/lib/customer/cases", () => ({ createCaseWithNote, addCaseNote }));
 vi.mock("next/cache", () => ({ updateTag }));
 vi.mock("@/lib/customer/vehicle-api", async () => {
   class VehicleApiError extends Error {
@@ -22,7 +22,7 @@ const note = { vin: VIN, caseId: "case-1", issue: "Camera blackouts", summary: "
 
 beforeEach(() => {
   vi.clearAllMocks();
-  createCase.mockResolvedValue({ id: "new-case" });
+  createCaseWithNote.mockResolvedValue({ caseId: "new-case", noteId: "note-2" });
   addCaseNote.mockResolvedValue({ id: "note-1" });
 });
 
@@ -32,10 +32,14 @@ test("saves to an existing case, sends the VIN, and refreshes Case history", asy
   expect(updateTag).toHaveBeenCalledWith(`cases:${VIN}`);
 });
 
-test("opens a new case first when asked", async () => {
-  await saveNoteAction({ ...note, caseId: "new", newCase: { subject: "Camera", category: "Electrical" } });
-  expect(createCase).toHaveBeenCalledWith(expect.objectContaining({ vin: VIN, subject: "Camera", description: "Customer called." }));
-  expect(addCaseNote).toHaveBeenCalledWith("new-case", expect.anything());
+test("opens a new case with its note in one call", async () => {
+  const result = await saveNoteAction({ ...note, caseId: "new", newCase: { subject: "Camera", category: "Electrical" } });
+  expect(result).toEqual({ ok: true, noteId: "note-2", caseId: "new-case" });
+  expect(createCaseWithNote).toHaveBeenCalledWith(
+    expect.objectContaining({ vin: VIN, subject: "Camera", description: "Customer called.", note: expect.objectContaining({ issue: "Camera blackouts" }) }),
+  );
+  expect(addCaseNote).not.toHaveBeenCalled();
+  expect(updateTag).toHaveBeenCalledWith(`cases:${VIN}`);
 });
 
 describe("tells the rep what to fix, without calling the case system", () => {
@@ -67,9 +71,9 @@ describe("explains case-system failures", () => {
   });
 });
 
-test("a new case created before the note failed is returned, so the retry adds only the note", async () => {
-  addCaseNote.mockRejectedValue(new VehicleApiError(503, "unavailable", "x"));
+test("a failed new case leaves nothing to clean up: the retry sends the whole save again", async () => {
+  createCaseWithNote.mockRejectedValue(new VehicleApiError(503, "unavailable", "x"));
   const result = await saveNoteAction({ ...note, caseId: "new", newCase: { subject: "Camera", category: "Electrical" } });
-  expect(result).toMatchObject({ ok: false, createdCaseId: "new-case" });
-  expect(updateTag).toHaveBeenCalledWith(`cases:${VIN}`);
+  expect(result).toEqual({ ok: false, error: expect.stringContaining("didn't respond") });
+  expect(updateTag).not.toHaveBeenCalled();
 });
