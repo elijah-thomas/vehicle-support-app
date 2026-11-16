@@ -81,8 +81,17 @@ describe("GET /vehicles/:vin/telematics", () => {
     expect(ids).not.toContain(newest.id);
   });
 
+  test("codedOnly returns only events with a fault code", async () => {
+    const { body } = await call(`/vehicles/${VIN.dana}/telematics?codedOnly=true`);
+    const all = (await call(`/vehicles/${VIN.dana}/telematics`)).body as { code: string | null }[];
+    expect(body.length).toBeGreaterThan(0);
+    expect(body.every((e: { code: string | null }) => e.code !== null)).toBe(true);
+    expect(body).toHaveLength(all.filter((e) => e.code !== null).length);
+  });
+
   test.each([
     ["from=yesterday", "a date that isn't ISO 8601"],
+    ["codedOnly=yes", "codedOnly that isn't true or false"],
     ["from=2026-02-01T00:00:00Z&to=2026-01-01T00:00:00Z", "from after to"],
   ])("rejects %s with 400 (%s)", async (query) => {
     expect((await call(`/vehicles/${VIN.dana}/telematics?${query}`)).status).toBe(400);

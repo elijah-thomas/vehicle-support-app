@@ -11,12 +11,14 @@ const vinParams = z.object({
 });
 
 // from/to bound a time window (inclusive), so a client can read past events without paging
-// through everything newer. Newest first either way; limit still caps the response.
+// through everything newer. codedOnly drops readings without a fault code (battery, odometer),
+// which outnumber faults many times over. Newest first either way; limit still caps the response.
 const telematicsQuery = z
   .object({
     limit: z.coerce.number().int().min(1).max(200).default(50),
     from: z.iso.datetime({ offset: true }).optional(),
     to: z.iso.datetime({ offset: true }).optional(),
+    codedOnly: z.enum(["true", "false"]).default("false"),
   })
   .refine(({ from, to }) => !from || !to || Date.parse(from) <= Date.parse(to), "from must not be after to");
 
@@ -54,11 +56,15 @@ vehiclesRouter.get("/:vin", async (req, res) => {
 
 vehiclesRouter.get("/:vin/telematics", async (req, res) => {
   const { vin } = vinParams.parse(req.params);
-  const { limit, from, to } = telematicsQuery.parse(req.query);
+  const { limit, from, to, codedOnly } = telematicsQuery.parse(req.query);
   await assertVehicleExists(vin);
 
   const events = await prisma.telematicsEvent.findMany({
-    where: { vin, recordedAt: { gte: from && new Date(from), lte: to && new Date(to) } },
+    where: {
+      vin,
+      recordedAt: { gte: from && new Date(from), lte: to && new Date(to) },
+      ...(codedOnly === "true" && { code: { not: null } }),
+    },
     orderBy: { recordedAt: "desc" },
     take: limit,
   });
