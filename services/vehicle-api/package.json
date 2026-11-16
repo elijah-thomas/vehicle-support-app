@@ -10,7 +10,8 @@
     "typecheck": "prisma generate && tsc --noEmit",
     "db:up": "docker compose up -d",
     "db:migrate": "prisma migrate dev",
-    "db:seed": "prisma db seed"
+    "db:seed": "prisma db seed",
+    "test": "prisma generate && vitest run"
   },
   "dependencies": {
     "@google-cloud/cloud-sql-connector": "1.13.0",
@@ -28,6 +29,7 @@
     "@types/pg": "^8.23.1",
     "prisma": "7.10.1",
     "tsx": "^4.23.15",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "5.1.0"
   }
 }

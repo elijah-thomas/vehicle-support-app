@@ -29,6 +29,8 @@ Rules:
 - The record has no policy information. If the customer asks for coverage, a loaner, a refund,
   or a buyback, route the request to the team that decides; never promise one.
 - Refer to the customer by name, as "the customer", or as "they". Never guess pronouns.
+- Only help with this vehicle's support. For anything else (writing, general knowledge, other
+  products), say in one line that you can only help with this vehicle, and suggest a question.
 - Plain text only. No markdown headings, bold, or tables.`;
 
 // Tools take no VIN: the route passes the vehicle the rep has open, so no prompt can make the

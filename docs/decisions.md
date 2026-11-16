@@ -607,3 +607,88 @@ why. To change one, add a new entry that supersedes it rather than editing histo
 - **Limits to flag:** GCP budgets alert, they don't stop, and billing data lags by hours. AI
   Gateway budgets don't cover BYOK (D9). In production I'd add Vertex quotas per model and route
   alerts to an on-call channel rather than email.
+
+## D35. Tests {#tests}
+
+- **Decision:** Which behaviors to test, where, and how, without growing the suite past what earns
+  its keep.
+- **Choice:**
+  - **API (`services/vehicle-api/test/`):** about 40 tests against a real Postgres, calling the
+    real Express app over HTTP. The contract the web app reads (shapes, ordering, limits), privacy
+    (no phone number returned), bad input (malformed VINs, emails, limits, note fields, malformed
+    JSON, oversized bodies), write rules (case ownership, note ownership: D36), and the per-caller
+    rate limit (D31).
+  - **Web (`apps/web/**/*.test.ts`):** about 90 small unit tests in Node: lookup parsing of pasted
+    text, telematics repeat counts and the "recent" window, formatting, the answer parser, recents
+    surviving corrupt or blocked storage, no internal ID reaching the model, the agent and summary
+    routes rejecting bad input before any model call (D38), and the save action's validation,
+    error messages, and partial-failure retry.
+  - **Model behavior stays in evals (D30, D37):** whether the model says the right thing isn't a
+    unit test.
+  - **CI:** `.github/workflows/test.yml` runs typecheck, lint, and both suites on every PR and on
+    `develop`/`master`, with Postgres as a service container. No secrets, no tokens.
+- **Options considered:** mocking Prisma (the API's behavior lives in its queries, so this tests
+  the mocks); component tests with Testing Library (2–3 new dependencies; the logic worth testing
+  is in the action); Playwright end to end (slow and flaky for this scope; listed in the rollout
+  plan); running tests only locally (nothing would stop a regression from merging).
+- **Safety:** the API tests refuse any database whose name doesn't end in `_test`, because the seed
+  deletes every row first. That guard came from a real near miss: Vitest's `test.env` doesn't reach
+  `globalSetup`, so the first version pointed at the dev database. Prisma's own guard against AI
+  agents running `migrate reset` stopped it, and the setup now uses the non-destructive
+  `migrate deploy`.
+
+## D36. Notes can only land on the vehicle's own cases {#note-ownership}
+
+- **Decision:** Where to enforce that a saved note belongs to a case on the vehicle the rep has
+  open.
+- **Finding:** the save action posted whatever case ID the browser sent, and the API didn't check
+  the case's vehicle. A server action is a public POST endpoint and case IDs are in the page, so a
+  stale tab or a crafted request could attach a note to another customer's case.
+- **Options considered:** check in the API (the note body carries the VIN; the API refuses a case
+  that isn't that vehicle's); check in the web action (compare against `getCases(vin)`, one extra
+  read, and only this client is protected).
+- **Choice:** the API. `POST /cases/:id/notes` now requires `vin` and returns 404 unless the case
+  belongs to it. The system of record enforces its own integrity, so every client gets it. The web
+  app sends the VIN it has open.
+- **Rollout note:** this is a required field, so the API and web app ship together. In a real
+  integration I'd accept the VIN as optional first, then require it once every client sends it.
+
+## D37. Transcripts that aren't vehicle support calls {#junk-transcripts}
+
+- **Decision:** What the call summary does with a transcript that isn't a real support call.
+- **Finding:** with nothing to summarize, the model presented the vehicle record as the call. A
+  transcript of "." produced the issue "Recurring battery coolant pump faults and reduced
+  propulsion power". A dealership-hours call got next steps about the fault code.
+- **Options considered:** prompt rules alone; prompt rules plus a `callType` field the UI can act
+  on; refusing short transcripts on the server (brittle: real short calls exist).
+- **Choice:** prompt rules plus `callType` (`vehicle_issue`, `other`, `no_conversation`) in the
+  draft schema. The issue and summary come only from what was said; the record grounds next steps
+  for the issue actually raised. Anything other than `vehicle_issue` shows a warning in the review
+  form. The field isn't saved, so the database doesn't change, and it gives the evals something
+  exact to check instead of phrasing.
+- **Length limits in the draft schema:** stated in descriptions, not enforced. The browser validates
+  the streamed draft against the same schema, so a draft one character over would silently vanish.
+  The save action instead names the field that's too long.
+- **Results (3 runs per case):** `callType` was right in every run. With 7 summary and 10 agent
+  cases, Gemini passed 50/51 and Claude 50/51; the misses were a pronoun (Claude) and a dropped
+  call without a callback step (Gemini). Off-topic requests are now declined in one line, and the
+  agent still corrects a false claim that the recall repair costs $400.
+
+## D38. What the agent route accepts {#agent-request}
+
+- **Decision:** How strictly the public agent route checks the conversation the browser sends.
+- **Finding:** it accepted any role, any part type (a 27KB file part got past the 2,000-character
+  cap), and an empty question (the model still ran). A forged `system` message was blocked by the
+  AI SDK, but only as a generic error after streaming started.
+- **Options considered:** an allow-list of what the chat UI sends; rebuilding the history as plain
+  text (stricter, but the agent would re-fetch data on every follow-up).
+- **Choice:** the allow-list, in `lib/ai/agent-request.ts`: roles `user` and `assistant` only, user
+  messages text-only, a non-empty last question, 2,000 characters per question, and 80,000
+  characters across the last 10 messages, measured after trimming so long conversations aren't
+  refused for messages the model never sees. Assistant parts stay, so follow-ups keep their tool
+  results. Rejections return 400 or 413 before any model call.
+- **Sizing:** I proposed about 40,000 characters, then measured: each assistant turn carries its
+  tool results, and a real customer with years of cases makes those far larger than the seed. 80,000
+  is about 20,000 tokens, roughly a cent on Gemini, and still blocks megabyte-sized abuse.
+- **Limit to flag:** an attacker can still forge earlier assistant turns, but only in their own
+  session, and the tools can only read the vehicle the route names (D25).

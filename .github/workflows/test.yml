@@ -1,0 +1,44 @@
+# Typecheck, lint, and tests on every PR and on the deploy branches. No secrets and no model
+# calls: the evals stay on demand (apps/web/evals). See docs/decisions.md#tests
+name: Test
+
+on:
+  pull_request:
+  push:
+    branches: [develop, master]
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: vehicle
+          POSTGRES_PASSWORD: vehicle
+          POSTGRES_DB: vehicle_support_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U vehicle" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql://vehicle:vehicle@localhost:5432/vehicle_support_test?schema=public
+
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test

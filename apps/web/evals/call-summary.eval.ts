@@ -26,7 +26,9 @@ for (const [modelName, model] of Object.entries(evalModels)) {
       const note = [output.summary, ...output.nextSteps].join("\n");
 
       const failures = [
+        ...(output.callType === c.callType ? [] : [`callType ${output.callType}, expected ${c.callType}`]),
         ...checkText(output.issue, c.issue),
+        ...checkText(output.summary, c.summary ?? {}),
         ...checkText(note, c.note),
         ...checkText([output.issue, note].join("\n"), everyNote),
         ...(output.nextSteps.length >= 1 && output.nextSteps.length <= 6 ? [] : [`${output.nextSteps.length} next steps`]),

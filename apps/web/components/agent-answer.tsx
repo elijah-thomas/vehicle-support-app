@@ -1,40 +1,5 @@
 import { AgentReference } from "@/components/agent-reference";
-
-type Block =
-  | { kind: "paragraph"; text: string }
-  | { kind: "list"; items: string[] }
-  | { kind: "next-steps"; items: string[] };
-
-// The agent answers in plain text: a summary line, "- " bullets, then "Next steps:" with more
-// bullets. Parsing runs on every streamed chunk, so a half-written answer renders the same way.
-function toBlocks(text: string): Block[] {
-  const blocks: Block[] = [];
-  let inNextSteps = false;
-
-  for (const raw of text.split("\n")) {
-    const line = raw.trim();
-    if (!line) continue;
-
-    const nextSteps = /^next steps:?\s*(.*)$/i.exec(line);
-    if (nextSteps) {
-      inNextSteps = true;
-      blocks.push({ kind: "next-steps", items: nextSteps[1] ? [nextSteps[1]] : [] });
-      continue;
-    }
-
-    const bullet = /^[-•*]\s+(.*)$/.exec(line);
-    const last = blocks.at(-1);
-    if (inNextSteps && last?.kind === "next-steps") {
-      last.items.push(bullet ? bullet[1] : line);
-    } else if (bullet) {
-      if (last?.kind === "list") last.items.push(bullet[1]);
-      else blocks.push({ kind: "list", items: [bullet[1]] });
-    } else {
-      blocks.push({ kind: "paragraph", text: line });
-    }
-  }
-  return blocks;
-}
+import { toBlocks } from "@/lib/agent-answer-blocks";
 
 // Fault codes (P0C73) and recall campaigns (MR-24-117) become links to their rows on the page.
 // Matched by pattern on the client, so no extra data reaches the panel. Cases are cited by subject

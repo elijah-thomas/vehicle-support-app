@@ -15,6 +15,7 @@ const createCaseBody = z.object({
 const caseParams = z.object({ id: z.string().min(1) });
 
 const createNoteBody = z.object({
+  vin: z.string().toUpperCase().length(17),
   source: z.enum(["REP", "AI_DRAFT_EDITED"]),
   issue: z.string().trim().min(1).max(300),
   summary: z.string().trim().min(1).max(4000),
@@ -36,12 +37,14 @@ casesRouter.post("/", async (req, res) => {
 
 casesRouter.post("/:id/notes", async (req, res) => {
   const { id } = caseParams.parse(req.params);
-  const body = createNoteBody.parse(req.body);
+  const { vin, ...note } = createNoteBody.parse(req.body);
 
-  const existing = await prisma.case.count({ where: { id } });
-  if (!existing) throw new NotFoundError(`No case with id ${id}`);
+  // The caller names the vehicle it has open, so a note can never land on another vehicle's case.
+  // See docs/decisions.md#note-ownership
+  const existing = await prisma.case.count({ where: { id, vin } });
+  if (!existing) throw new NotFoundError(`No case with id ${id} for VIN ${vin}`);
 
-  const note = await prisma.caseNote.create({ data: { ...body, caseId: id } });
+  const created = await prisma.caseNote.create({ data: { ...note, caseId: id } });
 
-  res.status(201).json(note);
+  res.status(201).json(created);
 });
