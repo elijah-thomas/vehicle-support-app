@@ -37,6 +37,10 @@ resource "google_cloud_run_v2_service" "api" {
     # connection limit. See docs/decisions.md#concurrency
     scaling {
       max_instance_count = 3
+      # Decision (D48): production keeps one instance warm; staging scales to zero. Why: a rep's
+      # first lookup shouldn't pay for a container start and Cloud SQL connector setup.
+      # Trade-off: about $10/month idle. See docs/decisions.md#warm-api
+      min_instance_count = each.value.min_instances
     }
 
     containers {
