@@ -583,3 +583,27 @@ why. To change one, add a new entry that supersedes it rather than editing histo
   the edits and shows the error; one real save on staging (Jordan's Aster, existing case)
   showed the confirmation and highlighted the note. The half-finished "New case" path was checked
   by reading the code only; it can't be triggered from the browser.
+
+## D34. Spend alerts on the model providers {#spend-alerts}
+
+- **Decision:** What stops runaway model spend beyond per-IP rate limits, which many IPs can get
+  around (D29).
+- **Options considered (GCP):** a budget alert in Terraform; an alert plus a lower Vertex
+  requests-per-minute quota (a real ceiling, but set outside Terraform and project-wide); a
+  budget that unlinks billing through Pub/Sub (a true stop, but it would shut down every
+  workload in this shared project).
+- **Choice:**
+  - **Vertex:** a $25/month budget (`infra/budget.tf`) on the Vertex AI and Gemini API services
+    in this project. It emails the billing account's admins at 50%, 90%, and 100% of actual
+    spend and at 100% of forecast spend.
+  - **Anthropic:** a $25/month spend limit set in the Anthropic console, which is a hard stop.
+    Claude only runs as the fallback (D11), so normal use barely touches it.
+- **Sizing:** a Gemini answer is roughly 1,700 tokens, a fraction of a cent. Normal demo traffic
+  is under $1 a month; one IP holding the 20/min edge limit all day would cost tens of dollars.
+  $25 never fires on normal use, and the 50% email comes within hours of real abuse.
+- **Detail that matters:** the budget measures spend *before* credits
+  (`EXCLUDE_ALL_CREDITS`). Usage here is paid from GCP credits, so a budget measured after
+  credits would read $0 and never alert.
+- **Limits to flag:** GCP budgets alert, they don't stop, and billing data lags by hours. AI
+  Gateway budgets don't cover BYOK (D9). In production I'd add Vertex quotas per model and route
+  alerts to an on-call channel rather than email.

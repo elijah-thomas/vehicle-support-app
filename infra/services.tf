@@ -10,6 +10,8 @@ locals {
     "iamcredentials.googleapis.com",
     "sts.googleapis.com",
     "aiplatform.googleapis.com",
+    "cloudbilling.googleapis.com",
+    "billingbudgets.googleapis.com",
   ]
 }
 

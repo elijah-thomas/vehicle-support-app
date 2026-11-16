@@ -34,3 +34,8 @@ variable "github_repository_id" {
   description = "Immutable numeric ID of the GitHub repo allowed to deploy (gh api repos/OWNER/REPO --jq .id)."
   type        = string
 }
+
+variable "billing_account_id" {
+  description = "Billing account the project is linked to, for the spend alert (gcloud billing projects describe PROJECT)."
+  type        = string
+}
