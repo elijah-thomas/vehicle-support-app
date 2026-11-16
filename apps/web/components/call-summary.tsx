@@ -5,6 +5,7 @@ import { CircleAlert, CircleCheck, TriangleAlert } from "lucide-react";
 import { useState, useTransition } from "react";
 import { saveNoteAction, type SaveNoteResult } from "@/app/vehicles/[vin]/save-note-action";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { RecordLink } from "@/components/record-link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -106,16 +107,9 @@ export function CallSummary({ vin, cases, cannedTranscript }: Props) {
           <AlertTitle>Saved to case history</AlertTitle>
           <AlertDescription className="text-foreground">
             Added to &ldquo;{saved.caseSubject}&rdquo;.{" "}
-            <a
-              href={`#note-${saved.noteId}`}
-              onClick={(event) => {
-                event.preventDefault();
-                flashWhenPresent(`note-${saved.noteId}`);
-              }}
-              className="font-medium underline underline-offset-2"
-            >
+            <RecordLink targetId={`note-${saved.noteId}`} className="font-medium underline underline-offset-2">
               Show in Case history
-            </a>
+            </RecordLink>
           </AlertDescription>
         </Alert>
       )}

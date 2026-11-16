@@ -1,5 +1,6 @@
 import { Check, FileText, OctagonAlert, ShieldAlert, TriangleAlert, type LucideIcon } from "lucide-react";
 import { Suspense } from "react";
+import { RecordLink } from "@/components/record-link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "cn";
 import { getCases } from "@/lib/customer/vehicles";
@@ -29,7 +30,7 @@ export function VehicleStatus({ vin, openRecallCampaigns }: { vin: string; openR
         <StatusItem
           key={campaign}
           className={ORDER.recall}
-          href={`#recall-${campaign}`}
+          targetId={`recall-${campaign}`}
           tone="warning"
           Icon={ShieldAlert}
           label="Open recall"
@@ -66,7 +67,7 @@ async function TelematicsStatus({ vin }: { vin: string }) {
   return (
     <StatusItem
       className={critical ? ORDER.critical : ORDER.warning}
-      href={worst.code ? `#dtc-${worst.code}` : "#telematics"}
+      targetId={worst.code ? `dtc-${worst.code}` : "telematics"}
       tone={critical ? "destructive" : "warning"}
       Icon={critical ? OctagonAlert : TriangleAlert}
       label={critical ? "Critical" : "Warning"}
@@ -95,7 +96,7 @@ async function CasesStatus({ vin, hasOpenRecalls }: { vin: string; hasOpenRecall
   return (
     <StatusItem
       className={ORDER.cases}
-      href="#cases"
+      targetId="cases"
       tone="info"
       Icon={FileText}
       label={open === 1 ? "1 open case" : `${open} open cases`}
@@ -105,7 +106,7 @@ async function CasesStatus({ vin, hasOpenRecalls }: { vin: string; hasOpenRecall
 
 function StatusItem({
   className,
-  href,
+  targetId,
   tone,
   Icon,
   label,
@@ -114,7 +115,7 @@ function StatusItem({
   caption,
 }: {
   className: string;
-  href?: string;
+  targetId?: string;
   tone: keyof typeof tones;
   Icon?: LucideIcon;
   label: string;
@@ -135,16 +136,16 @@ function StatusItem({
 
   return (
     <li className={cn("max-w-full", className)}>
-      {href ? (
-        <a
-          href={href}
+      {targetId ? (
+        <RecordLink
+          targetId={targetId}
           className={cn(
             itemClass,
             "transition-shadow hover:ring-1 hover:ring-foreground/15 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
           )}
         >
           {content}
-        </a>
+        </RecordLink>
       ) : (
         <span className={itemClass}>{content}</span>
       )}
