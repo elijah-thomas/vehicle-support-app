@@ -328,7 +328,8 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
   and offered a loaner (safety first; coverage and loaner requests are routed, not promised);
   Claude copied an injected instruction into a saved note, a stored prompt injection (the
   prompt now leaves such text out); the agent's tool loop added nothing (D41).
-- **Latest results (3 runs per case):** agent 30/30 on both models; call summaries 21/21 on both.
+- **Latest results (3 runs per case, Nov 2026):** agent 30/30 on both models; call summaries 21/21
+  on both.
 
 ## D31. Vehicle API rate-limit keying {#api-rate-limit-keying}
 
@@ -564,15 +565,15 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
 - **Why `marketCost`:** with our own keys, the Gateway's `cost` is 0; the provider bills the
   tokens. `marketCost` is what those tokens cost at list price, so it's the number to report. The
   real bill is the provider's invoice, after any discounts or credits.
-- **Measured (evals, Nov 2026, average per answer at list price):**
+- **Measured (evals, Nov 2026, average per answer at list price, two full runs):**
 
   | | Gemini 3.8 Flash | Claude Sonnet 5.5 |
   |---|---|---|
-  | Agent answer | $0.0020 | $0.0059 |
-  | Call summary | $0.0019 | $0.0058 |
+  | Agent answer | $0.0019–0.0020 | $0.0042–0.0059 |
+  | Call summary | $0.0019 | $0.0039–0.0058 |
 
-  About $2 per 1,000 answers on Gemini. The fallback costs about 3× as much per answer as well as
-  being slower, which is one more reason Gemini is primary.
+  About $2 per 1,000 answers on Gemini. Claude varies more with prompt-cache hits. The fallback
+  costs 2–3× as much per answer as well as being slower, one more reason Gemini is primary.
 - **Found while measuring:** reporting tags have a Gateway fee of $0.000075 per request
   (`gatewayCost`), about 4% on a Gemini answer. Kept: it's what splits spend by feature.
 - **Bounded by:** one model step per typical answer and a cap of 3 (D41); input caps (D38, D26);
