@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { type CallSummary as Draft, callSummarySchema, type CallType, MAX_TRANSCRIPT_LENGTH } from "@/lib/call-summary-schema";
+import { aiErrorCode, rateLimitAwareFetch, type AiErrorCode } from "@/lib/ai-request-error";
 import { flashWhenPresent } from "@/lib/flash-element";
 
 export type CaseOption = { id: string; label: string; open: boolean; subject: string };
@@ -30,11 +31,19 @@ export function CallSummary({ vin, cases, cannedTranscript }: Props) {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [saved, setSaved] = useState<Saved | null>(null);
 
+  // A stream that ends with a draft that doesn't match the schema finishes "successfully" with
+  // no object, so that case is tracked here rather than in useObject's error.
+  const [incomplete, setIncomplete] = useState(false);
   const { object, submit, isLoading, error } = useObject({
     api: "/api/call-summary",
     schema: callSummarySchema,
-    onFinish: ({ object }) => setDraft(object ?? null),
+    fetch: rateLimitAwareFetch,
+    onFinish: ({ object }) => {
+      setDraft(object ?? null);
+      setIncomplete(!object);
+    },
   });
+  const failure: AiErrorCode | null = error ? aiErrorCode(error) : incomplete ? "incomplete" : null;
 
   function reset() {
     setDraft(null);
@@ -49,6 +58,7 @@ export function CallSummary({ vin, cases, cannedTranscript }: Props) {
   function generate() {
     setDraft(null);
     setSaved(null);
+    setIncomplete(false);
     submit({ vin, transcript });
   }
 
@@ -69,9 +79,9 @@ export function CallSummary({ vin, cases, cannedTranscript }: Props) {
           maxLength={MAX_TRANSCRIPT_LENGTH}
           className="min-h-40 flex-1 resize-none field-sizing-fixed"
         />
-        {error && (
-          <Alert variant="destructive">
-            <AlertDescription>Couldn&apos;t draft a summary. Try again in a moment.</AlertDescription>
+        {failure && (
+          <Alert variant={failure === "rate_limited" ? "warning" : "destructive"} role="alert">
+            <AlertDescription className="text-foreground">{draftErrorCopy[failure]}</AlertDescription>
           </Alert>
         )}
         <div className="flex flex-wrap gap-2">
@@ -265,4 +275,13 @@ function ReviewForm({
 const callTypeWarning: Record<Exclude<CallType, "vehicle_issue">, string> = {
   other: "This call doesn't describe a vehicle issue",
   no_conversation: "This transcript doesn't look like a conversation",
+};
+
+const draftErrorCopy: Record<AiErrorCode, string> = {
+  rate_limited: "Too many requests. Wait a minute, then draft again.",
+  too_long: "The transcript is too long. Keep it under 15,000 characters.",
+  invalid_request: "The transcript couldn't be sent. Check that it isn't empty.",
+  not_found: "This vehicle isn't in the vehicle data service anymore. Reload the page.",
+  incomplete: "The draft came back incomplete. Your transcript is still here. Try again.",
+  failed: "Couldn't draft a summary. Your transcript is still here. Try again in a moment.",
 };
