@@ -2,6 +2,7 @@ import { createTextStreamResponse, streamText, toTextStream } from "ai";
 import { z } from "zod";
 import { callSummaryRequest } from "@/lib/ai/call-summary";
 import { cachedLoaders } from "@/lib/ai/vehicle-agent";
+import { logUsage } from "@/lib/ai/usage";
 import { loadVehicleRecord } from "@/lib/ai/vehicle-record";
 import { MAX_TRANSCRIPT_LENGTH } from "@/lib/call-summary-schema";
 import { VIN_PATTERN } from "@/lib/format";
@@ -19,7 +20,10 @@ export async function POST(request: Request) {
   const record = await loadVehicleRecord(vin, cachedLoaders);
   if (!record) return errorResponse("not_found", 404);
 
-  const result = streamText(callSummaryRequest(record, transcript));
+  const result = streamText({
+    ...callSummaryRequest(record, transcript),
+    onEnd: ({ steps }) => logUsage("call-summary", steps),
+  });
 
   return createTextStreamResponse({ stream: toTextStream({ stream: result.stream }) });
 }

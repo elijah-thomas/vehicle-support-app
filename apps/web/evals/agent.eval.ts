@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, test } from "vitest";
 import { evalModels } from "@/lib/ai/models";
+import { summarizeUsage } from "@/lib/ai/usage";
 import { createVehicleAgent } from "@/lib/ai/vehicle-agent";
 import { loadVehicleRecord } from "@/lib/ai/vehicle-record";
 import { agentCases, answerFormat, everyAnswer } from "./cases";
@@ -36,6 +37,7 @@ for (const [modelName, model] of Object.entries(evalModels)) {
         seconds: (performance.now() - started) / 1000,
         steps: result.steps.length,
         tokens: result.totalUsage.totalTokens,
+        costUsd: summarizeUsage(result.steps).marketCostUsd,
       });
       expect(failures, `tools: ${called.join(", ") || "none"}\n\n${result.text}`).toEqual([]);
     });

@@ -2,6 +2,7 @@ import { generateText } from "ai";
 import { afterAll, describe, expect, test } from "vitest";
 import { callSummaryRequest } from "@/lib/ai/call-summary";
 import { evalModels } from "@/lib/ai/models";
+import { summarizeUsage } from "@/lib/ai/usage";
 import { loadVehicleRecord } from "@/lib/ai/vehicle-record";
 import { everyNote, summaryCases } from "./cases";
 import { checkText } from "./checks";
@@ -19,7 +20,7 @@ for (const [modelName, model] of Object.entries(evalModels)) {
       if (!record) throw new Error(`Vehicle ${c.vin} not found on staging`);
 
       const started = performance.now();
-      const { output, totalUsage } = await generateText(callSummaryRequest(record, c.transcript, { model }));
+      const { output, totalUsage, steps } = await generateText(callSummaryRequest(record, c.transcript, { model }));
       const note = [output.summary, ...output.nextSteps].join("\n");
 
       const failures = [
@@ -39,6 +40,7 @@ for (const [modelName, model] of Object.entries(evalModels)) {
         output,
         seconds: (performance.now() - started) / 1000,
         tokens: totalUsage.totalTokens,
+        costUsd: summarizeUsage(steps).marketCostUsd,
       });
       expect(failures, JSON.stringify(output, null, 2)).toEqual([]);
     });

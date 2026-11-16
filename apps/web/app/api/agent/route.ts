@@ -1,6 +1,7 @@
 import { createAgentUIStreamResponse } from "ai";
 import { parseAgentRequest } from "@/lib/ai/agent-request";
 import { cachedLoaders, createVehicleAgent } from "@/lib/ai/vehicle-agent";
+import { logUsage } from "@/lib/ai/usage";
 import { loadVehicleRecord } from "@/lib/ai/vehicle-record";
 
 // Decision (D29, D38): a public endpoint, so Vercel Firewall rate-limits it at the edge and every
@@ -16,7 +17,7 @@ export async function POST(request: Request) {
     if (!record) return errorResponse("not_found", 404);
 
     return await createAgentUIStreamResponse({
-      agent: createVehicleAgent(record),
+      agent: createVehicleAgent(record, { onUsage: (steps) => logUsage("agent", steps) }),
       uiMessages: parsed.messages,
       // Failures after streaming starts reach the client as this text, so it parses like a 500.
       onError: (error) => {

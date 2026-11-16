@@ -552,15 +552,31 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
 
 ## D45. Cost per run {#cost-per-run}
 
-- **Decision:** How cost per agent answer and per call summary is bounded and measured.
-- **Bounded by:** one model step per typical answer and a cap of 3 (D41); 2,000-character
-  questions and an 80,000-character history (D38); 15,000-character transcripts (D26); 20 AI
-  requests per minute per IP at the edge (D29); provider spend limits (D34).
-- **Measured (evals, Nov 2026):** about 1,600 tokens per Gemini answer and 2,700 per Claude
-  answer, so the fallback costs more per answer as well as being slower.
-- **Where to read it:** every request carries a `feature:agent` or `feature:call-summary` tag in
-  AI Gateway, so spend, tokens, and latency split by feature and model without custom tracing.
-- **Status:** dollar figures to be read from AI Gateway's spend view before the write-up.
+- **Decision:** How cost per answer is measured, and what bounds it.
+- **Options considered:** compute it from token counts and a price table kept in the repo (goes
+  stale as prices change); read the AI Gateway dashboard or spend report by tag (totals only, no
+  per-answer figure); read the cost AI Gateway returns on every response.
+- **Choice:** the per-response cost. Each step's `providerMetadata.gateway` carries `marketCost`
+  (the tokens at list price), `gatewayCost` (the Gateway's own fees) and the routing record
+  (provider served, every failover attempt). `lib/ai/usage.ts` sums them per answer. Both AI
+  routes log one `ai_usage` line per answer to Vercel's runtime logs, and the eval report shows
+  average cost per answer per model.
+- **Why `marketCost`:** with our own keys, the Gateway's `cost` is 0; the provider bills the
+  tokens. `marketCost` is what those tokens cost at list price, so it's the number to report. The
+  real bill is the provider's invoice, after any discounts or credits.
+- **Measured (evals, Nov 2026, average per answer at list price):**
+
+  | | Gemini 3.8 Flash | Claude Sonnet 5.5 |
+  |---|---|---|
+  | Agent answer | $0.0020 | $0.0059 |
+  | Call summary | $0.0019 | $0.0058 |
+
+  About $2 per 1,000 answers on Gemini. The fallback costs about 3× as much per answer as well as
+  being slower, which is one more reason Gemini is primary.
+- **Found while measuring:** reporting tags have a Gateway fee of $0.000075 per request
+  (`gatewayCost`), about 4% on a Gemini answer. Kept: it's what splits spend by feature.
+- **Bounded by:** one model step per typical answer and a cap of 3 (D41); input caps (D38, D26);
+  20 AI requests a minute per IP at the edge (D29); provider spend limits (D34).
 
 ## D46. Concurrency and scaling {#concurrency}
 

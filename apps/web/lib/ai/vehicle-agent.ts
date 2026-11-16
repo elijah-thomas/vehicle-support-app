@@ -1,5 +1,5 @@
 import "server-only";
-import { isStepCount, ToolLoopAgent, tool, type InferAgentUIMessage } from "ai";
+import { isStepCount, ToolLoopAgent, tool, type InferAgentUIMessage, type StepResult, type ToolSet } from "ai";
 import { z } from "zod";
 import { getCases, getTelematics, getVehicle } from "@/lib/customer/vehicles";
 import { telematicsForModel, type VehicleRecord, vehicleRecordForModel } from "./model-context";
@@ -90,7 +90,8 @@ export function createVehicleAgent(
     model = defaultModel,
     loaders = cachedLoaders,
     asOf = new Date(),
-  }: { model?: ModelChoice; loaders?: VehicleLoaders; asOf?: Date } = {},
+    onUsage,
+  }: { model?: ModelChoice; loaders?: VehicleLoaders; asOf?: Date; onUsage?: (steps: readonly StepResult<ToolSet>[]) => void } = {},
 ) {
   const vin = record.vehicle.vin;
   return new ToolLoopAgent({
@@ -102,6 +103,7 @@ export function createVehicleAgent(
     providerOptions: { gateway: gatewayOptionsFor(model, "agent") },
     // One answer, plus room for a deeper telematics lookup and the answer after it.
     stopWhen: isStepCount(3),
+    onEnd: ({ steps }) => onUsage?.(steps),
     // No output-token cap: a cut-off answer is worse than a long one. Cost per message is bounded
     // by the step cap, input caps in the route, and the Firewall rate limit.
     // Low reasoning depth suits short, grounded answers and keeps latency and cost down.
