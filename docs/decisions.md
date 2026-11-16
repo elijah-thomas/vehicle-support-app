@@ -552,3 +552,34 @@ why. To change one, add a new entry that supersedes it rather than editing histo
     form" rule. A visually hidden "Look up" submit button restores it.
   - Cache Components rejects reading the clock while prerendering, so the time used for
     "2 min ago" is taken when the list opens, not on render.
+
+## D33. Save feedback for call notes {#save-feedback}
+
+- **Decision:** How the rep knows a call note was saved, and what happens when a save fails.
+- **Found:** a save that failed before the Server Action answered (the Firewall's 429 from D29, a
+  dropped connection, a timeout) threw in the browser. The page's error boundary replaced the
+  whole vehicle page with "Couldn't load this vehicle", and the rep's edits were lost. Reproduced
+  by failing the save request in a browser test.
+- **Pointing at the new note:**
+  - **Options:** scroll to the note and flash it in place; re-sort cases by latest activity so
+    the case with the new note moves to the top; a "Just saved" strip at the top of Case history.
+  - **Choice:** scroll and flash in place. The action returns the new note's ID (the API already
+    sends it), notes carry `#note-<id>` anchors, and the panel shows "Saved to case history",
+    names the case, and links to the note. Case history keeps the case system's order: a note
+    saved to an older case isn't at the top of the list, so the page points at it instead.
+    Note IDs appear in the page's HTML only; the model still never sees them (D26).
+- **Failures:** the rep's edits always stay in the form, and the error says what happened. Errors
+  from the vehicle API are told apart by status (404: the case is gone; 400: the note was
+  rejected, with the API's reason; 429: busy; anything else: unavailable). A save that never
+  answers gets "The save didn't go through. Your edits are still here."
+- **Retrying a half-finished "New case" save:**
+  - **Options:** web only (return the created case's ID with the error, switch the picker to it,
+    so the retry adds only the note); one API call that creates the case and its first note in
+    one transaction (changes the customer's API, D16/D17); document only.
+  - **Choice:** web only. Before this, a retry after the note failed created a second case. The
+    case can still be left without a note if the rep gives up; one transactional call in the
+    customer's API is the production fix.
+- **Verified (Nov 2026):** a failed save (faked 429 and dropped connection) keeps the page and
+  the edits and shows the error; one real save on staging (Jordan's Aster, existing case)
+  showed the confirmation and highlighted the note. The half-finished "New case" path was checked
+  by reading the code only; it can't be triggered from the browser.
