@@ -8,7 +8,7 @@ import { startTransition, useActionState, useEffect, useRef, useState, useSyncEx
 import { searchAction, type SearchState } from "@/app/search-action";
 import { ComboboxContent, ComboboxGroup, ComboboxItem, ComboboxLabel, ComboboxList } from "@/components/ui/combobox";
 import { formatRelative } from "@/lib/format";
-import { checkVin, lookupInPastedText, matchRange, normalizeQuery, queryKind } from "@/lib/lookup";
+import { checkVin, lookupInPastedText, suggestedVehicles, matchRange, normalizeQuery, queryKind } from "@/lib/lookup";
 import {
   clearRecentVehicles,
   getRecentVehicles,
@@ -17,12 +17,12 @@ import {
 } from "@/lib/recent-vehicles";
 
 type Option =
-  | { kind: "vehicle"; id: string; vin: string; name: string; owner?: string; openedAt?: string }
+  | { kind: "vehicle"; id: string; vin: string; name: string; owner?: string; openedAt?: string; hint?: string }
   | { kind: "clear"; id: string };
 
 type OptionGroup = { label: string; items: Option[] };
 
-// Suggestions come only from this browser, never from a search of customer data.
+// Suggestions are recent vehicles from this browser and a fixed list, never a search of customer data.
 // See docs/decisions.md#lookup-and-layout
 function suggestionGroups(
   query: string,
@@ -42,9 +42,17 @@ function suggestionGroups(
   const recent = recents
     .filter((v) => !query || matches(query, isVin, v.vin, v.name, v.owner))
     .map((v): Option => ({ kind: "vehicle", id: `recent-${v.vin}`, ...v }));
-  if (recent.length === 0) return [];
+  const recentVins = new Set(recents.map((v) => v.vin));
+  const vehicles = suggestedVehicles
+    .filter((v) => !recentVins.has(v.vin) && (!query || matches(query, isVin, v.vin, v.name, v.owner)))
+    .map((v): Option => ({ kind: "vehicle", id: `vehicle-${v.vin}`, ...v }));
+
   const clear: Option = { kind: "clear", id: "clear" };
-  return [{ label: "Recent", items: query ? recent : [...recent, clear] }];
+  const groups: OptionGroup[] = [
+    { label: "Recent", items: recent.length > 0 && !query ? [...recent, clear] : recent },
+    { label: "Vehicles", items: vehicles },
+  ];
+  return groups.filter((group) => group.items.length > 0);
 }
 
 function matches(query: string, isVin: boolean, vin: string, ...labels: string[]) {
@@ -300,6 +308,7 @@ function SuggestionRow({ option, query, now }: { option: Option; query: string; 
       {option.openedAt && now > 0 && (
         <span className="shrink-0 pt-0.5 text-xs text-muted-foreground">{formatRelative(option.openedAt, now)}</span>
       )}
+      {option.hint && <span className="shrink-0 pt-0.5 text-xs text-muted-foreground">{option.hint}</span>}
     </ComboboxItem>
   );
 }

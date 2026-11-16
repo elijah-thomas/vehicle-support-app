@@ -1,5 +1,17 @@
 import { VIN_PATTERN } from "@/lib/format";
 
+export type SuggestedVehicle = { vin: string; name: string; owner: string; hint: string };
+
+// The seeded vehicles, offered when the lookup opens so each record is one step away.
+export const suggestedVehicles: SuggestedVehicle[] = [
+  { vin: "0MRAE4LR5RA100001", name: "2024 Meridian Aster EV Long Range", owner: "Dana Whitfield", hint: "Recurring battery fault" },
+  { vin: "0MRKC15V8PA200002", name: "2023 Meridian Kestrel 1500 Crew Cab", owner: "Marcus Bell", hint: "Open recall" },
+  { vin: "0MRSH25H9PA500006", name: "2023 Meridian Solace Hybrid", owner: "Sam Torres", hint: "Fault returned after repair" },
+  { vin: "0MRKW15T6MA400005", name: "2021 Meridian Kestrel 1500 Work Truck", owner: "Jordan Okafor", hint: "Coolant warning" },
+  { vin: "0MRAE4SR2NA400004", name: "2022 Meridian Aster EV Standard", owner: "Jordan Okafor", hint: "No open issues" },
+  { vin: "0MRSH25H1TA300003", name: "2026 Meridian Solace Hybrid Premier", owner: "Priya Raman", hint: "No open issues" },
+];
+
 export type QueryKind = "empty" | "email" | "vin" | "text";
 
 // Names never contain digits, so a digit is what marks a VIN being typed.
