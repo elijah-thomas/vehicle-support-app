@@ -877,3 +877,12 @@ why. To change one, add a new entry that supersedes it rather than editing histo
   still orders the tags correctly.
 - **`package.json` versions stay as they are:** npm requires three-part semver there, and both
   packages are private and never published.
+- **First release, 26.11.15.1:** the first pipeline run on `master` deployed the API (WIF auth,
+  migrations, new revision) and Vercel promoted the web app. Production still held the seed from
+  the boundary spike, so it was reseeded once by hand, not from the pipeline, which never reseeds
+  production: a temporary `postgres` password, the seed through the Cloud SQL Auth Proxy (`postgres`
+  is a member of the deployer role), then the password rotated to a random value that isn't stored.
+  A one-click production wipe in CI would be a bad pattern to show, even with synthetic data.
+  Verified after release: a vehicle page renders through the production WIF path, the agent and
+  call summary answer, the Firewall returns 429 after 20 AI requests a minute, and the API rejects
+  malformed JSON with 400.
