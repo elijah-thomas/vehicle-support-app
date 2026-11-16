@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../db.js";
-import { NotFoundError } from "../errors.js";
+import { ConflictError, NotFoundError } from "../errors.js";
 
 export const casesRouter = Router();
 
@@ -20,6 +20,11 @@ const createNoteBody = z.object({
   issue: z.string().trim().min(1).max(300),
   summary: z.string().trim().min(1).max(4000),
   nextSteps: z.array(z.string().trim().min(1).max(500)).min(1).max(10),
+});
+
+const closeCaseBody = z.object({
+  vin: z.string().toUpperCase().length(17),
+  resolution: z.string().trim().min(1).max(1000),
 });
 
 casesRouter.post("/", async (req, res) => {
@@ -47,4 +52,23 @@ casesRouter.post("/:id/notes", async (req, res) => {
   const created = await prisma.caseNote.create({ data: { ...note, caseId: id } });
 
   res.status(201).json(created);
+});
+
+casesRouter.post("/:id/close", async (req, res) => {
+  const { id } = caseParams.parse(req.params);
+  const { vin, resolution } = closeCaseBody.parse(req.body);
+
+  // Same ownership rule as notes: only the vehicle's own case can be closed.
+  // See docs/decisions.md#note-ownership
+  const existing = await prisma.case.count({ where: { id, vin } });
+  if (!existing) throw new NotFoundError(`No case with id ${id} for VIN ${vin}`);
+
+  // The status check is in the update itself, so two closes racing can't both succeed.
+  const { count } = await prisma.case.updateMany({
+    where: { id, status: "OPEN" },
+    data: { status: "CLOSED", closedAt: new Date(), resolution },
+  });
+  if (!count) throw new ConflictError(`Case ${id} is already closed`);
+
+  res.json(await prisma.case.findUniqueOrThrow({ where: { id } }));
 });

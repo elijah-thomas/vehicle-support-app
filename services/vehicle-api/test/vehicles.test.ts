@@ -20,6 +20,14 @@ describe("GET /vehicles/:vin", () => {
     expect(JSON.stringify(body)).not.toContain("555-0102");
   });
 
+  test("lists the owner's vehicles, so a rep can reach the other one", async () => {
+    const { body } = await call(`/vehicles/${VIN.jordanTruck}`);
+    expect(body.customer.vehicles.map((v: { vin: string }) => v.vin)).toEqual(
+      expect.arrayContaining([VIN.jordanTruck, "0MRAE4SR2NA400004"]),
+    );
+    expect(body.customer.vehicles[0]).toEqual({ vin: expect.any(String), model: expect.objectContaining({ model: expect.any(String) }) });
+  });
+
   test("accepts a lowercase VIN", async () => {
     expect((await call(`/vehicles/${VIN.dana.toLowerCase()}`)).status).toBe(200);
   });
