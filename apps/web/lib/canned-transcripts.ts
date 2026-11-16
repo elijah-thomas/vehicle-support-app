@@ -1,4 +1,5 @@
-// Synthetic call transcripts for the call-summary evals, keyed by VIN. They match the seeded data.
+// Call transcripts for the seeded vehicles, keyed by VIN. Call summary offers them as an example,
+// and the call-summary evals use them.
 export const cannedTranscripts: Record<string, { label: string; text: string }> = {
   "0MRKC15V8PA200002": {
     label: "Marcus: backup camera keeps going black",

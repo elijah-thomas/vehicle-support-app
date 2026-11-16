@@ -12,7 +12,6 @@ pnpm eval                                                      # EVAL_RUNS=1 for
 | File | What it holds |
 |---|---|
 | `cases.ts` | Prompts and transcripts, the tools each must call, and the text it must and must not contain |
-| `transcripts.ts` | Synthetic call transcripts the call-summary cases use |
 | `checks.ts` | The deterministic grading |
 | `agent.eval.ts`, `call-summary.eval.ts` | Run each case per model, several times |
 | `loaders.ts` | Staging API reads, fetched once per run |
