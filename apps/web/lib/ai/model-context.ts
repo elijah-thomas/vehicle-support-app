@@ -40,7 +40,11 @@ function vehicleForModel(vehicle: Vehicle) {
     purchased: formatDate(vehicle.purchasedAt),
     softwareVersion: vehicle.softwareVersion,
     installedOptions: vehicle.installedOptions,
-    owner: vehicle.customer,
+    owner: {
+      firstName: vehicle.customer.firstName,
+      lastName: vehicle.customer.lastName,
+      email: vehicle.customer.email,
+    },
     recalls: vehicle.recalls.map(({ recall, status, completedAt }) => ({
       ...recall,
       status,

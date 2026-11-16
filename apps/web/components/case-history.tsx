@@ -1,66 +1,74 @@
+import { ChevronRight, Clock } from "lucide-react";
+import Link from "next/link";
 import { PanelUnavailable } from "@/components/panel-unavailable";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import { getCases } from "@/lib/customer/vehicles";
+import { getCaseSnapshot } from "@/lib/case-snapshot";
+import { caseHref, contactStatus, sortCases } from "@/lib/cases";
 import { formatDate } from "@/lib/format";
 import { loadPanel } from "@/lib/load-panel";
 
 export async function CaseHistory({ vin }: { vin: string }) {
-  const loaded = await loadPanel("cases", () => getCases(vin));
+  const loaded = await loadPanel("cases", () => getCaseSnapshot(vin));
   if (!loaded.ok) return <PanelUnavailable title="Case history" id="cases" />;
-  const cases = loaded.data;
-  if (!cases) return null;
+  if (!loaded.data) return null;
+  const { now } = loaded.data;
+  const cases = sortCases(loaded.data.cases);
+  const open = cases.filter((c) => c.status === "OPEN").length;
 
   return (
     <Card id="cases" className="scroll-mt-18">
       <CardHeader>
         <CardTitle>Case history</CardTitle>
-        <CardDescription>{cases.length === 1 ? "1 case" : `${cases.length} cases`}, newest first.</CardDescription>
+        <CardDescription>
+          {cases.length === 0 ? "No cases" : `${open} open, ${cases.length - open} closed`}. Open first, then newest.
+        </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
-        {cases.length === 0 && <p className="text-sm text-muted-foreground">No previous cases for this vehicle.</p>}
-        {cases.map((supportCase, index) => (
-          <div key={supportCase.id} className="space-y-2 text-sm">
-            {index > 0 && <Separator className="mb-4" />}
-            <div className="flex items-center gap-2">
-              <Badge variant={supportCase.status === "OPEN" ? "info" : "secondary"}>
-                {supportCase.status === "OPEN" ? "Open" : "Closed"}
-              </Badge>
-              <span className="font-medium">{supportCase.subject}</span>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {supportCase.category} · opened {formatDate(supportCase.openedAt)}
-              {supportCase.closedAt && ` · closed ${formatDate(supportCase.closedAt)}`}
-            </p>
-            <p>{supportCase.description}</p>
-            {supportCase.resolution && (
-              <p>
-                <span className="text-muted-foreground">Resolution: </span>
-                {supportCase.resolution}
-              </p>
-            )}
-            {supportCase.notes.map((note) => (
-              <div
-                key={note.id}
-                id={`note-${note.id}`}
-                className="scroll-mt-18 rounded-md bg-muted p-3 transition-colors"
-              >
-                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                  Note · {formatDate(note.createdAt)}
-                  {note.source === "AI_DRAFT_EDITED" && <Badge variant="info">AI draft, reviewed by rep</Badge>}
-                </div>
-                <p className="mt-1 font-medium">{note.issue}</p>
-                <p>{note.summary}</p>
-                <ul className="mt-1 list-disc pl-5">
-                  {note.nextSteps.map((step) => (
-                    <li key={step}>{step}</li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-        ))}
+      <CardContent>
+        {cases.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No previous cases for this vehicle.</p>
+        ) : (
+          <ul className="space-y-2">
+            {cases.map((supportCase) => {
+              const contact = contactStatus(supportCase, now);
+              const isOpen = supportCase.status === "OPEN";
+              const notes = supportCase.notes.length;
+              return (
+                <li key={supportCase.id}>
+                  <Link
+                    href={caseHref(vin, supportCase.id)}
+                    className="flex items-center gap-3 rounded-md border px-3 py-2.5 text-sm transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                  >
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant={isOpen ? "info" : "secondary"}>{isOpen ? "Open" : "Closed"}</Badge>
+                        {contact.overdue && <Badge variant="warning">Overdue</Badge>}
+                        <span className="font-medium">{supportCase.subject}</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {supportCase.category} ·{" "}
+                        {supportCase.closedAt
+                          ? `${formatDate(supportCase.openedAt)} to ${formatDate(supportCase.closedAt)}`
+                          : `opened ${formatDate(supportCase.openedAt)}`}
+                        {" · "}
+                        {notes === 1 ? "1 note" : `${notes} notes`}
+                      </p>
+                      {contact.overdue ? (
+                        <p className="flex items-center gap-1 text-xs text-warning">
+                          <Clock className="size-3" aria-hidden />
+                          No contact in {contact.daysWithoutContact} business days
+                        </p>
+                      ) : (
+                        supportCase.resolution && <p className="text-xs">{supportCase.resolution}</p>
+                      )}
+                    </div>
+                    <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </CardContent>
     </Card>
   );

@@ -19,7 +19,17 @@ const vehicleSchema = z.object({
     engine: z.string().nullable(),
     towingLbs: z.number().nullable(),
   }),
-  customer: z.object({ firstName: z.string(), lastName: z.string(), email: z.string() }),
+  customer: z.object({
+    firstName: z.string(),
+    lastName: z.string(),
+    email: z.string(),
+    vehicles: z.array(
+      z.object({
+        vin: z.string(),
+        model: z.object({ year: z.number(), make: z.string(), model: z.string(), trim: z.string() }),
+      }),
+    ),
+  }),
   recalls: z.array(
     z.object({
       status: z.enum(["OPEN", "COMPLETED"]),

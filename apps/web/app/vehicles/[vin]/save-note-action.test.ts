@@ -27,7 +27,7 @@ beforeEach(() => {
 });
 
 test("saves to an existing case, sends the VIN, and refreshes Case history", async () => {
-  expect(await saveNoteAction(note)).toEqual({ ok: true, noteId: "note-1" });
+  expect(await saveNoteAction(note)).toEqual({ ok: true, noteId: "note-1", caseId: "case-1" });
   expect(addCaseNote).toHaveBeenCalledWith("case-1", expect.objectContaining({ vin: VIN, source: "AI_DRAFT_EDITED" }));
   expect(updateTag).toHaveBeenCalledWith(`cases:${VIN}`);
 });
