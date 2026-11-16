@@ -719,3 +719,28 @@ why. To change one, add a new entry that supersedes it rather than editing histo
   they're ready, not faster data. In this build the vehicle API runs on Cloud Run as a stand-in
   for Meridian's existing GKE services; in their environment those stay put behind an
   identity-checked internal endpoint.
+
+## D40. Error states in the UI {#error-states}
+
+- **Decision:** How the UI handles each failure the testing turned up.
+- **Findings:** one failing panel replaced the whole vehicle page (an error in a panel inside
+  `<Suspense>` bubbles to the page's `error.tsx`); the lookup page had no error boundary, so a
+  down customer system showed Next's default error screen; a call-summary draft that failed schema
+  validation vanished silently (`useObject` reports it only to `onFinish`); every call-summary
+  failure showed the same message, including rate limits; the chat had no retry.
+- **Choice:**
+  - **Panels fail alone:** `lib/load-panel.ts` catches a panel's fetch failure and the panel shows
+    "Telematics couldn't be loaded… The rest of the record is still current" with Retry
+    (`router.refresh()`). `unstable_rethrow` lets Next's own control-flow errors through:
+    `connection()` postpones prerendering by throwing, and swallowing that would break the static
+    shell. Verified by simulating a telematics outage, and the build still shows the page as
+    Partial Prerender.
+  - **Lookup:** the search action returns an inline error when the customer system is down;
+    `app/error.tsx` is the last resort.
+  - **One error vocabulary for both AI features** (`lib/ai-request-error.ts`): the call-summary
+    route now answers `{ error: { code } }` like the agent route, a custom `fetch` on `useObject`
+    tags Firewall 429s, and both features show the same wording for the same failure. An incomplete
+    draft says so and keeps the transcript.
+  - **Chat:** a failed answer offers Try again (`regenerate()`).
+- **Options considered:** a client error boundary per panel (catches render errors too, but needs a
+  class component or a dependency, and server-side failures are the ones that happen here).
