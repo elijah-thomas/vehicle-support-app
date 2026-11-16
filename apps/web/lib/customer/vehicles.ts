@@ -6,7 +6,7 @@ import {
   type Case,
   fetchCases,
   fetchTelematics,
-  fetchTelematicsWindow,
+  fetchFaultsInWindow,
   fetchVehicle,
   type TelematicsEvent,
   type Vehicle,
@@ -52,15 +52,15 @@ const SETTLE_MS = 24 * 60 * 60 * 1000;
 // Why: vehicles upload buffered events late, so a window is only safe to cache once it has
 // settled. Trade-off: a later upload into a settled window shows within a day.
 // See docs/decisions.md#telematics-windows
-export async function getTelematicsWindow(vin: string, from: string, to: string): Promise<TelematicsEvent[] | null> {
+export async function getFaultsInWindow(vin: string, from: string, to: string): Promise<TelematicsEvent[] | null> {
   await connection();
-  if (Date.now() - Date.parse(to) < SETTLE_MS) return fetchTelematicsWindow(vin, from, to);
-  return getSettledTelematicsWindow(vin, from, to);
+  if (Date.now() - Date.parse(to) < SETTLE_MS) return fetchFaultsInWindow(vin, from, to);
+  return getSettledFaultsInWindow(vin, from, to);
 }
 
-async function getSettledTelematicsWindow(vin: string, from: string, to: string) {
+async function getSettledFaultsInWindow(vin: string, from: string, to: string) {
   "use cache: remote";
   cacheTag(cacheTags.telematics(vin));
   cacheLife("days");
-  return fetchTelematicsWindow(vin, from, to);
+  return fetchFaultsInWindow(vin, from, to);
 }

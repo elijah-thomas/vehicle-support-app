@@ -660,12 +660,19 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
   case's week by date and cache it once it can no longer change.
 - **Choice:** the last. The API takes `from`/`to` on `GET /vehicles/:vin/telematics`, a plain date
   filter on the existing `(vin, recordedAt)` index. The case page reads one window per case
-  (`getTelematicsWindow`). A window that ended over 24 hours ago is cached with `days`; a newer one
+  (`getFaultsInWindow`). A window that ended over 24 hours ago is cached with `days`; a newer one
   reads fresh. The live feed and the agent are unchanged.
 - **Why 24 hours:** vehicles buffer events when offline and upload them late, and events carry
   only the vehicle's own `recordedAt`, so a window is only safe to cache once it has settled.
+- **Coded faults only:** a benchmark with a reading every 5 minutes put 2,016 events in one week;
+  the 200-event cap returned only its last 17 hours, 5 of its 51 faults. Windows now ask the API
+  for coded events only (`codedOnly=true`): 51 events, the whole week, 0.24 ms.
 - **Trade-off:** a case page reads one window per earlier case (in parallel, cached when settled);
-  a window is capped at 200 events.
+  a window holding over 200 fault codes would still be cut off.
+- **Checked locally** (production build against staging, in-memory cache): across Dana's three
+  case pages, each case's window reached the API once in total. The newest case needed three
+  windows and fetched one, reusing two cached by the other pages. Repeat loads made no API calls
+  (0.08–0.26 s first load, ~0.012 s after). Vercel's shared Runtime Cache adds its own read time.
 - **Production path:** the ingest pipeline clears `telematics:{vin}` when a late event lands.
   Repeat counts on the live panel still come from the newest 20 events and undercount on a long
   history; the API returning per-code counts would fix that. Live updates during a call need the
