@@ -79,7 +79,7 @@ async function main() {
               { recordedAt: daysAgo(240), type: "DTC", code: "P0C73", severity: "WARN", message: "Battery coolant pump control performance" },
               { recordedAt: daysAgo(130), type: "DTC", code: "P0C73", severity: "WARN", message: "Battery coolant pump control performance" },
               { recordedAt: daysAgo(12), type: "DTC", code: "P0C73", severity: "CRITICAL", message: "Battery coolant pump control performance; propulsion power reduced" },
-              { recordedAt: daysAgo(12), type: "BATTERY", severity: "WARN", message: "Battery pack temperature above normal range", value: 48 },
+              { recordedAt: daysAgo(12), type: "BATTERY", severity: "WARN", message: "Battery pack temperature above normal range (°C)", value: 48 },
               { recordedAt: daysAgo(1), type: "ODOMETER", severity: "INFO", message: "Odometer reading (miles)", value: 18420 },
             ],
           },
