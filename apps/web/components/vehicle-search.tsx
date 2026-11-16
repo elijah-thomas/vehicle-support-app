@@ -8,7 +8,7 @@ import { startTransition, useActionState, useEffect, useRef, useState, useSyncEx
 import { searchAction, type SearchState } from "@/app/search-action";
 import { ComboboxContent, ComboboxGroup, ComboboxItem, ComboboxLabel, ComboboxList } from "@/components/ui/combobox";
 import { formatRelative } from "@/lib/format";
-import { checkVin, demoStories, lookupInPastedText, matchRange, normalizeQuery, queryKind } from "@/lib/lookup";
+import { checkVin, lookupInPastedText, matchRange, normalizeQuery, queryKind } from "@/lib/lookup";
 import {
   clearRecentVehicles,
   getRecentVehicles,
@@ -18,12 +18,11 @@ import {
 
 type Option =
   | { kind: "vehicle"; id: string; vin: string; name: string; owner?: string; openedAt?: string }
-  | { kind: "story"; id: string; label: string; query: string }
   | { kind: "clear"; id: string };
 
 type OptionGroup = { label: string; items: Option[] };
 
-// Suggestions come only from this browser and the demo stories, never from customer data.
+// Suggestions come only from this browser, never from a search of customer data.
 // See docs/decisions.md#lookup-and-layout
 function suggestionGroups(
   query: string,
@@ -43,21 +42,14 @@ function suggestionGroups(
   const recent = recents
     .filter((v) => !query || matches(query, isVin, v.vin, v.name, v.owner))
     .map((v): Option => ({ kind: "vehicle", id: `recent-${v.vin}`, ...v }));
-  const stories = demoStories
-    .filter((s) => !query || matches(query, isVin, s.query, s.label))
-    .map((s): Option => ({ kind: "story", id: `story-${s.query}`, ...s }));
-
+  if (recent.length === 0) return [];
   const clear: Option = { kind: "clear", id: "clear" };
-  const groups: OptionGroup[] = [
-    { label: "Recent", items: recent.length > 0 && !query ? [...recent, clear] : recent },
-    { label: "Demo stories", items: stories },
-  ];
-  return groups.filter((group) => group.items.length > 0);
+  return [{ label: "Recent", items: query ? recent : [...recent, clear] }];
 }
 
-function matches(query: string, isVin: boolean, vinOrEmail: string, ...labels: string[]) {
-  if (isVin) return vinOrEmail.startsWith(query);
-  return [vinOrEmail, ...labels].some((text) => matchRange(text, query));
+function matches(query: string, isVin: boolean, vin: string, ...labels: string[]) {
+  if (isVin) return vin.startsWith(query);
+  return [vin, ...labels].some((text) => matchRange(text, query));
 }
 
 export function VehicleSearch({ size = "default", className }: { size?: "default" | "lg"; className?: string }) {
@@ -118,16 +110,12 @@ export function VehicleSearch({ size = "default", className }: { size?: "default
     }
     setOpen(false);
     setDismissed(state);
-    if (option.kind === "vehicle") {
-      setQuery("");
-      router.push(`/vehicles/${option.vin}`);
-    } else {
-      setQuery(option.query);
-      lookUp(option.query);
-    }
+    setQuery("");
+    router.push(`/vehicles/${option.vin}`);
   }
 
   const large = size === "lg";
+  const hasSuggestions = groups.length > 0 || Boolean(result.error);
   const suggestions = (
     <>
       {result.error && (
@@ -188,9 +176,9 @@ export function VehicleSearch({ size = "default", className }: { size?: "default
           if (details.reason === "input-change") changeQuery(next);
         }}
         inline={large}
-        open={large || open}
+        open={hasSuggestions && (large || open)}
         onOpenChange={(next) => (next ? openList() : setOpen(false))}
-        itemToStringLabel={(option) => (option.kind === "vehicle" ? option.vin : option.kind === "story" ? option.query : "")}
+        itemToStringLabel={(option) => (option.kind === "vehicle" ? option.vin : "")}
       >
         <div
           ref={fieldRef}
@@ -227,7 +215,9 @@ export function VehicleSearch({ size = "default", className }: { size?: "default
         </div>
 
         {large ? (
-          <div className="mt-2 overflow-hidden rounded-md border bg-popover shadow-md">{suggestions}</div>
+          hasSuggestions && (
+            <div className="mt-2 overflow-hidden rounded-md border bg-popover shadow-md">{suggestions}</div>
+          )
         ) : (
           <ComboboxContent anchor={fieldRef} className="rounded-md border p-0 ring-0">
             {suggestions}
@@ -286,23 +276,20 @@ function SuggestionRow({ option, query, now }: { option: Option; query: string; 
   }
 
   const isVin = queryKind(query) === "vin";
-  const Icon = option.kind === "story" ? Car : option.openedAt ? Clock : Car;
-  const primary = option.kind === "story" ? option.label : option.name;
-  const secondary = option.kind === "story" ? option.query : option.vin;
-  const secondaryIsVin = option.kind === "vehicle" || !secondary.includes("@");
+  const Icon = option.openedAt ? Clock : Car;
 
   return (
     <ComboboxItem value={option} className={itemClass}>
       <Icon className="mt-0.5 size-4 text-muted-foreground" aria-hidden />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm">
-          <Highlight text={primary} query={isVin ? "" : query} />
+          <Highlight text={option.name} query={isVin ? "" : query} />
         </p>
         <p className="truncate text-xs text-muted-foreground">
-          <span className={cn(secondaryIsVin && "font-mono")}>
-            <Highlight text={secondary} query={query} prefixOnly={isVin} />
+          <span className="font-mono">
+            <Highlight text={option.vin} query={query} prefixOnly={isVin} />
           </span>
-          {option.kind === "vehicle" && option.owner && (
+          {option.owner && (
             <>
               {" · "}
               <Highlight text={option.owner} query={isVin ? "" : query} />
@@ -310,7 +297,7 @@ function SuggestionRow({ option, query, now }: { option: Option; query: string; 
           )}
         </p>
       </div>
-      {option.kind === "vehicle" && option.openedAt && now > 0 && (
+      {option.openedAt && now > 0 && (
         <span className="shrink-0 pt-0.5 text-xs text-muted-foreground">{formatRelative(option.openedAt, now)}</span>
       )}
     </ComboboxItem>

@@ -1,19 +1,8 @@
 import { VIN_PATTERN } from "@/lib/format";
 
-export type DemoStory = { label: string; query: string };
-
-// Canned examples so reviewers can try every story without knowing the data.
-export const demoStories: DemoStory[] = [
-  { label: "Recurring battery fault", query: "dana.whitfield@example.com" },
-  { label: "Symptom matches an open recall", query: "0MRKC15V8PA200002" },
-  { label: "Healthy new vehicle", query: "priya.raman@example.com" },
-  { label: "Customer with two vehicles", query: "jordan.okafor@example.com" },
-  { label: "Fault returned after a closed case", query: "0MRSH25H9PA500006" },
-];
-
 export type QueryKind = "empty" | "email" | "vin" | "text";
 
-// Names and story labels never contain digits, so a digit is what marks a VIN being typed.
+// Names never contain digits, so a digit is what marks a VIN being typed.
 export function queryKind(query: string): QueryKind {
   if (!query) return "empty";
   if (query.includes("@")) return "email";

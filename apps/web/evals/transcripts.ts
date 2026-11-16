@@ -1,4 +1,4 @@
-// Synthetic call transcripts for the demo, keyed by VIN. They line up with the seeded stories.
+// Synthetic call transcripts for the call-summary evals, keyed by VIN. They match the seeded data.
 export const cannedTranscripts: Record<string, { label: string; text: string }> = {
   "0MRKC15V8PA200002": {
     label: "Marcus: backup camera keeps going black",
