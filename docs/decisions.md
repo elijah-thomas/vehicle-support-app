@@ -250,8 +250,6 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
   changed) to an authenticated Vercel route that calls `revalidateTag` for that VIN. Then
   lifetimes can grow, since staleness no longer depends on them. Not built: a demo has no CRM
   writing behind its back.
-- **Measured against staging:** first load ~5 s (scaled to zero, token exchange, connector
-  setup); warm loads 0.08–0.3 s.
 
 ## D25. Vehicle agent {#agent}
 
@@ -632,8 +630,11 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
 
 ## D48. Keeping the production API warm {#warm-api}
 
-- **Decision:** Whether the vehicle API scales to zero, given that D24 measured a ~5 s first load
-  (container start, Cloud SQL connector setup, token exchange) against ~0.1–0.3 s warm.
+- **Decision:** Whether the vehicle API scales to zero. After an idle spell, the first request
+  waits for Cloud Run to start a container and for the Cloud SQL connector's setup.
+- **Measured against staging:** a first load after idle took ~5 s; warm loads take 0.08–0.3 s.
+  Keeping an instance running aims to bring that first load close to a warm one. Not yet
+  measured.
 - **Options considered:** a Cloud Scheduler job pinging `/health` every ~10 minutes (nearly free,
   but Cloud Run may still stop an idle instance, it warms only one, and it needs its own invoker
   service account); `min_instance_count = 1` on production; neither, only trimming startup.
@@ -642,9 +643,10 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
   still 3 instances × 4 connections).
 - **Cost:** an idle instance is billed at Cloud Run's reduced idle rate, roughly $10/month for
   1 vCPU and 512 MiB (estimate; confirm in the pricing calculator).
-- **Doesn't fix:** the Vercel side of a cold path. The Runtime Cache starts empty after each
-  deploy, and each new Fluid instance does one token exchange (now shared by concurrent calls,
-  D3). A warm API removes the largest single piece, not all of it.
+- **Doesn't fix:** the Vercel side. The Runtime Cache starts empty after each deploy, and each new
+  Fluid instance does one token exchange.
+- **To measure:** staging still scales to zero, so it is the comparison. After the next release,
+  time a first load after an idle hour on each, and record both here.
 
 ## D49. Caching past telematics {#telematics-windows}
 
