@@ -693,3 +693,29 @@ why. To change one, add a new entry that supersedes it rather than editing histo
   is about 20,000 tokens, roughly a cent on Gemini, and still blocks megabyte-sized abuse.
 - **Limit to flag:** an attacker can still forge earlier assistant turns, but only in their own
   session, and the tools can only read the vehicle the route names (D25).
+
+## D39. The customer's current state {#current-state}
+
+- **Decision:** What Meridian's console runs on today, which the proposal and architecture
+  diagrams compare the build against.
+- **Options:** A client-rendered single-page app served from one region; Next.js self-hosted on
+  GKE behind Cloud CDN, with an assistant already built on Vertex AI; the same app on VMs.
+- **Choice:** Next.js on GKE in `us-central1` behind Cloud CDN and a load balancer, with a Redis
+  cache handler shared by the pods. An assistant route calls Gemini through the Vertex AI SDK,
+  with hand-written tool calls. Releases go through Cloud Build and Argo CD to one shared staging
+  namespace. The APIs and Postgres sit in the private network.
+- **Why:** An enterprise that has invested in this console would already have a CDN and a modern
+  framework, and a reviewer would see through a weaker starting point. The case then rests on
+  what a CDN can't fix (personal vehicle pages render at origin), what self-hosting Next.js costs
+  (a cache handler, upgrades, version skew during rolling deploys), the missing per-change
+  previews, and a single-provider assistant. It uses all three roles cleanly: replace the
+  self-hosted Next.js platform, augment the Vertex agent with AI Gateway (Gemini on Vertex stays
+  primary, D11), and connect to the systems that stay.
+- **Relation to D1:** D1's Connect role and scope stand. The lead pain moves from "reps assemble
+  each vehicle's story across screens" to slow dynamic pages, self-hosting cost, and an
+  assistant with no fallback; the screens problem remains as a secondary pain.
+- **Honest limits:** Vercel Functions still run in one region next to the data (D21), so the
+  gain for advisors abroad is the prerendered shell from the edge and panels that stream as
+  they're ready, not faster data. In this build the vehicle API runs on Cloud Run as a stand-in
+  for Meridian's existing GKE services; in their environment those stay put behind an
+  identity-checked internal endpoint.
