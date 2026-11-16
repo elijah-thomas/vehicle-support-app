@@ -182,7 +182,7 @@ why. To change one, add a new entry that supersedes it rather than editing histo
 - **Why:** The customer's API already exists and shouldn't change to accommodate AI. All
   AI-specific logic stays on the Vercel side of the boundary; agent tools map 1:1 to endpoints.
 - **Note:** Express has no auth code. Cloud Run IAM rejects unauthenticated callers before a
-  request reaches the container (D3). A light rate limit (120/min per IP) is a backstop (D8).
+  request reaches the container (D3). A light rate limit is a backstop (D8; per calling system since D31).
 
 ## D17. How the web app knows the API's shapes {#contracts}
 
@@ -478,15 +478,30 @@ why. To change one, add a new entry that supersedes it rather than editing histo
   handled the 429s well: they said the lookups failed and didn't guess. The limit's keying is a
   production concern of its own: see D31.
 
-## D31. Vehicle API rate-limit keying (open) {#api-rate-limit-keying}
+## D31. Vehicle API rate-limit keying {#api-rate-limit-keying}
 
-- **Decision:** What the vehicle API's backstop rate limit (D8) should count per client.
-- **Finding:** it keys by client IP, but the API's only client is the Vercel app. Every rep's
-  traffic arrives from Vercel's shared outbound IPs, so the whole support team shares one
-  120/min budget. One agent question costs up to 3 API calls.
-- **Status:** fine for the demo, not for a contact center. To decide: key by the verified caller
-  identity (the service account in the Cloud Run ID token), raise the limit and rely on Cloud
-  Run IAM plus the Vercel Firewall in front, or keep it and document it.
+- **Decision:** What the vehicle API's backstop rate limit (D8) counts per client.
+- **Finding:** it counted per client IP, but the API's only client is the Vercel app. Every rep's
+  traffic arrives from Vercel's shared outbound IPs, so the whole support team shared one
+  120/min budget. One agent question costs up to 3 API calls; the evals hit the limit (D30).
+- **Options considered:**
+  - **A. Per calling system:** count by the service account in the Google ID token and size the
+    limit for the whole app.
+  - **B. Per rep:** Vercel forwards a rep identifier and the API counts by it. Duplicates the edge
+    limit, and only means something once reps log in.
+  - **C. No API limit:** rely on Cloud Run IAM, max instances, and the edge. Nothing protects the
+    backend if the app misbehaves, e.g. a retry loop.
+  - **D. Keep 120 per IP** and document it.
+- **Choice:** A. Each layer has one job: the Vercel Firewall limits each person at the edge (D29),
+  and the customer's API limits each calling system. 1,200/min per caller, set per environment in
+  Terraform (`RATE_LIMIT_PER_MINUTE`), sized for about 100 reps each taking a few actions a
+  minute. A second internal system calling the API would get its own budget automatically.
+- **Why reading the token is safe:** Cloud Run IAM verifies the ID token before the request reaches
+  the container, so the API reads the `email` claim without verifying it again. Locally there is
+  no token, so the limiter falls back to the client IP.
+- **Limits to flag:** counters live in each instance's memory, so with up to 3 instances the real
+  ceiling is up to 3× the limit. A shared store (Redis/Memorystore) would make it exact; not worth
+  it for a backstop. Once reps log in, both layers can key on the rep's ID.
 
 ## D32. Lookup suggestions and a page that fits the screen {#lookup-and-layout}
 

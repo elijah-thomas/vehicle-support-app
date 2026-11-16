@@ -59,6 +59,10 @@ resource "google_cloud_run_v2_service" "api" {
         name  = "DB_NAME"
         value = google_sql_database.app[each.key].name
       }
+      env {
+        name  = "RATE_LIMIT_PER_MINUTE"
+        value = tostring(each.value.api_rate_limit)
+      }
     }
   }
 
