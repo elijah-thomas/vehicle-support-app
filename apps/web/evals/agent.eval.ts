@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, test } from "vitest";
 import { evalModels } from "@/lib/ai/models";
 import { createVehicleAgent } from "@/lib/ai/vehicle-agent";
-import { agentCases, everyAnswer } from "./cases";
+import { agentCases, answerFormat, everyAnswer } from "./cases";
 import { checkText, checkTools } from "./checks";
 import { loaders } from "./loaders";
 import { createReport, runs } from "./report";
@@ -21,6 +21,7 @@ for (const [modelName, model] of Object.entries(evalModels)) {
         ...checkTools(called, c.tools),
         ...checkText(result.text, c),
         ...checkText(result.text, everyAnswer),
+        ...(c.declines ? [] : checkText(result.text, answerFormat)),
       ];
       report.add({
         model: modelName,
