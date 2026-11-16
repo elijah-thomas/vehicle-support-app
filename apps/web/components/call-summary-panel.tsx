@@ -15,6 +15,7 @@ export async function CallSummaryPanel({ vin }: { vin: string }) {
       cases={cases.map((c) => ({
         id: c.id,
         open: c.status === "OPEN",
+        subject: c.subject,
         label: `${c.status === "OPEN" ? "Open" : "Closed"} · ${c.subject} · ${formatDate(c.openedAt)}`,
       }))}
     />
