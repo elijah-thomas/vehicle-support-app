@@ -21,7 +21,8 @@ export type CaseOption = { id: string; label: string; open: boolean; subject: st
 type Saved = { noteId: string; caseId: string; caseSubject: string };
 
 type Props = {
-  vin: string;
+  // null while the page's params and cases load: the empty form renders disabled as the fallback.
+  vin: string | null;
   cases: CaseOption[];
   cannedTranscript?: { label: string; text: string };
 };
@@ -66,7 +67,7 @@ export function CallSummary({ vin, cases, cannedTranscript }: Props) {
 
   const drafting = isLoading || draft !== null || saved !== null;
 
-  if (!drafting) {
+  if (!drafting || vin === null) {
     return (
       <div className="flex min-h-0 flex-1 flex-col gap-3 p-4">
         <p className="text-xs text-muted-foreground">
@@ -80,6 +81,7 @@ export function CallSummary({ vin, cases, cannedTranscript }: Props) {
           rows={8}
           maxLength={MAX_TRANSCRIPT_LENGTH}
           className="min-h-40 flex-1 resize-none field-sizing-fixed"
+          disabled={vin === null}
         />
         {failure && (
           <Alert variant={failure === "rate_limited" ? "warning" : "destructive"} role="alert">
@@ -87,7 +89,7 @@ export function CallSummary({ vin, cases, cannedTranscript }: Props) {
           </Alert>
         )}
         <div className="flex flex-wrap gap-2">
-          <Button onClick={generate} disabled={!transcript.trim()}>
+          <Button onClick={generate} disabled={vin === null || !transcript.trim()}>
             Draft summary
           </Button>
           {cannedTranscript && (

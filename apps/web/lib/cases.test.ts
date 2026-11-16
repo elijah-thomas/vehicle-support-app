@@ -1,6 +1,15 @@
 import { describe, expect, test } from "vitest";
 import type { Case, TelematicsEvent } from "@/lib/customer/vehicle-records";
-import { businessDaysSince, contactStatus, earlierCasesWithSameFault, lastContact, relatedFaults, sortCases } from "./cases";
+import {
+  businessDaysSince,
+  casesNeedingFaultWindows,
+  contactStatus,
+  earlierCasesWithSameFault,
+  faultWindow,
+  lastContact,
+  relatedFaults,
+  sortCases,
+} from "./cases";
 
 const utc = (date: string) => `${date}T15:00:00Z`;
 const supportCase = (id: string, opened: string, extra: Partial<Case> = {}): Case => ({
@@ -62,5 +71,14 @@ describe("related faults", () => {
     const unrelated = supportCase("unrelated", "2026-03-01");
     expect(earlierCasesWithSameFault(current, [current, earlier, unrelated], events).map((c) => c.id)).toEqual(["earlier"]);
     expect(earlierCasesWithSameFault(earlier, [current, earlier], events)).toEqual([]);
+  });
+
+  test("the fetched window is the 7 days up to the moment the case opened", () => {
+    expect(faultWindow(current)).toEqual({ from: "2026-10-29T15:00:00.000Z", to: "2026-11-05T15:00:00.000Z" });
+  });
+
+  test("reads windows for the case and earlier cases only", () => {
+    const later = supportCase("later", "2026-12-01");
+    expect(casesNeedingFaultWindows(current, [later, current, earlier]).map((c) => c.id)).toEqual(["current", "earlier"]);
   });
 });

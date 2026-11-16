@@ -1,12 +1,13 @@
 import { Suspense } from "react";
 import { CaseDetail } from "@/components/case-detail";
 import { CaseVehicleHeader } from "@/components/case-vehicle-header";
-import { PanelSkeleton } from "@/components/panel-skeleton";
+import { CaseDetailSkeleton } from "@/components/case-detail-skeleton";
 import { Skeleton } from "@/components/ui/skeleton";
 import { WithVin } from "@/components/with-vin";
 
 // Static shell like the vehicle page. The case comes from the cached case list; its related
-// faults read fresh telematics behind their own boundary. The assistant is in the [vin] layout.
+// faults read telematics windows (cached once settled, D49) behind their own boundary. The
+// assistant is in the [vin] layout.
 export default function CasePage({ params }: PageProps<"/vehicles/[vin]/cases/[caseId]">) {
   return (
     <>
@@ -16,7 +17,7 @@ export default function CasePage({ params }: PageProps<"/vehicles/[vin]/cases/[c
         </Suspense>
       </div>
       <div className="order-3">
-        <Suspense fallback={<PanelSkeleton rows={8} />}>
+        <Suspense fallback={<CaseDetailSkeleton />}>
           <CaseFromParams params={params} />
         </Suspense>
       </div>

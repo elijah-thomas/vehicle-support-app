@@ -2,14 +2,22 @@ import "server-only";
 import { cacheLife, cacheTag } from "next/cache";
 import { connection } from "next/server";
 import { cacheTags } from "./cache-tags";
-import { type Case, fetchCases, fetchTelematics, fetchVehicle, type TelematicsEvent, type Vehicle } from "./vehicle-records";
+import {
+  type Case,
+  fetchCases,
+  fetchTelematics,
+  fetchFaultsInWindow,
+  fetchVehicle,
+  type TelematicsEvent,
+  type Vehicle,
+} from "./vehicle-records";
 
 export type { Case, TelematicsEvent, Vehicle };
 
 // Decision (D24): cached for hours in Vercel's shared Runtime Cache ("use cache: remote").
 // Why: specs never change and recall status rarely does; a shared cache lets updateTag reach
-// every instance. Trade-off: the owner's name is cached personal data, kept short-lived.
-// See docs/decisions.md#vehicle-page-caching
+// every instance. Trade-off: owner details and recalls can be about an hour stale, and personal
+// data is kept up to a day. See docs/decisions.md#vehicle-page-caching
 export async function getVehicle(vin: string): Promise<Vehicle | null> {
   "use cache: remote";
   cacheTag(cacheTags.vehicle(vin));
@@ -36,4 +44,23 @@ export async function getCases(vin: string): Promise<Case[] | null> {
 export async function getTelematics(vin: string, limit = 50): Promise<TelematicsEvent[] | null> {
   await connection();
   return fetchTelematics(vin, limit);
+}
+
+const SETTLE_MS = 24 * 60 * 60 * 1000;
+
+// Decision (D49): a past window is cached once it ended more than a day ago; newer ones read fresh.
+// Why: vehicles upload buffered events late, so a window is only safe to cache once it has
+// settled. Trade-off: a later upload into a settled window shows within a day.
+// See docs/decisions.md#telematics-windows
+export async function getFaultsInWindow(vin: string, from: string, to: string): Promise<TelematicsEvent[] | null> {
+  await connection();
+  if (Date.now() - Date.parse(to) < SETTLE_MS) return fetchFaultsInWindow(vin, from, to);
+  return getSettledFaultsInWindow(vin, from, to);
+}
+
+async function getSettledFaultsInWindow(vin: string, from: string, to: string) {
+  "use cache: remote";
+  cacheTag(cacheTags.telematics(vin));
+  cacheLife("days");
+  return fetchFaultsInWindow(vin, from, to);
 }

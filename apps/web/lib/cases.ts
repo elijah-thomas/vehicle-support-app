@@ -41,14 +41,26 @@ export function sortCases(cases: Case[]) {
   );
 }
 
+// The week before a case opened, as ISO times: what related faults are fetched and matched against.
+export function faultWindow(supportCase: Case) {
+  const opened = Date.parse(supportCase.openedAt);
+  return { from: new Date(opened - RELATED_FAULT_WINDOW_DAYS * DAY).toISOString(), to: new Date(opened).toISOString() };
+}
+
 // Faults logged in the week before a case opened. Cases carry no link to telematics, so this is
 // a match by date, and the page labels it as one.
 export function relatedFaults(supportCase: Case, events: TelematicsEvent[]) {
-  const opened = Date.parse(supportCase.openedAt);
+  const { from, to } = faultWindow(supportCase);
   return events.filter((event) => {
     const recorded = Date.parse(event.recordedAt);
-    return event.code && recorded <= opened && recorded >= opened - RELATED_FAULT_WINDOW_DAYS * DAY;
+    return event.code && recorded <= Date.parse(to) && recorded >= Date.parse(from);
   });
+}
+
+// Cases whose fault windows a case's related-faults panel reads: the case and every earlier one.
+export function casesNeedingFaultWindows(supportCase: Case, cases: Case[]) {
+  const opened = Date.parse(supportCase.openedAt);
+  return cases.filter((other) => other.id === supportCase.id || Date.parse(other.openedAt) < opened);
 }
 
 // Earlier cases on the vehicle that were matched to one of the same fault codes.

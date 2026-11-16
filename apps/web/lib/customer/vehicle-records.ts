@@ -94,3 +94,10 @@ export function fetchCases(vin: string): Promise<Case[] | null> {
 export function fetchTelematics(vin: string, limit = 50): Promise<TelematicsEvent[] | null> {
   return vehicleApiOrNull(`${vinPath(vin)}/telematics?limit=${limit}`, z.array(telematicsEventSchema));
 }
+
+// Coded faults recorded between two ISO times, inclusive. Readings without a code (battery,
+// odometer) are left out: they can fill a week many times over the API's 200-event cap.
+export function fetchFaultsInWindow(vin: string, from: string, to: string): Promise<TelematicsEvent[] | null> {
+  const query = new URLSearchParams({ from, to, codedOnly: "true", limit: "200" });
+  return vehicleApiOrNull(`${vinPath(vin)}/telematics?${query}`, z.array(telematicsEventSchema));
+}

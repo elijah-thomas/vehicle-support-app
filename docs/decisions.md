@@ -14,7 +14,9 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
 - [D2](#gcp-backend) GCP compute and database · [D3](#boundary-auth) Authenticating across the
   boundary · [D16](#api-shape) Shape of the customer's API · [D17](#contracts) How the web app
   knows the API's shapes · [D19](#db-access) Cloud Run → Cloud SQL · [D21](#function-region)
-  Vercel function region · [D46](#concurrency) Concurrency and scaling
+  Vercel function region · [D46](#concurrency) Concurrency and scaling ·
+  [D48](#warm-api) Keeping the production API warm · [D49](#telematics-windows) Caching past
+  telematics
 
 **Delivery and rendering**
 - [D24](#vehicle-page-caching) Vehicle page rendering and caching · [D28](#vehicle-status) Status
@@ -223,19 +225,31 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
   |---|---|---|
   | Vehicle, specs, recalls | `use cache: remote`, `hours` (`minutes` if not found) | `vehicle:{vin}` |
   | Cases and notes | `use cache: remote`, `minutes`; cleared by `updateTag` on save | `cases:{vin}` |
-  | Telematics | Not cached; request time (`connection()`) | — |
+  | Telematics (live feed, agent) | Not cached; request time (`connection()`) | — |
+  | Telematics windows (related faults) | `use cache: remote`, `days`, once settled (D49) | `telematics:{vin}` |
   | Customer search by email | Not cached; Server Action, so the email never appears in a URL | — |
 
   No vehicle pages are prerendered at build time.
+- **What the shell holds:** panel titles and skeletons shaped like each panel, so the layout
+  doesn't jump as data arrives. The assistant's fallback is its real empty state (sources,
+  prompts, input, transcript box), disabled until the VIN resolves. Considered: reading the VIN
+  with `useParams()` so the whole chat prerenders. Not tried, since a param read during prerender
+  may need its own Suspense boundary anyway.
 - **Why remote:** in-memory entries live per instance, so `updateTag` after a save could leave
   another instance serving old cases. The Runtime Cache is shared and environment-isolated. It
   starts empty after each deploy.
 - **Why these lifetimes:** specs never change; recall status rarely does. Cases also change in the
   existing CRM, which never tells this app, so a short lifetime bounds staleness there.
-- **Personal data:** owner names, emails, and case text are cached briefly, in one region,
-  isolated per environment. Flagged as a customer approval item.
-- **Measured against staging:** first load ~5 s (scaled to zero, token exchange, connector
-  setup); warm loads 0.08–0.3 s.
+- **Accepted staleness:** `hours` refreshes after an hour and keeps an entry up to a day. A recall
+  completed, or owner details changed, in the CRM can show here for about an hour. Recalls are
+  rare, so refreshing more often would cost GCP calls for almost no gain. Nothing clears
+  `vehicle:{vin}` today; the tag is the hook for the production path.
+- **Personal data:** owner names and emails are cached up to a day, case text up to an hour, in
+  one region, isolated per environment. Flagged as a customer approval item.
+- **Production path:** the CRM emits change events (customer updated, recall completed, case
+  changed) to an authenticated Vercel route that calls `revalidateTag` for that VIN. Then
+  lifetimes can grow, since staleness no longer depends on them. Not built: a demo has no CRM
+  writing behind its back.
 
 ## D25. Vehicle agent {#agent}
 
@@ -585,8 +599,8 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
 - **What exists now:**
   - **Vercel:** Fluid Compute, so one function instance serves many requests that are waiting on
     a model or on GCP, billed for active CPU. Functions in `cle1` only (D21).
-  - **Cloud Run:** up to 3 instances per environment, 80 concurrent requests each (default),
-    scale to zero.
+  - **Cloud Run:** up to 3 instances per environment, 80 concurrent requests each (default).
+    Production keeps one warm; staging scales to zero (D48).
   - **Cloud SQL:** one `db-f1-micro` instance for both environments, with a limit of about 25
     connections.
 - **Finding:** each API instance opened up to 5 connections, so both environments at full scale
@@ -613,3 +627,53 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
 - **Out of scope:** Rolling Releases (canary a percentage of production traffic); in the rollout
   plan as the production step.
 - **Status:** documented; details in the submission's rollout plan.
+
+## D48. Keeping the production API warm {#warm-api}
+
+- **Decision:** Whether the vehicle API scales to zero. After an idle spell, the first request
+  waits for Cloud Run to start a container and for the Cloud SQL connector's setup.
+- **Measured against staging:** a first load after idle took ~5 s; warm loads take 0.08–0.3 s.
+  Keeping an instance running aims to bring that first load close to a warm one. Not yet
+  measured.
+- **Options considered:** a Cloud Scheduler job pinging `/health` every ~10 minutes (nearly free,
+  but Cloud Run may still stop an idle instance, it warms only one, and it needs its own invoker
+  service account); `min_instance_count = 1` on production; neither, only trimming startup.
+- **Choice:** one minimum instance on production; staging still scales to zero. It's Cloud Run's
+  supported setting, needs no new service or IAM, and stays inside D46's connection math (max is
+  still 3 instances × 4 connections).
+- **Cost:** an idle instance is billed at Cloud Run's reduced idle rate, roughly $10/month for
+  1 vCPU and 512 MiB (estimate; confirm in the pricing calculator).
+- **Doesn't fix:** the Vercel side. The Runtime Cache starts empty after each deploy, and each new
+  Fluid instance does one token exchange.
+- **To measure:** staging still scales to zero, so it is the comparison. After the next release,
+  time a first load after an idle hour on each, and record both here.
+
+## D49. Caching past telematics {#telematics-windows}
+
+- **Decision:** Whether any telematics can be cached, after D24 kept it all fresh.
+- **Finding:** related faults read the 50 newest events and filtered them to the week before each
+  case opened. On a real vehicle with thousands of events, an older case's week falls outside the
+  newest 50 and its related faults come back empty.
+- **Options considered:** cache the live feed for 1–5 minutes (can hide the fault a customer is
+  calling about, and a call costs a round trip whatever its size); fetch only events newer than
+  the last ones seen and append them (saves bytes, not calls, and misses late uploads); fetch each
+  case's week by date and cache it once it can no longer change.
+- **Choice:** the last. The API takes `from`/`to` on `GET /vehicles/:vin/telematics`, a plain date
+  filter on the existing `(vin, recordedAt)` index. The case page reads one window per case
+  (`getFaultsInWindow`). A window that ended over 24 hours ago is cached with `days`; a newer one
+  reads fresh. The live feed and the agent are unchanged.
+- **Why 24 hours:** vehicles buffer events when offline and upload them late, and events carry
+  only the vehicle's own `recordedAt`, so a window is only safe to cache once it has settled.
+- **Coded faults only:** a benchmark with a reading every 5 minutes put 2,016 events in one week;
+  the 200-event cap returned only its last 17 hours, 5 of its 51 faults. Windows now ask the API
+  for coded events only (`codedOnly=true`): 51 events, the whole week, 0.24 ms.
+- **Trade-off:** a case page reads one window per earlier case (in parallel, cached when settled);
+  a window holding over 200 fault codes would still be cut off.
+- **Checked locally** (production build against staging, in-memory cache): across Dana's three
+  case pages, each case's window reached the API once in total. The newest case needed three
+  windows and fetched one, reusing two cached by the other pages. Repeat loads made no API calls
+  (0.08–0.26 s first load, ~0.012 s after). Vercel's shared Runtime Cache adds its own read time.
+- **Production path:** the ingest pipeline clears `telematics:{vin}` when a late event lands.
+  Repeat counts on the live panel still come from the newest 20 events and undercount on a long
+  history; the API returning per-code counts would fix that. Live updates during a call need the
+  API to hand back a bookmark of what's been seen (phase 2).

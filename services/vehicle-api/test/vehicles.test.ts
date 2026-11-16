@@ -70,6 +70,32 @@ describe("GET /vehicles/:vin/telematics", () => {
   test("returns 404 for an unknown vehicle rather than an empty list", async () => {
     expect((await call("/vehicles/0MRAE4LR5RA999999/telematics")).status).toBe(404);
   });
+
+  test("returns only events inside from/to, inclusive", async () => {
+    const all = (await call(`/vehicles/${VIN.dana}/telematics`)).body as { id: string; recordedAt: string }[];
+    const [newest, middle, oldest] = [all[0]!, all[Math.floor(all.length / 2)]!, all.at(-1)!];
+    const { body } = await call(`/vehicles/${VIN.dana}/telematics?from=${oldest.recordedAt}&to=${middle.recordedAt}`);
+    const ids = body.map((e: { id: string }) => e.id);
+    expect(ids).toContain(oldest.id);
+    expect(ids).toContain(middle.id);
+    expect(ids).not.toContain(newest.id);
+  });
+
+  test("codedOnly returns only events with a fault code", async () => {
+    const { body } = await call(`/vehicles/${VIN.dana}/telematics?codedOnly=true`);
+    const all = (await call(`/vehicles/${VIN.dana}/telematics`)).body as { code: string | null }[];
+    expect(body.length).toBeGreaterThan(0);
+    expect(body.every((e: { code: string | null }) => e.code !== null)).toBe(true);
+    expect(body).toHaveLength(all.filter((e) => e.code !== null).length);
+  });
+
+  test.each([
+    ["from=yesterday", "a date that isn't ISO 8601"],
+    ["codedOnly=yes", "codedOnly that isn't true or false"],
+    ["from=2026-02-01T00:00:00Z&to=2026-01-01T00:00:00Z", "from after to"],
+  ])("rejects %s with 400 (%s)", async (query) => {
+    expect((await call(`/vehicles/${VIN.dana}/telematics?${query}`)).status).toBe(400);
+  });
 });
 
 describe("GET /vehicles/:vin/cases", () => {
