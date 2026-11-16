@@ -25,7 +25,7 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
 - [D11](#models) Models, credentials, failover · [D25](#agent) Vehicle agent ·
   [D41](#agent-context) Load the record before the agent runs · [D26](#call-summary-generation)
   Call summary · [D37](#junk-transcripts) Transcripts that aren't support calls ·
-  [D44](#durability) Durability · [D45](#cost-per-run) Cost per run · [D30](#evals) Evals
+  [D45](#cost-per-run) Cost per run · [D30](#evals) Evals
 
 **Data integrity**
 - [D14](#data-model) Data model and synthetic data · [D36](#note-ownership) Note ownership ·
@@ -89,7 +89,7 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
   streamed fresh data), Fluid Compute (functions that mostly wait on models), plus Vercel
   Firewall and Preview Deployments. Workflows is phase 2, not built.
 - **Why not Workflows now:** every AI request is short, read-only until the rep presses Save, and
-  cheap to retry, so durable execution adds cost without benefit today (D44). It earns its place
+  cheap to retry, so durable execution adds cost without benefit today. It earns its place
   once summaries become a background job with an async supervisor approval.
 - **Why Fluid Compute:** an agent request spends most of its time waiting on the model; Fluid
   bills active CPU and lets one instance serve many waiting requests (D46).
@@ -370,12 +370,12 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
 - **Choice:** the rep's edits always stay in the form, and the error says what happened, by the
   vehicle API's status (404: case gone; 400: rejected, with the reason; 429: busy). On success the
   panel links to the new note and highlights it in place.
-- **Half-finished "New case" saves:**
-  - **Options:** web only (return the created case's ID with the error and switch the picker to
-    it, so the retry adds only the note); one API call creating case and note in a transaction
-    (changes the customer's API); document only.
-  - **Choice:** web only. Before this, a retry created a second case. The case can still be left
-    without a note if the rep gives up; the transactional call is the production fix.
+- **Saving to a new case:** `POST /cases` takes the first note and writes the case and note in
+  one transaction, so a failure leaves nothing behind and the rep's retry is the whole save
+  again. It used to be two calls: a failure between them left an empty case, and an earlier fix
+  only steered the retry to it. The note is optional in the API, so other callers that open cases
+  without one are unaffected. The API deploys before the web app, which now expects the note in
+  the response.
 
 ## D34. Spend alerts on the model providers {#spend-alerts}
 
@@ -549,24 +549,6 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
   never from CI: a temporary `postgres` password, the seed through the Cloud SQL Auth Proxy, then
   the password rotated to a random value that isn't stored. Verified after release through the
   production WIF path: vehicle page, agent, call summary, Firewall 429s, API 400 on bad JSON.
-
-## D44. Durability and failure behavior {#durability}
-
-- **Decision:** What survives a failure or a deploy mid-request, and whether that needs durable
-  execution today.
-- **What exists now:**
-  - **Nothing is half-written by the AI.** The agent is read-only; the call summary writes only
-    when the rep presses Save, as one Server Action (D26). A failed save keeps the rep's edits
-    (D33).
-  - **Chat and drafts live in the browser tab.** A failed model call is retried by the rep
-    (Try again); a failed provider is retried by AI Gateway (D11). A deploy doesn't cut an
-    in-flight stream: the old deployment keeps serving it, and the next request goes to the new
-    one. A page reload loses the chat, by design: the record is reloaded every turn (D41).
-  - **The system of record is the only durable state**, and it's the customer's.
-- **Options for production:** keep as is; persist chat history server-side per rep (needs rep
-  login); Workflows for the call summary once it becomes a background job with supervisor
-  approval, so a pause of hours or a deploy doesn't lose the step (D6).
-- **Status:** documented; Workflows is the phase-2 item.
 
 ## D45. Cost per run {#cost-per-run}
 

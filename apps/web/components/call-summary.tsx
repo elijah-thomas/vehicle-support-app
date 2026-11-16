@@ -204,7 +204,6 @@ function ReviewForm({
         onSaved({ noteId: result.noteId, caseId: result.caseId, caseSubject });
         return;
       }
-      if (result.createdCaseId) setCaseId(result.createdCaseId);
       setError(result.error);
     });
   }
