@@ -1,7 +1,7 @@
 "use client";
 
 import { useObject } from "@ai-sdk/react";
-import { CircleAlert, CircleCheck } from "lucide-react";
+import { CircleAlert, CircleCheck, TriangleAlert } from "lucide-react";
 import { useState, useTransition } from "react";
 import { saveNoteAction, type SaveNoteResult } from "@/app/vehicles/[vin]/save-note-action";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { type CallSummary as Draft, callSummarySchema, MAX_TRANSCRIPT_LENGTH } from "@/lib/call-summary-schema";
+import { type CallSummary as Draft, callSummarySchema, type CallType, MAX_TRANSCRIPT_LENGTH } from "@/lib/call-summary-schema";
 import { flashWhenPresent } from "@/lib/flash-element";
 
 export type CaseOption = { id: string; label: string; open: boolean; subject: string };
@@ -202,6 +202,14 @@ function ReviewForm({
     <div className="space-y-3 rounded-md border p-4">
       <p className="text-sm font-medium">Review the draft</p>
 
+      {draft.callType !== "vehicle_issue" && (
+        <Alert variant="warning" role="status">
+          <TriangleAlert aria-hidden />
+          <AlertTitle>{callTypeWarning[draft.callType]}</AlertTitle>
+          <AlertDescription className="text-foreground">Check the draft against the call before saving it.</AlertDescription>
+        </Alert>
+      )}
+
       <div className="space-y-1">
         <Label htmlFor="issue">Issue</Label>
         <Input id="issue" value={issue} onChange={(e) => setIssue(e.target.value)} maxLength={300} />
@@ -258,3 +266,9 @@ function ReviewForm({
     </div>
   );
 }
+
+// See docs/decisions.md#junk-transcripts
+const callTypeWarning: Record<Exclude<CallType, "vehicle_issue">, string> = {
+  other: "This call doesn't describe a vehicle issue",
+  no_conversation: "This transcript doesn't look like a conversation",
+};

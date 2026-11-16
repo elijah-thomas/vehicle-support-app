@@ -6,7 +6,12 @@ import { casesForModel, telematicsForModel } from "./model-context";
 import { defaultModel, type ModelChoice } from "./models";
 
 const instructions = `You turn a support call transcript into a case note for a Meridian Motors rep.
-Use the vehicle record to ground the next steps: open recalls, repeated fault codes, prior cases.
+Write the issue and summary only from what was said on the call. The vehicle record is context:
+use it to ground next steps for the issue the customer raised (open recalls, repeated fault codes,
+prior cases), and never present a problem from the record as the reason for the call.
+If the transcript isn't a vehicle support conversation, set callType accordingly, say so plainly
+in the issue and summary, and keep next steps to what the call itself needs (such as calling the
+customer back). Do not fill the note with the vehicle's history.
 Only state facts from the transcript or the record. Do not invent appointments, promises, or
 diagnoses that neither contains, and never promise coverage, loaners, refunds, or buybacks.
 Be concise; reps skim these notes.
