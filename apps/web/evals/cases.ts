@@ -1,4 +1,4 @@
-import { cannedTranscripts } from "@/lib/canned-transcripts";
+import { cannedTranscripts } from "./transcripts";
 import type { TextChecks } from "./checks";
 
 // Built on the seeded stories in services/vehicle-api/prisma/seed.ts.

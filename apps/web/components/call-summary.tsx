@@ -19,12 +19,11 @@ type Saved = { noteId: string; caseSubject: string };
 type Props = {
   vin: string;
   cases: CaseOption[];
-  cannedTranscript?: { label: string; text: string };
 };
 
 // Paste a transcript → the AI draft streams in → the rep edits it, picks a case, and saves.
 // Nothing reaches the case system until the rep presses Save. See docs/decisions.md#call-summary
-export function CallSummary({ vin, cases, cannedTranscript }: Props) {
+export function CallSummary({ vin, cases }: Props) {
   const [transcript, setTranscript] = useState("");
   const [draft, setDraft] = useState<Draft | null>(null);
   const [saved, setSaved] = useState<Saved | null>(null);
@@ -73,21 +72,9 @@ export function CallSummary({ vin, cases, cannedTranscript }: Props) {
             <AlertDescription>Couldn&apos;t draft a summary. Try again in a moment.</AlertDescription>
           </Alert>
         )}
-        <div className="flex gap-2">
-          <Button onClick={generate} disabled={!transcript.trim()}>
-            Draft summary
-          </Button>
-          {cannedTranscript && (
-            <Button
-              variant="outline"
-              onClick={() => setTranscript(cannedTranscript.text)}
-              title={cannedTranscript.label}
-              className="min-w-0 flex-1 justify-start"
-            >
-              <span className="truncate">Use example: {cannedTranscript.label}</span>
-            </Button>
-          )}
-        </div>
+        <Button onClick={generate} disabled={!transcript.trim()} className="self-start">
+          Draft summary
+        </Button>
       </div>
     );
   }
