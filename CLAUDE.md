@@ -101,7 +101,7 @@ Rules for collaborating:
   - `develop`: integration branch. All work branches start here and merge back here.
   - `feat/<short-name>`, `fix/<short-name>`, `docs/<short-name>`: one branch per piece of work,
     branched from `develop`.
-  - `release/YY.MM.DD.N` (date-based, D42; N counts releases that day, starting at 1): cut from
+  - `release/YY.MM.DD.N` (date-based, D43; N counts releases that day, starting at 1): cut from
     `develop`, merged into `master` and back into `develop`, then tagged `vYY.MM.DD.N`.
 - Merge with `--no-ff` so each branch stays visible in history. Never squash.
 - Propose a commit at each natural stopping point (message included); commit only after I
@@ -114,10 +114,10 @@ Rules for collaborating:
 ## Stack
 
 **Settled:** Next.js 16 (App Router), React 19, TypeScript `strict`, Tailwind CSS + shadcn/ui
-(Base UI, D13), pnpm
+(Base UI), pnpm
 workspaces, Zod at every boundary. AI SDK + AI Gateway (BYOK GCP credentials), Cache
 Components, Fluid Compute, Vercel Firewall rate limiting. Express on Cloud Run, Cloud SQL
-Postgres via Prisma (D12). See `docs/decisions.md`.
+Postgres via Prisma (D2). See `docs/decisions.md`.
 
 Vercel OIDC → GCP Workload Identity Federation → Cloud Run IAM for boundary auth (D3).
 
@@ -168,9 +168,11 @@ docs/                     decisions.md, architecture, rollout plan, submission w
 
 ## Comments
 
-- No decision or trade-off commentary in code; that lives in `docs/decisions.md`.
-- At the few places where a major decision lands in code, add a one-line pointer only:
-  `// See docs/decisions.md#<anchor>`.
+- Where an architectural decision lands in code, add a short comment (2–4 lines) at that line:
+  `// Decision (Dnn): what was chosen. Why: … Trade-off: … See docs/decisions.md#<anchor>`.
+  Reviewers read these in place; the full options and reasoning live in `docs/decisions.md`.
+- Only decisions listed in `docs/decisions.md` get this format. Don't record conventional
+  choices (libraries, styling, layout tweaks) as decisions.
 - Otherwise comments are rare and explain only non-obvious *why*. Never narrate the code.
 
 ## Commands

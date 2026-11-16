@@ -1,7 +1,9 @@
 import "server-only";
 import type { GatewayProviderOptions } from "@ai-sdk/gateway";
 
-// The only place model IDs live. See docs/decisions.md#failover-v2
+// Decision (D11): Gemini on Vertex, then Claude on Anthropic, both BYOK. Why: two vendors on two
+// clouds, each billed under an existing agreement. Trade-off: answers differ by model, so evals
+// run on both. The only place model IDs live. See docs/decisions.md#models
 //
 //   1. Gemini 3.8 Flash on Vertex    → billed to GCP credits (BYOK)
 //   2. Claude Sonnet 5.5 on Anthropic → billed to Anthropic org credits (BYOK)

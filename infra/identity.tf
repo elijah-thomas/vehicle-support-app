@@ -1,5 +1,6 @@
-# Workload Identity Federation: lets the Vercel app call the private Cloud Run API with no
-# long-lived secret. See docs/decisions.md#boundary-auth
+# Decision (D3): Workload Identity Federation lets the Vercel app call the private Cloud Run API
+# with no long-lived secret. Trade-off: identity, not network isolation (Secure Compute is the
+# production step). See docs/decisions.md#boundary-auth
 #
 # Vercel OIDC token ─► STS (this pool/provider) ─► federated credential
 #   ─► generateIdToken for the caller account ─► Cloud Run IAM checks run.invoker
