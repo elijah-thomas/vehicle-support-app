@@ -45,5 +45,13 @@ export function parseAgentRequest(body: unknown): AgentRequest {
     JSON.stringify(recent).length > MAX_REQUEST_CHARS;
   if (tooLong) return { ok: false, code: "too_long", status: 413 };
 
-  return { ok: true, vin, messages: recent };
+  return { ok: true, vin, messages: recent.map(withoutOldToolResults) };
+}
+
+// Earlier turns' tool results come from the browser, so they could be forged, and the server
+// reloads the record on every request anyway. Text and reasoning stay: Gemini needs its reasoning
+// (with its signatures) sent back as it was. See docs/decisions.md#agent-context
+function withoutOldToolResults(message: Messages[number]): Messages[number] {
+  if (message.role !== "assistant") return message;
+  return { ...message, parts: message.parts.filter((part) => part.type === "text" || part.type === "reasoning") };
 }

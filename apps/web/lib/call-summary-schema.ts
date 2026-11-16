@@ -7,7 +7,7 @@ export const callSummarySchema = z.object({
   callType: z
     .enum(["vehicle_issue", "other", "no_conversation"])
     .describe(
-      "vehicle_issue: the customer describes a problem or question about the vehicle. other: a real conversation about something else. no_conversation: no real conversation took place (silence, a dropped call, noise, or text that isn't a call)",
+      "vehicle_issue: the customer describes a problem or question about a vehicle, even one that may not match the record (say so in the next steps). other: a real conversation about something else. no_conversation: no real conversation took place (silence, a dropped call, noise, or text that isn't a call)",
     ),
   issue: z.string().describe("What the customer called about, in one short line (under 300 characters)"),
   summary: z.string().describe("What was said on the call, in 2 to 4 plain sentences"),

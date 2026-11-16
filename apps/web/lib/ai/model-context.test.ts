@@ -1,29 +1,53 @@
-import { expect, test } from "vitest";
-import type { Case, TelematicsEvent } from "@/lib/customer/vehicles";
-import { casesForModel, telematicsForModel } from "./model-context";
+import { expect, test, vi } from "vitest";
+import type { Case, TelematicsEvent, Vehicle } from "@/lib/customer/vehicles";
 
-// A model that never sees an internal ID can't quote one to a rep. See docs/decisions.md#call-summary-generation
+vi.mock("@/lib/customer/vehicles", () => ({ getTelematics: vi.fn() }));
+const { UNAVAILABLE, vehicleRecordForModel } = await import("./model-context");
+
+// A model that never sees an internal ID can't quote one to a rep. See docs/decisions.md#agent-context
 const CUID = /\bc[a-z0-9]{24}\b/;
 
+const vehicle: Vehicle = {
+  vin: "0MRKC15V8PA200002", color: "Granite Gray", purchasedAt: "2024-12-15T10:00:00Z", softwareVersion: "23.9.4",
+  installedOptions: ["Bed Liner"],
+  model: { year: 2023, make: "Meridian", model: "Kestrel 1500", trim: "Crew Cab", powertrain: "GAS", batteryKwh: null, rangeMiles: null, engine: "5.3L V8", towingLbs: 11000 },
+  customer: { firstName: "Marcus", lastName: "Bell", email: "marcus.bell@example.com" },
+  recalls: [{ status: "OPEN", completedAt: null, recall: { campaignNumber: "MR-24-117", title: "Rear camera", description: "Goes black.", remedy: "Update." } }],
+};
 const cases: Case[] = [
   {
     id: "cmwii451l000vj74yw7td0nev", status: "OPEN", category: "Electrical", subject: "Backup camera goes black",
-    description: "Goes black.", openedAt: "2026-11-10T00:00:00Z", closedAt: null, resolution: null,
+    description: "Goes black.", openedAt: "2026-11-10T23:30:00Z", closedAt: null, resolution: null,
     notes: [{ id: "cmwii451l000vj74yw7td0nex", source: "REP", issue: "Camera", summary: "Called.", nextSteps: ["Book"], createdAt: "2026-11-11T00:00:00Z" }],
   },
 ];
-const telematics: TelematicsEvent[] = [
-  { id: "cmwii451l000vj74yw7td0ney", recordedAt: "2026-11-09T00:00:00Z", type: "SOFTWARE", code: null, severity: "WARN", message: "Restart", value: null },
-];
+const event = (id: string, recordedAt: string): TelematicsEvent => ({
+  id, recordedAt, type: "SOFTWARE", code: null, severity: "WARN", message: "Rear camera module restarted", value: null,
+});
+const telematics = [event("cmwii451l000vj74yw7td0ne1", "2026-11-09T00:00:00Z"), event("cmwii451l000vj74yw7td0ne2", "2026-10-26T00:00:00Z")];
+const asOf = new Date("2026-11-15T12:00:00Z");
 
 test("strips every internal ID, including those of nested notes", () => {
-  const seen = JSON.stringify({ cases: casesForModel(cases), telematics: telematicsForModel(telematics) });
-  expect(seen).not.toMatch(CUID);
-  expect(seen).toContain("Backup camera goes black");
-  expect(seen).toContain("Restart");
+  const text = vehicleRecordForModel({ vehicle, cases, telematics }, asOf);
+  expect(text).not.toMatch(CUID);
+  expect(text).toContain("Backup camera goes black");
 });
 
-test("passes 'not found' through as null", () => {
-  expect(casesForModel(null)).toBeNull();
-  expect(telematicsForModel(null)).toBeNull();
+test("gives dates in the format answers use, in UTC", () => {
+  const text = vehicleRecordForModel({ vehicle, cases, telematics }, asOf);
+  expect(text).toContain('as_of="Nov 15, 2026"');
+  expect(text).toContain('"opened":"Nov 10, 2026"');
+  expect(text).not.toMatch(/\d{4}-\d{2}-\d{2}T/);
+});
+
+test("states how often an event repeats, so the model doesn't have to count", () => {
+  const text = vehicleRecordForModel({ vehicle, cases, telematics }, asOf);
+  expect(text).toContain('"occurrence":"2 of 2 in these events"');
+  expect(text).toContain('"occurrence":"1 of 2 in these events"');
+});
+
+test("marks a source that couldn't load, so it isn't mistaken for an empty one", () => {
+  const text = vehicleRecordForModel({ vehicle, cases: UNAVAILABLE, telematics: [] }, asOf);
+  expect(text).toContain("<cases>unavailable</cases>");
+  expect(text).toContain("<telematics>[]</telematics>");
 });
