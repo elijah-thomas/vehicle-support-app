@@ -1,6 +1,6 @@
-# Monthly spend alert on Gemini (Vertex AI) usage. Alerts only: GCP budgets don't stop spending,
-# and a billing kill switch would take down every workload in this shared project.
-# Alerts email the billing account's admins. See docs/decisions.md#spend-alerts
+# Decision (D34): monthly spend alert on Gemini (Vertex AI) usage, measured before credits.
+# Trade-off: alerts only. GCP budgets don't stop spending, and a billing kill switch would take
+# down every workload in this shared project. See docs/decisions.md#spend-alerts
 resource "google_billing_budget" "vertex" {
   billing_account = var.billing_account_id
   display_name    = "vehicle-support-app Gemini spend"

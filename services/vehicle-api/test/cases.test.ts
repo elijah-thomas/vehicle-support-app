@@ -22,6 +22,26 @@ describe("POST /cases", () => {
     expect(body.customerId).toBe(vehicle.customer.id);
   });
 
+  test("opens a case with its first note in one write", async () => {
+    const { status, body } = await call("/cases", {
+      method: "POST",
+      json: { vin: VIN.jordanTruck, category: "Electrical", subject: "Dash flicker", description: "Flickers.", note },
+    });
+    expect(status).toBe(201);
+    expect(body.notes).toHaveLength(1);
+    expect(body.notes[0]).toMatchObject({ caseId: body.id, issue: "Camera blackouts" });
+  });
+
+  test("an invalid first note opens no case", async () => {
+    const before = (await call(`/vehicles/${VIN.jordanTruck}/cases`)).body.length;
+    const { status } = await call("/cases", {
+      method: "POST",
+      json: { vin: VIN.jordanTruck, category: "Electrical", subject: "x", description: "x", note: { ...note, nextSteps: [] } },
+    });
+    expect(status).toBe(400);
+    expect((await call(`/vehicles/${VIN.jordanTruck}/cases`)).body).toHaveLength(before);
+  });
+
   test("returns 404 for an unknown vehicle", async () => {
     const { status } = await call("/cases", {
       method: "POST",

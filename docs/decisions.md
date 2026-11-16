@@ -1,879 +1,615 @@
 # Decisions
 
-Settled decisions for this project. Each entry: the decision, options considered, the choice, and
-why. To change one, add a new entry that supersedes it rather than editing history.
+The architectural decisions behind this build: what was chosen, what else was considered, and
+why. Numbers are stable; gaps are entries that were folded into another or cut as conventional.
+Where a decision lands in code, a short `Decision (Dnn)` comment sits at that line.
+
+## Index
+
+**Scenario**
+- [D1](#scenario) Scenario and Vercel's role · [D39](#current-state) The customer's current state ·
+  [D6](#primitives) Vercel primitives
+
+**Boundary and connectivity**
+- [D2](#gcp-backend) GCP compute and database · [D3](#boundary-auth) Authenticating across the
+  boundary · [D16](#api-shape) Shape of the customer's API · [D17](#contracts) How the web app
+  knows the API's shapes · [D19](#db-access) Cloud Run → Cloud SQL · [D21](#function-region)
+  Vercel function region · [D46](#concurrency) Concurrency and scaling
+
+**Delivery and rendering**
+- [D24](#vehicle-page-caching) Vehicle page rendering and caching · [D28](#vehicle-status) Status
+  row · [D40](#error-states) Error states · [D42](#case-view) Case view ·
+  [D32](#lookup-and-layout) Lookup suggestions
+
+**AI and agents**
+- [D11](#models) Models, credentials, failover · [D25](#agent) Vehicle agent ·
+  [D41](#agent-context) Load the record before the agent runs · [D26](#call-summary-generation)
+  Call summary · [D37](#junk-transcripts) Transcripts that aren't support calls ·
+  [D45](#cost-per-run) Cost per run · [D30](#evals) Evals
+
+**Data integrity**
+- [D14](#data-model) Data model and synthetic data · [D36](#note-ownership) Note ownership ·
+  [D33](#save-feedback) Save failures
+
+**Release path**
+- [D18](#terraform) Infrastructure as code · [D22](#environments) Staging and production ·
+  [D23](#pipeline) API deploy pipeline · [D47](#rollout) Rollout and rollback ·
+  [D43](#release-versions) Release versions · [D35](#tests) Tests
+
+**Protection and spend**
+- [D29](#rate-limits) Edge rate limits · [D31](#api-rate-limit-keying) API rate-limit keying ·
+  [D38](#agent-request) What the agent route accepts · [D34](#spend-alerts) Spend alerts
+
+---
 
 ## D1. Scenario and Vercel's role {#scenario}
 
 - **Decision:** Which customer scenario, and what role Vercel plays.
 - **Options:** Replace, Augment, Connect.
-- **Choice:** Connect. A fictional automaker's support org keeps its customer, vehicle,
-  telematics, and case data on GCP. Vercel hosts a new agent experience that reads from it.
+- **Choice:** Connect (with Replace and Augment where D39 calls for them). A fictional
+  automaker's support org keeps its customer, vehicle, telematics, and case data on GCP. Vercel
+  hosts the rep-facing app and agent that read from it and write case notes back.
 - **Why:** Based on a support/CRM tool I operated. Reps lose time flipping between screens to
-  assemble vehicle status and history; the agent compiles it. The system of record stays put.
+  assemble a vehicle's status and history; the agent compiles it. The system of record stays put.
 
 ## D2. GCP compute and database {#gcp-backend}
 
 - **Decision:** What runs the customer's existing backend and data in the demo.
 - **Options:** Cloud Run + Cloud SQL Postgres; Cloud Run + Firestore; external Postgres (Neon).
-- **Choice:** Express API on Cloud Run, backed by Cloud SQL Postgres.
-- **Why:** Most realistic picture of an enterprise system of record that stays in the customer's
-  cloud. The API is the only path to the database; Vercel never connects to Postgres directly.
+- **Choice:** Express API on Cloud Run, backed by Cloud SQL Postgres, with Prisma owned by the API
+  (schema, migrations, seed).
+- **Why:** The most realistic picture of an enterprise system of record that stays in the
+  customer's cloud. The API is the only path to the database; Vercel never connects to Postgres.
 
 ## D3. Authenticating across the boundary {#boundary-auth}
 
-> **Revisited and confirmed:** a rotated API key was considered for simplicity and rejected. The
-> demo should show the enterprise pattern, not a shortcut. Network isolation (Cloud Run internal
-> ingress behind a load balancer, allowlisting Vercel Secure Compute static IPs) is the
-> production design, documented but not built, since Secure Compute requires an Enterprise plan.
-> WIF is also used by GitHub Actions to deploy to Cloud Run, so no long-lived GCP keys exist in
-> CI/CD or at runtime. Timebox: if the runtime WIF spike isn't working in ~2 hours, fall back to
-> a rotated API key and record that as a new decision.
-
 - **Decision:** How the Vercel app proves its identity to the GCP API.
-- **Options:** Shared API key in an env var; Vercel OIDC token exchanged via GCP Workload
-  Identity Federation for a service-account identity, with Cloud Run IAM enforcing access.
-- **Choice:** Vercel OIDC → Workload Identity Federation → Cloud Run IAM.
-- **Why:** No long-lived secrets to leak or rotate, access scoped per Vercel project and
-  environment, and the Cloud Run service is not callable by the public internet.
-
-## D4. Repo layout and deploys {#repo-layout}
-
-- **Decision:** Where the GCP service lives and how each side deploys.
-- **Options:** Separate repos; one monorepo with independent deploys.
-- **Choice:** pnpm monorepo. `apps/web` auto-deploys to Vercel via Git integration;
-  `services/vehicle-api` deploys to Cloud Run via GitHub Actions (also authenticating with WIF).
-- **Why:** One public repo and one commit history for reviewers, while each side keeps its own
-  release path, as it would at the customer.
-
-## D5. Call-transcript summary feature {#call-summary}
-
-- **Decision:** What the agent produces beyond lookups.
-- **Choice:** Rep pastes a call transcript; the AI returns a concise call summary plus next steps
-  for resolving the customer's issue, grounded in the customer's vehicle and case data.
-- **Why:** This is work the UI can't do. It replaces manual note-writing after every call.
-- **Update:** saved back to GCP; see D7.
+- **Options:** a shared API key in an env var (simple, but a long-lived secret to leak and
+  rotate); Vercel OIDC token exchanged through GCP Workload Identity Federation, with Cloud Run
+  IAM enforcing access.
+- **Choice:** Vercel OIDC → Workload Identity Federation → Cloud Run IAM. The federated
+  credential calls `generateIdToken` for the caller service account directly (one permission,
+  one hop); the ID token is cached per function instance for about an hour.
+- **Why:** No long-lived secret anywhere, access scoped per Vercel project and environment (D22),
+  and the Cloud Run service isn't callable from the internet without a Google-signed token.
+  GitHub Actions deploys the same way (D23).
+- **Verified (boundary spike):** works end to end from a Vercel deployment (anonymous calls get
+  403), and the OIDC token is available inside a `"use cache"` function at request time, so the
+  caching plan (D24) needed no fallback.
+- **Production design, not built:** network isolation as well as identity: Cloud Run internal
+  ingress behind a load balancer, reached through Vercel Secure Compute (static IPs, VPC
+  peering; Enterprise plan).
 
 ## D6. Vercel primitives {#primitives}
 
 - **Decision:** Which Vercel products the demo uses, beyond the Next.js app itself.
 - **Options considered:** Workflows, Cache Components, Rolling Releases, Fluid Compute.
-- **Choice:** AI SDK (agent + tools), AI Gateway (model routing, fallback, spend visibility),
-  Cache Components (static shell, cached specs, streamed telemetry, tag invalidation), and Fluid
-  Compute (agent runtime). Workflows is named as phase 2, not built.
-- **Why:** Lookups are short, read-only, and cheap to retry, so durable execution adds cost
-  without benefit today. Workflows earns its place once summaries move to a background job with
-  an async supervisor approval. Fluid Compute fits an agent that spends most of its time waiting
-  on the model, since it bills active CPU rather than wall-clock time.
+- **Choice:** AI SDK (agent and structured call summary), AI Gateway (BYOK routing, failover,
+  spend by feature), Cache Components (static shell, shared cached data, tag invalidation,
+  streamed fresh data), Fluid Compute (functions that mostly wait on models), plus Vercel
+  Firewall and Preview Deployments. Workflows is phase 2, not built.
+- **Why not Workflows now:** every AI request is short, read-only until the rep presses Save, and
+  cheap to retry, so durable execution adds cost without benefit today. It earns its place
+  once summaries become a background job with an async supervisor approval.
+- **Why Fluid Compute:** an agent request spends most of its time waiting on the model; Fluid
+  bills active CPU and lets one instance serve many waiting requests (D46).
 
-## D7. Saving call summaries {#summary-writeback}
+## D11. Models, credentials, and failover {#models}
 
-- **Decision:** Whether AI-drafted call summaries are persisted.
-- **Options:** Display only; save to GCP after rep review.
-- **Choice:** The AI drafts a structured summary (issue, summary, next steps). The rep reviews and
-  edits it, then saves; the app writes it to Postgres via the GCP API as a case note and
-  invalidates that customer's cached cases.
-- **Why:** A human approves before anything is written to the system of record, and the write
-  crosses the boundary and demonstrates targeted cache invalidation.
-
-## D8. Protecting the public AI endpoint {#rate-limiting}
-
-- **Decision:** How to stop abuse and runaway spend on a public, unauthenticated demo.
-- **Choice:** Vercel Firewall rate-limit rule on the AI route, plus in-app caps on transcript
-  size, agent steps, and output tokens.
-- **Why:** The money is spent on the Vercel side (AI Gateway calls), so the limit belongs in front
-  of the AI route, not only on the backend.
-- **Resolved:** see D29. The output-token cap was dropped (D25).
-
-## D9. Model provider credentials {#gateway-byok}
-
-- **Decision:** Whose credentials AI Gateway uses for model calls.
-- **Choice:** Bring-your-own-key: a Vertex AI service account configured in AI Gateway as the
-  primary provider. Fallback via a second provider using either AI Gateway credits or my
-  Anthropic organization's credits. Routing strategy: see D10.
-- **Facts checked (vercel.com/docs/ai-gateway, Nov 2026):** Vertex BYOK takes a project,
-  location, and service-account `clientEmail` + `privateKey`; there is no API-key or keyless
-  option. BYOK requires purchased AI Gateway credits (free tier can't use it). BYOK is always
-  tried first; on failure the Gateway retries with Vercel's own provider keys, billed to credits.
-  AI Gateway budgets don't cap BYOK spend.
-- **Resolved:** see D11.
-
-## D10. Model failover chain (superseded by D11) {#failover}
-
-- **Decision:** What happens when the primary model or provider fails.
-- **Options:** Same model across providers (Claude: Vertex → Anthropic); model failover (Gemini
-  on Vertex → Claude on Anthropic); three layers.
-- **Choice:** Three layers: Gemini on Vertex → Claude on Vertex → Claude on Anthropic.
-- **Why:** Layers 1→2 cover a model-specific failure while staying on the GCP commitment.
-  Layer 3 covers a Vertex-wide failure (outage, quota, credentials, region), since layers 1 and 2
-  share Vertex. Claude on Vertex is served on Google's infrastructure, independent of Anthropic's
-  API; I've seen Anthropic's API degraded while Vertex stayed up, and the reverse is the reason
-  for layer 3.
-- **Consequences:** Answers may differ between Gemini and Claude, so evals must pass on both.
-  Each hop adds latency. Layer 3 sends data outside GCP, which matters if data residency
-  becomes a constraint.
-- **Why:** Mirrors an enterprise that wants to keep model spend on its existing GCP commitment
-  while gaining routing, failover, and observability from the Gateway.
-
-## D11. Simplified failover and demo billing (supersedes D10) {#failover-v2}
-
-- **Decision:** Simplify the failover chain and settle how the demo is billed.
-- **Options:** Free tier only (no BYOK); three-layer chain from D10; two-layer chain with BYOK.
-- **Choice:** Gemini on Vertex (BYOK, billed to GCP credits) → Claude on Anthropic (BYOK, billed
-  to Anthropic org credits) → Vercel's provider keys (automatic Gateway fallback). Buy the
-  minimum AI Gateway credits, since BYOK requires a purchased balance.
-- **Why:** Two independent vendors on two independent clouds, each billed under an existing
-  commercial agreement. Claude on Vertex was dropped: it shares Vertex with layer 1, needs Model
-  Garden enablement, and a Vertex BYOK credential holds a single location, so mixing model
-  regions would need request-scoped credentials. It can be re-added in config if needed.
-- **Consequences:** Evals must pass on both Gemini and Claude. The Vercel-key fallback means a
-  request can leave my own provider agreements; `only` does not disable it. Gateway budgets
-  don't cap BYOK spend, so set a GCP budget alert and an Anthropic spend limit.
-
-## D12. Database access from the API {#orm}
-
-- **Decision:** How `services/vehicle-api` talks to Cloud SQL Postgres.
-- **Options:** Prisma; Drizzle; raw SQL with `pg`.
-- **Choice:** Prisma, owned by `services/vehicle-api` (schema, migrations, seed live there).
-- **Why:** Familiar to me, a readable schema file reviewers can scan to understand the data
-  model, typed queries, and built-in migrations and seeding.
-- **Note:** Only the API uses Prisma. The web app never touches the database directly.
-
-## D13. UI components {#ui-components}
-
-- **Decision:** How UI components are built.
-- **Options:** Hand-rolled Tailwind; shadcn/ui on Base UI, Radix, or React Aria.
-- **Choice:** Tailwind CSS + shadcn/ui, `base-nova` preset on Base UI, Lucide icons.
-- **Why:** shadcn copies component source into the repo (`components/ui/`), so every component
-  is readable and editable, with no black-box library. Base UI is shadcn's current default and
-  actively maintained.
+- **Decision:** Which models answer, whose credentials pay for them, and what happens when one
+  fails.
+- **Options considered:** Vercel's provider keys only (no BYOK); three layers (Gemini on Vertex →
+  Claude on Vertex → Claude on Anthropic); two independent vendors with BYOK.
+- **Choice:** Gemini 3.8 Flash on Vertex (BYOK, the customer's GCP commitment) → Claude Sonnet
+  5.5 on Anthropic (BYOK) → Vercel's provider keys (AI Gateway's automatic retry when a BYOK key
+  fails). `only: ["vertex", "anthropic"]` keeps each model on the provider it should bill to.
+- **Why:** two vendors on two clouds, so a Vertex-wide failure (outage, quota, credentials,
+  region) still has a path. Claude on Vertex was dropped from the first design: it shares Vertex
+  with the primary, needs Model Garden enablement, and a Vertex BYOK credential holds one
+  location.
+- **Facts checked (vercel.com/docs/ai-gateway, Nov 2026):** Vertex BYOK takes a service-account
+  key only (the one long-lived credential in the system, scoped to Vertex AI User and stored only
+  in AI Gateway). BYOK requires purchased Gateway credits. AI Gateway budgets don't cap BYOK
+  spend (hence D34).
+- **Consequences:** answers can differ between models, so evals run on both (D30). The
+  Vercel-key fallback means a request can leave my provider agreements; `only` doesn't disable
+  it. Sending data to Anthropic leaves GCP, which matters if residency becomes a constraint.
 
 ## D14. Data model and synthetic data {#data-model}
 
-- **Decision:** The shape of the customer's existing data, and what test data tells.
-- **Options:** Leaner model without recalls; full model with recalls.
-- **Choice:** Eight tables: `customers`, `vehicle_models` (factory specs), `vehicles` (VIN as
-  primary key), `telematics_events`, `recalls`, `vehicle_recalls`, `cases`, `case_notes`.
-  Seeded with five synthetic stories for a fictional make, Meridian Motors: a recurring fault,
-  a symptom matching an open recall, a healthy new vehicle, a customer with two vehicles, and a
-  fault that returned after a closed case.
-- **Why:** Specs belong to the model, not the vehicle, which makes them the most cacheable data.
+- **Decision:** The shape of the customer's existing data, and what the test data tells.
+- **Options:** a leaner model without recalls; a full model with recalls.
+- **Choice:** eight tables: `customers`, `vehicle_models` (factory specs), `vehicles` (VIN as
+  primary key), `telematics_events`, `recalls`, `vehicle_recalls`, `cases`, `case_notes`. Seeded
+  with five synthetic stories for a fictional make, Meridian Motors: a recurring fault, a symptom
+  matching an open recall, a healthy new vehicle, a customer with two vehicles, and a fault that
+  returned after a closed case.
+- **Why:** specs belong to the model, not the vehicle, which makes them the most cacheable data.
   VIN is the identifier reps already use. Recalls enable the highest-value connection the agent
   can make. Each story is also an eval case.
-- **Notes:** Postgres 17 locally via Docker (host port 5440) to match Cloud SQL. Prisma pinned
-  to 7.10.1 stable rather than the 8.0 release candidate. VINs use the made-up `0MR` prefix.
-
-## D15. Where saved call summaries go {#save-target}
-
-- **Decision:** Which record a reviewed call summary is attached to.
-- **Options:** Always a new case; always the latest open case; a note on a case the rep picks.
-- **Choice:** A `case_notes` row on a case the rep picks. Defaults to the vehicle's most recent
-  open case; the rep can pick another or create a new case.
-- **Why:** Mirrors real CRM workflow and avoids duplicate cases for repeat callers, while
-  handling calls about something new.
 
 ## D16. Shape of the customer's API {#api-shape}
 
 - **Decision:** Whether the GCP API returns raw records or agent-ready summaries.
-- **Options:** Shaped around the data; shaped for the agent (pre-summarized endpoints).
-- **Choice:** Shaped around the data. Six endpoints: customer by email, vehicle by VIN (with
-  specs and recalls), telematics, cases (with notes), create case, add case note. One error
-  shape: `{ error: { code, message } }`.
-- **Why:** The customer's API already exists and shouldn't change to accommodate AI. All
-  AI-specific logic stays on the Vercel side of the boundary; agent tools map 1:1 to endpoints.
-- **Note:** Express has no auth code. Cloud Run IAM rejects unauthenticated callers before a
-  request reaches the container (D3). A light rate limit is a backstop (D8; per calling system since D31).
+- **Options:** shaped around the data; shaped for the agent (pre-summarized endpoints).
+- **Choice:** shaped around the data: customer by email, vehicle by VIN (with specs and recalls),
+  telematics, cases (with notes), create case, add note, close case. One error shape:
+  `{ error: { code, message } }`.
+- **Why:** the customer's API already exists and shouldn't change to accommodate AI. All
+  AI-specific logic stays on the Vercel side of the boundary.
+- **Note:** Express has no auth code: Cloud Run IAM rejects unauthenticated callers before a
+  request reaches the container (D3).
 
 ## D17. How the web app knows the API's shapes {#contracts}
 
-- **Decision:** Share types between API and web, or keep them separate.
-- **Options:** Shared `packages/contracts`; web app owns its own Zod schemas.
-- **Choice:** The web app defines its own Zod schemas in `lib/customer/` and validates every
-  response from the GCP API.
-- **Why:** In reality another team owns the customer's API; the Vercel app treats it as an
+- **Decision:** Share types between the API and the web app, or keep them separate.
+- **Options:** a shared `packages/contracts`; the web app owns its own Zod schemas.
+- **Choice:** the web app defines its own Zod schemas in `lib/customer/` and validates every
+  response.
+- **Why:** in reality another team owns the customer's API; the Vercel app treats it as an
   external contract and checks it at the boundary. Cost: shapes are written twice.
 
 ## D18. Infrastructure as code {#terraform}
 
 - **Decision:** How the GCP side is defined and changed.
-- **Options:** Ad hoc gcloud commands; Terraform for GCP only; Terraform for GCP and Vercel.
-- **Choice:** Terraform for GCP (`infra/`), state in a versioned GCS bucket. Resources first
-  created with gcloud were adopted with `import` blocks (no recreation). Three things stay out:
-  the running image (GitHub Actions deploys it; Terraform ignores image changes), Postgres
-  GRANTs (inside the database; kept in `infra/sql/grants.sql`), and the Vercel project (its
-  Terraform provider needs a long-lived Vercel API token).
-- **Why:** The boundary (WIF trust, IAM bindings) is what reviewers will question, so it should
-  be readable code. Constraint changes become reviewed diffs, and `terraform destroy` tears the
-  demo down cleanly in a shared project.
+- **Options:** ad hoc gcloud commands; Terraform for GCP only; Terraform for GCP and Vercel.
+- **Choice:** Terraform for GCP (`infra/`), state in a versioned GCS bucket. Three things stay
+  out: the running image (GitHub Actions deploys it), Postgres GRANTs (`infra/sql/grants.sql`),
+  and the Vercel project (its provider needs a long-lived Vercel API token). Firewall rules are
+  JSON in `infra/vercel-firewall/`, applied with the Vercel CLI.
+- **Why:** the boundary (WIF trust, IAM bindings) is what reviewers will question, so it should
+  be readable code, and constraint changes become reviewed diffs.
 
 ## D19. Cloud Run → Cloud SQL access and region {#db-access}
 
-- **Decision:** How the API connects and authenticates to Postgres, and where it all runs.
-- **Options:** Connector + password; connector + IAM database login; private IP in a VPC.
+- **Decision:** How the API connects and authenticates to Postgres, and where it runs.
+- **Options:** connector + password; connector + IAM database login; private IP in a VPC.
 - **Choice:** Cloud SQL connector with IAM database login, in `us-central1`. The database has a
-  public IP with no authorized networks, so only the IAM-checked, mTLS connector can connect.
-  The API's database user can read and write rows but not change the schema; migrations run as
-  a separate human IAM login. Private IP is the documented production design.
-- **Why:** Extends "no long-lived secrets" to the database: no database password exists.
-  Builds run as a dedicated service account rather than the project's shared default account.
-
-## D20. Boundary spike results {#spike}
-
-- **Result:** The Vercel → GCP chain works end to end from a Vercel deployment: Vercel OIDC token
-  → STS → `generateIdToken` for `vehicle-support-caller` → private Cloud Run (anonymous calls get
-  403) → Cloud SQL via IAM login. The OIDC token is also reachable from inside a `"use cache"`
-  function at request time, so the Cache Components plan (D6) stands with no fallback.
-- **Implementation choice:** The federated credential calls `generateIdToken` directly (the
-  Vercel project holds `serviceAccountOpenIdTokenCreator` on the caller account) rather than
-  impersonating it first. One permission, one hop. The ID token is cached per Fluid Compute
-  instance for about an hour.
-- **Open:** Untested whether the token is available if cached functions run at build time
-  (for example, prerendered vehicle pages). Check before prerendering anything that calls GCP.
+  public IP with no authorized networks, so only the IAM-checked, mTLS connector can connect. The
+  API's database user reads and writes rows but can't change the schema; migrations run as the
+  environment's deployer (D23). Private IP is the production design.
+- **Why:** extends "no long-lived secrets" to the database: no database password exists.
 
 ## D21. Vercel function region {#function-region}
 
 - **Decision:** Where Vercel Functions run.
 - **Options:** `iad1` (default, Washington D.C.); `cle1` (Cleveland); multiple regions.
 - **Choice:** `cle1`, set in `apps/web/vercel.json`.
-- **Why:** Every request crosses to GCP `us-central1` (Iowa), often several times per agent run.
-  `cle1` is the closest Vercel region to it, and Vercel recommends running functions next to
-  their data. A single region is enough: users are internal support reps, and static and cached
-  content is still served from Vercel's global CDN.
-- **Trade-off:** If `cle1` has an outage, Vercel reroutes to the next closest region (failover
-  ordering is automatic; per-function failover is Enterprise).
+- **Why:** every dynamic request crosses to GCP `us-central1` (Iowa). `cle1` is the closest Vercel
+  region to it, and functions belong next to their data. Users are internal reps; the static
+  shell is still served from Vercel's global CDN.
+- **Trade-off:** one region. If `cle1` fails, Vercel reroutes to the next closest region
+  (per-function failover is Enterprise).
 
 ## D22. Staging and production environments {#environments}
 
 - **Decision:** Whether the GCP side has one environment or two.
-- **Options:** One environment shared by all Vercel deployments; staging + production.
-- **Choice:** Two. `develop` deploys `vehicle-support-api-staging` (database
-  `vehicle_support_staging`); `master` deploys `vehicle-support-api` (`vehicle_support`). Both
-  databases share one Cloud SQL instance. Vercel Preview and Development use staging; Vercel
-  Production uses production.
-- **Isolation is enforced, not conventional:** separate runtime, caller, and deployer service
-  accounts per environment. WIF maps `project:environment` from the Vercel token, so preview
-  and development tokens can only become the staging caller and production tokens only the
-  production caller. In Postgres, each database revokes `CONNECT` from `PUBLIC`; the staging
-  accounts cannot even connect to the production database.
-- **Why:** A preview deployment can never read or write production data, and the rollout plan
+- **Options:** one environment for every Vercel deployment; staging + production.
+- **Choice:** two. `develop` deploys `vehicle-support-api-staging` (database
+  `vehicle_support_staging`); `master` deploys `vehicle-support-api` (`vehicle_support`), on one
+  Cloud SQL instance. Vercel Preview and Development use staging; Vercel Production uses
+  production.
+- **Isolation is enforced:** separate runtime, caller, and deployer service accounts per
+  environment. WIF maps `project:environment` from the Vercel token, so preview tokens can only
+  become the staging caller. Each database revokes `CONNECT` from `PUBLIC`, so staging accounts
+  can't even connect to production.
+- **Why:** a preview deployment can never read or write production data, so the rollout plan
   (preview → staging → production) is real rather than described.
-- **Cost:** One extra Cloud Run service (scales to zero) and one extra database on the existing
-  instance. No new instance.
 
 ## D23. API deploy pipeline {#pipeline}
 
 - **Decision:** How the GCP API is built, migrated, and released.
-- **Choice:** GitHub Actions (`.github/workflows/deploy-api.yml`), on push to `develop` or
-  `master`: build image → `prisma migrate deploy` through the Cloud SQL Auth Proxy → roll out
-  the new revision. Auth via a second WIF provider for GitHub, trusted by immutable repository
-  ID; each branch can only act as its environment's deployer. GitHub Environments add branch
-  policies (production deploys only from `master`). Staging can be reseeded on demand
-  (`workflow_dispatch`); production never is.
-- **Options considered:** Migrations as a Cloud Run Job (keeps them inside GCP but needs a
-  separate image with the Prisma CLI); Terraform plan/apply in CI (needs project-wide read
-  access for GitHub's identity). Terraform stays local for this demo.
-- **Why:** No stored GCP keys anywhere in CI. Migrating before deploying means a failed
-  migration leaves the running revision untouched; migrations must be backward compatible
-  (expand, then contract) because the old revision serves until the new one is ready.
-- **Database ownership:** each environment's deployer owns its schema and is the only identity
-  that changes it. The production tables, first created by a human login, were transferred to
-  the production deployer (`infra/sql/grants.sql`).
+- **Choice:** GitHub Actions (`.github/workflows/deploy-api.yml`) on push to `develop` or
+  `master`: build image → `prisma migrate deploy` through the Cloud SQL Auth Proxy → roll out the
+  new revision. Auth through a second WIF provider for GitHub, trusted by immutable repository
+  ID; each branch can only act as its environment's deployer. Staging can be reseeded on demand;
+  production never is. The web app deploys separately through Vercel's Git integration, as it
+  would at a customer where two teams own the two sides.
+- **Options considered:** migrations as a Cloud Run Job (stays inside GCP, but needs a separate
+  image with the Prisma CLI); Terraform plan/apply in CI (needs project-wide read for GitHub's
+  identity).
+- **Why this order:** a failed migration leaves the running revision untouched. Migrations must
+  be backward compatible (expand, then contract) because the old revision serves until the new
+  one is ready.
 
 ## D24. Vehicle page rendering and caching {#vehicle-page-caching}
 
 - **Decision:** What is static, cached, or fresh on `/vehicles/[vin]`, and where cached data lives.
-- **Options (store):** plain `"use cache"` (in-memory per instance, free) or `"use cache: remote"`
+- **Options (store):** plain `"use cache"` (in memory per instance, free) or `"use cache: remote"`
   (Vercel Runtime Cache: shared by all instances in the region, isolated per environment).
-- **Choice:** Static shell (layout, headings, skeletons) with three independently streamed panels:
+- **Choice:** a static shell (layout, headings, skeletons) with independently streamed panels:
 
   | Data | Strategy | Tag |
   |---|---|---|
   | Vehicle, specs, recalls | `use cache: remote`, `hours` (`minutes` if not found) | `vehicle:{vin}` |
-  | Cases and notes | `use cache: remote`, `minutes`; cleared by `updateTag` on note save | `cases:{vin}` |
+  | Cases and notes | `use cache: remote`, `minutes`; cleared by `updateTag` on save | `cases:{vin}` |
   | Telematics | Not cached; request time (`connection()`) | — |
-  | Customer search by email | Not cached; server action, so the email never appears in a URL | — |
+  | Customer search by email | Not cached; Server Action, so the email never appears in a URL | — |
 
   No vehicle pages are prerendered at build time.
-- **Why remote:** In-memory entries live per instance, so `updateTag` after a save could leave
-  another instance serving old cases. The Runtime Cache is shared and environment-isolated,
-  matching the staging/production split. Cost is fractions of a cent at demo traffic; it starts
-  empty after each deploy.
-- **Why these lifetimes:** Specs never change; recall status rarely does. Cases also change in
-  the existing CRM, which never tells this app, so a short lifetime bounds staleness there.
-- **Personal data:** Owner names, emails, and case descriptions are cached briefly, in one region
-  (`cle1`), isolated per environment, evicted by lifetime. Flagged as a customer approval item.
-- **Measured locally against staging:** first load ~5 s (staging scaled to zero, token exchange,
-  connector setup); warm loads 0.08–0.3 s.
+- **Why remote:** in-memory entries live per instance, so `updateTag` after a save could leave
+  another instance serving old cases. The Runtime Cache is shared and environment-isolated. It
+  starts empty after each deploy.
+- **Why these lifetimes:** specs never change; recall status rarely does. Cases also change in the
+  existing CRM, which never tells this app, so a short lifetime bounds staleness there.
+- **Personal data:** owner names, emails, and case text are cached briefly, in one region,
+  isolated per environment. Flagged as a customer approval item.
+- **Measured against staging:** first load ~5 s (scaled to zero, token exchange, connector
+  setup); warm loads 0.08–0.3 s.
 
 ## D25. Vehicle agent {#agent}
 
-*Data loading and the prompt were redesigned in D41; scope, models, and limits still hold.*
+*Data loading and the prompt were redesigned in D41; scope and limits still hold.*
 
-- **Decision:** How the AI assistant is scoped, powered, and bounded.
-- **Choice:** A `ToolLoopAgent` (AI SDK 7) behind `POST /api/agent`, shown as a chat panel on
-  the vehicle page with five canned prompts and visible tool calls.
-  - **Tools:** `getVehicle`, `getTelematics`, `getCases`, mapping 1:1 to the GCP API and reusing
-    the page's cached fetchers, so lookups are near-instant when the rep already has the page open.
-  - **Scope:** tools take no VIN. The route passes the vehicle the rep has open, so no prompt can
-    make the agent read another customer's record.
-  - **Models:** Gemini 3.8 Flash on Vertex → Claude Sonnet 5.5 on Anthropic, `only: ["vertex",
-    "anthropic"]` so each model runs only on the provider whose credits it should use (D11).
-  - **Limits:** 6 steps, `reasoning: "low"`, last 10 messages, 2,000 characters per message.
-    No output-token cap (see below). Rate limiting in front of the route comes with the Firewall
-    step (D8).
-  - **Grounding:** the prompt allows only facts the tools returned, cited with dates; says so when
-    data is missing; refers to cases by subject and date, never internal IDs; ends with next steps.
+- **Decision:** How the AI assistant is scoped and bounded.
+- **Choice:** a `ToolLoopAgent` (AI SDK) behind `POST /api/agent`, in a chat panel on the vehicle
+  page with canned prompts.
+  - **Scope:** the tool takes no VIN. The route passes the vehicle the rep has open, so no prompt
+    can make the agent read another customer's record.
+  - **Limits:** step cap, `reasoning: "low"`, last 10 messages, request checks (D38). No
+    output-token cap.
+  - **Grounding:** only facts in the record or a tool result, cited with dates; says so when data
+    is missing; never quotes internal IDs; ends with next steps.
 - **Options considered:** letting the model choose the VIN (enables comparing a customer's
-  vehicles, but a crafted prompt could pull any record); cheaper model pairs (Haiku, Flash Lite).
-- **Found while testing:** Gemini's hidden reasoning tokens count toward `maxOutputTokens`; at the
-  default depth it used the whole budget and cut answers off (`finishReason: "length"`).
-  `reasoning: "low"` fixed it. The 1,000-token cap was then removed: a truncated answer is worse
-  than a long one, and cost per message stays bounded by the step cap, input caps, and rate
-  limiting. Dates are formatted in UTC so the page and the agent (which reads UTC timestamps) agree.
+  vehicles, but a crafted prompt could pull any record); cheaper models (Haiku, Flash Lite).
+- **Why no output cap:** Gemini's hidden reasoning counts toward `maxOutputTokens`; at 1,000 it
+  cut answers off. A truncated answer is worse than a long one, and cost per message is already
+  bounded by the step cap, input caps, and rate limits (D45).
 
 ## D26. Call summary {#call-summary-generation}
 
-- **Decision:** How a transcript becomes a saved case note.
+- **Decision:** How a pasted transcript becomes a saved case note.
 - **Choice:**
-  - **Fields** match `case_notes` exactly (issue, summary, next steps) plus a suggested subject and
-    category used only for a new case. No database change.
-  - **Generation:** one structured call (`streamText` + `Output.object`) with the vehicle, cases,
-    and telematics loaded up front, rather than an agent loop. The draft streams into the form.
-  - **Review:** nothing is saved until the rep edits and presses Save. The case picker defaults to
-    the most recent open case, with a "New case" option (D15).
+  - **Fields** match `case_notes` exactly (issue, summary, next steps), plus a suggested subject
+    and category used only for a new case. No database change.
+  - **Generation:** one structured call (`streamText` + `Output.object`) with the record loaded
+    up front, not an agent loop. The draft streams into the form.
+  - **Human in the loop:** nothing is written until the rep edits and presses Save. The case
+    picker defaults to the case the rep has open, else the most recent open case, with "New
+    case" for a call about something new.
   - **Save:** a Server Action creates the case if needed, posts the note to GCP
-    (`source: AI_DRAFT_EDITED`), then calls `updateTag('cases:{vin}')` so Case history shows the
-    note on the next render instead of the cached list.
-  - **Limits:** transcripts up to 15,000 characters (about a 15-minute call); field limits match
-    the GCP API's validation.
-  - **Safety:** the transcript is treated as untrusted content in the prompt, and the call has no
-    tools, so instructions hidden in a transcript can't fetch or change anything.
-- **Options considered:** extra fields (urgency, sentiment; needs a migration); reusing the agent
-  with tools (flexible but multi-step, slower, harder to evaluate); a picker without "New case"
-  (a vehicle with no cases couldn't save a summary).
-- **Found while testing:** the model quoted internal case IDs despite a prompt rule. IDs are now
-  stripped from everything the model sees (`lib/ai/model-context.ts`), for the agent too.
-- **Risk to flag:** transcripts are personal data sent to the model providers (Vertex, Anthropic)
-  under my BYOK agreements. Production answer: AI Gateway Zero Data Retention routing with
-  ZDR-marked keys, and a retention review with the customer's privacy team.
+    (`source: AI_DRAFT_EDITED`), then `updateTag('cases:{vin}')`, so the next render shows it.
+  - **Limits:** transcripts up to 15,000 characters (about a 15-minute call).
+  - **Safety:** the transcript is untrusted content, and the call has no tools, so instructions
+    hidden in a transcript can't fetch or change anything.
+- **Options considered:** display only (no write-back); reusing the agent with tools (flexible
+  but multi-step, slower, harder to evaluate); always a new case (duplicates for repeat callers).
+- **Risk to flag:** transcripts are personal data sent to the model providers. Production answer:
+  AI Gateway Zero Data Retention routing and a retention review with the customer's privacy team.
 
-## D27. Visual design system and assistant panel {#design-system}
+## D28. Vehicle status row {#vehicle-status}
 
-- **Decision:** How the app looks beyond shadcn's neutral defaults, and where the assistant sits.
-- **Options (look):** Calm utility (warm grays, one teal accent, dense); automotive dark (dark-first,
-  instrument-cluster feel); friendly SaaS (bright, rounded, roomier).
-- **Choice:** Calm utility, light theme only. Inter for UI, JetBrains Mono for VINs and fault codes.
-  Tokens map onto shadcn's CSS variables in `app/globals.css`, plus `success`, `warning`, `info`,
-  and `-soft` backgrounds for status. The assistant docks as a sticky 400px right column at `xl`
-  (1280px+) and sits under the vehicle summary on smaller screens. (Docking breakpoint superseded by D28.)
-- **Assistant panel:** tool calls show as "sources checked" chips (running, done, failed); answers
-  render the agent's plain-text format (summary, bullets, a highlighted "Next steps" block)
-  without a markdown parser; a Stop button replaces Ask while it streams; rate-limit and
-  too-long errors get their own messages.
-- **Why:** Reps scan this screen during a live call, so color is reserved for meaning and every
-  status carries a word. Keeping the assistant in view lets the rep check its answer against the
-  telematics and cases without scrolling away from it.
-
-## D28. Vehicle status row and UI refinements {#vehicle-status}
-
-- **Decision:** How the vehicle page answers "what's wrong with this car?" at a glance, how
-  assistant answers point back into the record, and where the assistant docks.
-- **"Recent" faults (status row):**
-  - **Options:** 30 days; 7 days; any fetched event.
-  - **Choice:** 30 days. Telematics has no active/cleared state, so a time window stands in for
-    "still happening". 7 days hides a fault that came back three weeks ago; "any fetched event"
-    depends on how many events the API returns. The real fix is a cleared flag in the customer's
-    telematics API.
-- **Status row rendering:**
-  - **Options:** each item streams in its own `<Suspense>`; one boundary that waits for all three.
-  - **Choice:** independent boundaries. Recalls arrive with the cached vehicle and show at once;
-    cases (cached minutes) and telematics (fresh) stream in behind 120×28 skeletons, so the cached
-    header never waits on fresh data (consistent with D24). Flex `order` keeps the worst-first
-    sequence (critical, recalls, warning, cases) whichever arrives first.
-  - The panel and the row share one telematics fetch and one clock reading per request (React
-    `cache()`), so repeat counts ("3rd time") and relative times agree. Still never cached
-    across requests.
-- **References in assistant answers:**
-  - **Options:** match fault codes and recall campaigns by pattern on the client; pass the
-    vehicle's known codes and campaigns into the chat panel.
-  - **Choice:** pattern matching. No new data flows to the panel; a reference becomes a link only
-    if its target (`#dtc-<code>`, `#recall-<campaign>`) exists on the page, otherwise a plain chip.
-    Cases stay text because the agent cites them by subject and date, never IDs (D26).
-- **Assistant docking:** the assistant docks from `lg` (1024px, 360px wide; 400px from `xl`)
-  instead of `xl`. Between 1024 and 1280px it used to fall below the record, which defeated
-  keeping it in view. Telematics and cases sit side by side only at `xl` and stack at `lg`.
-- **Assistant errors:** the route returns `{ error: { code } }` (`invalid_request`, `too_long`,
-  `agent_failed`); failures after streaming starts are sent as the same JSON. The client maps a
-  429 (from the Firewall, D8) to `rate_limited` by HTTP status, not by matching words.
-- **Smaller calls:** severity and status always show as a word plus icon, never a raw enum;
-  recalls use the warning tone (something to tell the customer, not an error); focus rings are a
-  solid 2px teal outline (5.6:1 on the background, above the 3:1 minimum); telematics times are
-  relative ("3 h ago", absolute after 60 days) while record dates stay absolute UTC to match what
-  the assistant cites. Inputs opt out of password-manager autofill, since the app has no sign-in.
+- **Decision:** How the vehicle page answers "what's wrong with this car?" at a glance.
+- **"Recent" faults:** 30 days. Telematics has no active/cleared state, so a time window stands
+  in for "still happening"; 7 days hides a fault that came back three weeks ago. The real fix is
+  a cleared flag in the customer's telematics API.
+- **Rendering:** each status item streams behind its own `<Suspense>`. Recalls arrive with the
+  cached vehicle and show at once; cases and telematics stream in behind skeletons, so the cached
+  header never waits on fresh data. The panel and the row share one telematics fetch and one
+  clock reading per request (React `cache()`), so counts agree.
+- **References in answers:** fault codes and recall campaigns in the agent's text become links
+  by pattern match, only if the target exists on the page. No new data flows to the client.
 
 ## D29. Rate limits on the public endpoints {#rate-limits}
 
 - **Decision:** Where and how tightly to rate-limit the unauthenticated AI and save endpoints.
 - **Options considered:** Vercel Firewall custom rules at the edge; `@vercel/firewall`
-  `checkRateLimit()` inside the route (per-route logic, but the function already started); an
-  in-app limiter on Redis (new service and cost); relying only on the Cloud Run backstop (doesn't
-  protect model spend, which happens on Vercel).
-- **Choice:** Two Vercel Firewall rate-limit rules, fixed 60-second window, keyed by IP, returning
-  429:
-  - `POST /api/agent` or `POST /api/call-summary`: 20 per minute. A rep asks a handful of
-    questions per call; 20 is generous for a person and cheap for a script to hit.
-  - Note saves (`POST /vehicles/*` with a `Next-Action` header, i.e. the Server Action): 30 per
-    minute. These write to the customer's case system on GCP.
-- **Config as code:** the rule JSON lives in `infra/vercel-firewall/` and is applied with
-  `vercel firewall rules add` and `publish`.
+  `checkRateLimit()` in the route (the function has already started); an in-app limiter on Redis
+  (new service and cost); only the Cloud Run backstop (doesn't protect model spend, which happens
+  on Vercel).
+- **Choice:** two Vercel Firewall rules, fixed 60-second window, keyed by IP, returning 429:
+  - `POST /api/agent` or `POST /api/call-summary`: 20 per minute.
+  - Note saves (`POST /vehicles/*` with a `Next-Action` header): 30 per minute.
 - **Why the edge:** a blocked request never starts a function or reaches a model, so it costs no
   compute and no tokens.
-- **Verified (Nov 2026):** 25 POSTs to `/api/agent` on a preview deployment returned 20 × 400
-  (empty body) then 5 × 429. Project firewall rules apply to preview deployments too, not only
-  production. Unauthenticated requests to a protected preview get 401 from Deployment
-  Protection before the counter is reached.
-- **Limits to flag:** per-IP limits don't bound total spend from many IPs, and counters are per
-  region. The spend backstop is provider-side limits on the BYOK keys (Anthropic spend limit, GCP
-  budget alert), since AI Gateway budgets don't cap BYOK (D9). In production, rep login (out of
-  scope) would let the limit key on the user instead of the IP.
+- **Verified:** 25 POSTs returned 20 × 400 then 5 × 429, on preview and production. Project
+  rules apply to preview deployments too.
+- **Limits to flag:** per-IP limits don't bound spend from many IPs (D34 is the backstop), and
+  counters are per region. With rep login (out of scope) the limit would key on the rep.
 
 ## D30. Evals {#evals}
 
 - **Decision:** How to check that the agent and call summaries stay grounded, on both models.
 - **Choice:**
-  - **Harness:** Vitest, run on demand with `pnpm eval` (its own config, so no other test command
-    spends tokens). Not in CI yet: real model calls cost money and aren't deterministic. The
-    rollout plan lists CI evals on release PRs as the next step.
-  - **What runs:** the real agent and the real call-summary request, with the model and data
-    loaders injected. Each model runs alone with failover off (`evalModels`), so a score belongs
-    to the model it names. Data comes from the staging API over the same OIDC → WIF path, minus
-    the Next.js cache, fetched once per run.
-  - **Grading:** deterministic only: expected tools called, required facts present, forbidden
-    text absent (internal IDs, invented fault codes, assumed pronouns, promised loaners or
-    buybacks, markdown). No LLM judge: free, stable, and every failure is explainable.
-  - **Cases:** 8 agent cases and 2 call-summary cases built on the seeded stories (recurring
-    fault, open recall, healthy car, fault returned after a closed case, missing data, a request
-    for another customer's VIN, a prompt injection inside a transcript). Each runs 3 times and
-    reports a pass rate per model, since one pass proves little.
-- **Options considered:** HTTP against the running route (real path, but can't choose the model
-  without a public override); recorded fixtures (fast, but skips the boundary and drifts with the
-  relative seed dates); an LLM judge for qualities like "suggests escalation" (keywords cover it).
-- **What the evals found, and what changed:**
-  - Claude guessed gender from customer names ("ask him", "she"). Both prompts now say to use
-    the name, "the customer", or "they". A prohibition alone didn't work; a positive alternative
-    did.
-  - Gemini skipped driver safety on a CRITICAL reduced-power fault and offered a loaner. The agent
-    now puts safety first for CRITICAL driving faults and routes coverage, loaner, refund, and
-    buyback requests instead of promising them.
-  - Claude refused an injected instruction in a transcript but copied it into the summary. The
-    note is saved and later read by the agent, so that is a stored prompt injection. The prompt
-    now says to leave such instructions out of the note.
-  - The seeded battery temperature had no unit; it now says °C.
-  - The first wording of the "no promises" rule made Claude repeat the rule to the rep as a next
-    step. It now applies only when the customer asks.
-- **Results (3 runs per case, Nov 2026):** Gemini 30/30. Claude 28/30: once "his", and once it
-  still mentioned the injected buyback request while saying it wasn't acted on. Tuning further
-  would overfit ten prompts; the rep reviewing every note is the backstop. Gemini used about half
-  the tokens per answer (~1,700 vs ~3,600) at similar median latency, which supports it as the
-  primary model.
-- **Also found:** run in parallel, the evals hit the vehicle API's 120/min per-IP limit. Both models
-  handled the 429s well: they said the lookups failed and didn't guess. The limit's keying is a
-  production concern of its own: see D31.
+  - **Harness:** Vitest, run on demand with `pnpm eval`. Not in CI yet: real model calls cost
+    money and aren't deterministic. CI evals on release PRs are the next step.
+  - **What runs:** the real agent and the real call-summary request, with the model and loaders
+    injected. Each model runs alone with failover off, so a score belongs to the model it names.
+    Data comes from the staging API over the real OIDC → WIF path.
+  - **Grading:** deterministic only: expected tools, required facts, forbidden text (internal IDs,
+    invented fault codes, assumed pronouns, promised loaners or buybacks, markdown). No LLM judge:
+    free, stable, and every failure is explainable.
+  - **Cases:** 10 agent and 7 call-summary cases built on the seeded stories, including a request
+    for another customer's VIN and a prompt injection inside a transcript. Each runs 3 times.
+- **Options considered:** HTTP against the running route (can't pick the model without a public
+  override); recorded fixtures (skip the boundary and drift with the seed); an LLM judge.
+- **What the evals changed:** Claude guessed pronouns from names (fixed with a positive
+  alternative and its reason, not a bare ban); Gemini skipped driver safety on a CRITICAL fault
+  and offered a loaner (safety first; coverage and loaner requests are routed, not promised);
+  Claude copied an injected instruction into a saved note, a stored prompt injection (the
+  prompt now leaves such text out); the agent's tool loop added nothing (D41).
+- **Latest results (3 runs per case, Nov 2026):** agent 30/30 on both models; call summaries 21/21
+  on both.
 
 ## D31. Vehicle API rate-limit keying {#api-rate-limit-keying}
 
-- **Decision:** What the vehicle API's backstop rate limit (D8) counts per client.
-- **Finding:** it counted per client IP, but the API's only client is the Vercel app. Every rep's
-  traffic arrives from Vercel's shared outbound IPs, so the whole support team shared one
-  120/min budget. One agent question costs up to 3 API calls; the evals hit the limit (D30).
-- **Options considered:**
-  - **A. Per calling system:** count by the service account in the Google ID token and size the
-    limit for the whole app.
-  - **B. Per rep:** Vercel forwards a rep identifier and the API counts by it. Duplicates the edge
-    limit, and only means something once reps log in.
-  - **C. No API limit:** rely on Cloud Run IAM, max instances, and the edge. Nothing protects the
-    backend if the app misbehaves, e.g. a retry loop.
-  - **D. Keep 120 per IP** and document it.
-- **Choice:** A. Each layer has one job: the Vercel Firewall limits each person at the edge (D29),
-  and the customer's API limits each calling system. 1,200/min per caller, set per environment in
-  Terraform (`RATE_LIMIT_PER_MINUTE`), sized for about 100 reps each taking a few actions a
-  minute. A second internal system calling the API would get its own budget automatically.
-- **Why reading the token is safe:** Cloud Run IAM verifies the ID token before the request reaches
-  the container, so the API reads the `email` claim without verifying it again. Locally there is
-  no token, so the limiter falls back to the client IP.
-- **Limits to flag:** counters live in each instance's memory, so with up to 3 instances the real
-  ceiling is up to 3× the limit. A shared store (Redis/Memorystore) would make it exact; not worth
-  it for a backstop. Once reps log in, both layers can key on the rep's ID.
+- **Decision:** What the vehicle API's backstop rate limit counts per client.
+- **Finding:** it counted per IP, but every rep's traffic arrives from Vercel's shared outbound
+  IPs, so the whole support team shared one 120/min budget. The evals hit it.
+- **Options considered:** per calling system (the service account in the ID token); per rep
+  (needs rep login); no API limit (nothing protects the backend from a retry loop); keep per IP.
+- **Choice:** per calling system, 1,200/min, set per environment in Terraform. Each layer has one
+  job: the Firewall limits each person at the edge (D29); the customer's API limits each calling
+  system. A second internal system would get its own budget automatically.
+- **Why reading the token is safe:** Cloud Run IAM verifies the ID token before the request
+  reaches the container. Locally there is no token, so the limiter falls back to the IP.
+- **Limit to flag:** counters live in each instance's memory, so with up to 3 instances the real
+  ceiling is up to 3×. A shared store would make it exact; not worth it for a backstop.
 
-## D32. Lookup suggestions and a page that fits the screen {#lookup-and-layout}
+## D32. Lookup suggestions {#lookup-and-layout}
 
-- **Decision:** How the vehicle page fits a laptop screen, where Call summary lives, how
-  telematics units are shown, and what the lookup suggests.
-- **Layout:** two independent columns instead of one grid with the assistant spanning rows. A
-  fixed-height item spanning rows stretched them, leaving empty bands under shorter panels.
-  - Left: header, then telematics and cases, as one flex column. Right: the assistant, sticky at
-    72px (48px top bar + 24px) with `height: calc(100dvh - 6rem)`, so its input stays 24px above
-    the bottom of the screen.
-  - Below `lg` the left wrapper is `display: contents`, so `order` can place the assistant
-    between the header and telematics without rendering it twice. Each panel keeps its own
-    `<Suspense>` (D24).
-  - A sticky top bar (product name, lookup, "Synthetic demo data") replaces "← New lookup".
-    The landing page hides the bar's lookup and shows one large lookup instead, so `/` always
-    has a single target.
-  - Verified at 1280×800, 1440×900 (header, status row and the top of telematics and cases
-    above the fold) and 1024×768 (cases stack under telematics there, per D28).
-- **Call summary:**
-  - **Options:** a tab beside "Ask" in the assistant panel; or stay in the left column, sized to
-    its content.
-  - **Choice:** a tab. Both tools draft for the rep, so they share the column; the left column
-    stays pure record, and a saved note appears in Case history next to the panel. Both tabs
-    stay mounted (Base UI Tabs, `keepMounted`), so switching never loses the chat or an unsaved
-    draft. Staying in the left column pushed telematics and cases below the fold.
-- **Telematics units:**
-  - **Options:** derive the unit in the web app from the message text; add `unit` to the
-    telematics API contract (D16/D17: migration, seed, API and schema changes).
-  - **Choice:** derive it (`lib/format.ts`) from the message's trailing parenthesis: "(miles)",
-    "(%)", "(°C)" (the seed gained "(°C)" in D30). `type` can't be used: `BATTERY` covers both
-    pack temperature and state of health. Brittle by design; the production fix is a `unit` field
-    in the customer's API. The agent still reads the raw message, so its answers don't change.
+- **Decision:** What the lookup suggests, and how telematics units are shown.
 - **Lookup suggestions:**
   - **Options:** client-only (recents in this browser, demo stories, live VIN/email checks);
-    server prefix search (`GET /customers/search?q=`); client-only with recents storing no
-    owner name.
+    server prefix search (`GET /customers/search?q=`).
   - **Choice:** client-only. Prefix search on an unauthenticated public demo would let anyone
-    list customer emails and VINs; it belongs behind rep sign-in (out of scope).
-  - **Recents:** the last 5 vehicles opened, in `localStorage` (`vs:recent`), storing VIN,
-    vehicle name and owner name, never emails, with a "Clear recent" item. The owner name is the
-    minimum that makes a recent useful. In production this would be rep-scoped server storage.
-  - A digit marks a VIN being typed (names and story labels never contain one), so only then is
-    the input uppercased, stripped of spaces and dashes, and checked as a VIN.
-- **Found while building:**
-  - Base UI's Combobox resets the input to the selected value when it closes. The lookup never
-    keeps a selection, so it ignores that reset and only typing changes the query.
-  - Base UI adds a hidden form field, which disables the browser's "Enter submits a one-field
-    form" rule. A visually hidden "Look up" submit button restores it.
-  - Cache Components rejects reading the clock while prerendering, so the time used for
-    "2 min ago" is taken when the list opens, not on render.
+    list customer emails and VINs; it belongs behind rep sign-in.
+  - **Recents:** the last 5 vehicles opened, in `localStorage`, storing VIN, vehicle and owner
+    name, never emails. In production this would be rep-scoped server storage.
+- **Telematics units:** derived in the web app from the message's trailing "(miles)", "(%)",
+  "(°C)" rather than adding `unit` to the customer's API. Brittle by design; the production fix is
+  a `unit` field in the API.
+- **Layout:** Call summary is a tab beside Ask in the assistant column, and both tabs stay
+  mounted, so switching never loses the chat or an unsaved draft.
 
-## D33. Save feedback for call notes {#save-feedback}
+## D33. Save failures {#save-feedback}
 
-- **Decision:** How the rep knows a call note was saved, and what happens when a save fails.
-- **Found:** a save that failed before the Server Action answered (the Firewall's 429 from D29, a
-  dropped connection, a timeout) threw in the browser. The page's error boundary replaced the
-  whole vehicle page with "Couldn't load this vehicle", and the rep's edits were lost. Reproduced
-  by failing the save request in a browser test.
-- **Pointing at the new note:**
-  - **Options:** scroll to the note and flash it in place; re-sort cases by latest activity so
-    the case with the new note moves to the top; a "Just saved" strip at the top of Case history.
-  - **Choice:** scroll and flash in place. The action returns the new note's ID (the API already
-    sends it), notes carry `#note-<id>` anchors, and the panel shows "Saved to case history",
-    names the case, and links to the note. Case history keeps the case system's order: a note
-    saved to an older case isn't at the top of the list, so the page points at it instead.
-    Note IDs appear in the page's HTML only; the model still never sees them (D26).
-- **Failures:** the rep's edits always stay in the form, and the error says what happened. Errors
-  from the vehicle API are told apart by status (404: the case is gone; 400: the note was
-  rejected, with the API's reason; 429: busy; anything else: unavailable). A save that never
-  answers gets "The save didn't go through. Your edits are still here."
-- **Retrying a half-finished "New case" save:**
-  - **Options:** web only (return the created case's ID with the error, switch the picker to it,
-    so the retry adds only the note); one API call that creates the case and its first note in
-    one transaction (changes the customer's API, D16/D17); document only.
-  - **Choice:** web only. Before this, a retry after the note failed created a second case. The
-    case can still be left without a note if the rep gives up; one transactional call in the
-    customer's API is the production fix.
-- **Verified (Nov 2026):** a failed save (faked 429 and dropped connection) keeps the page and
-  the edits and shows the error; one real save on staging (Jordan's Aster, existing case)
-  showed the confirmation and highlighted the note. The half-finished "New case" path was checked
-  by reading the code only; it can't be triggered from the browser.
+- **Decision:** What happens when saving a call note fails.
+- **Found:** a save that failed before the Server Action answered (a Firewall 429, a dropped
+  connection) threw in the browser; the page's error boundary replaced the page and the rep's
+  edits were lost.
+- **Choice:** the rep's edits always stay in the form, and the error says what happened, by the
+  vehicle API's status (404: case gone; 400: rejected, with the reason; 429: busy). On success the
+  panel links to the new note and highlights it in place.
+- **Saving to a new case:** `POST /cases` takes the first note and writes the case and note in
+  one transaction, so a failure leaves nothing behind and the rep's retry is the whole save
+  again. It used to be two calls: a failure between them left an empty case, and an earlier fix
+  only steered the retry to it. The note is optional in the API, so other callers that open cases
+  without one are unaffected. The API deploys before the web app, which now expects the note in
+  the response.
 
 ## D34. Spend alerts on the model providers {#spend-alerts}
 
-- **Decision:** What stops runaway model spend beyond per-IP rate limits, which many IPs can get
-  around (D29).
+- **Decision:** What stops runaway model spend beyond per-IP rate limits.
 - **Options considered (GCP):** a budget alert in Terraform; an alert plus a lower Vertex
-  requests-per-minute quota (a real ceiling, but set outside Terraform and project-wide); a
-  budget that unlinks billing through Pub/Sub (a true stop, but it would shut down every
-  workload in this shared project).
-- **Choice:**
-  - **Vertex:** a $25/month budget (`infra/budget.tf`) on the Vertex AI and Gemini API services
-    in this project. It emails the billing account's admins at 50%, 90%, and 100% of actual
-    spend and at 100% of forecast spend.
-  - **Anthropic:** a $25/month spend limit set in the Anthropic console, which is a hard stop.
-    Claude only runs as the fallback (D11), so normal use barely touches it.
-- **Sizing:** a Gemini answer is roughly 1,700 tokens, a fraction of a cent. Normal demo traffic
-  is under $1 a month; one IP holding the 20/min edge limit all day would cost tens of dollars.
-  $25 never fires on normal use, and the 50% email comes within hours of real abuse.
-- **Detail that matters:** the budget measures spend *before* credits
-  (`EXCLUDE_ALL_CREDITS`). Usage here is paid from GCP credits, so a budget measured after
-  credits would read $0 and never alert.
-- **Limits to flag:** GCP budgets alert, they don't stop, and billing data lags by hours. AI
-  Gateway budgets don't cover BYOK (D9). In production I'd add Vertex quotas per model and route
-  alerts to an on-call channel rather than email.
+  requests-per-minute quota (set outside Terraform, project-wide); a budget that unlinks billing
+  through Pub/Sub (a true stop, but it would shut down every workload in this shared project).
+- **Choice:** a $25/month budget alert on Vertex AI and Gemini API spend (`infra/budget.tf`),
+  emailing at 50%, 90%, 100%, and 100% forecast; and a $25/month hard spend limit on Anthropic.
+- **Detail that matters:** the budget measures spend before credits (`EXCLUDE_ALL_CREDITS`);
+  usage here is paid from credits, so a budget after credits would read $0 and never alert.
+- **Limits to flag:** GCP budgets alert, they don't stop, and billing data lags by hours. In
+  production: Vertex quotas per model and alerts to on-call rather than email.
 
 ## D35. Tests {#tests}
 
-- **Decision:** Which behaviors to test, where, and how, without growing the suite past what earns
-  its keep.
-- **Choice:**
-  - **API (`services/vehicle-api/test/`):** about 40 tests against a real Postgres, calling the
-    real Express app over HTTP. The contract the web app reads (shapes, ordering, limits), privacy
-    (no phone number returned), bad input (malformed VINs, emails, limits, note fields, malformed
-    JSON, oversized bodies), write rules (case ownership, note ownership: D36), and the per-caller
-    rate limit (D31).
-  - **Web (`apps/web/**/*.test.ts`):** about 90 small unit tests in Node: lookup parsing of pasted
-    text, telematics repeat counts and the "recent" window, formatting, the answer parser, recents
-    surviving corrupt or blocked storage, no internal ID reaching the model, the agent and summary
-    routes rejecting bad input before any model call (D38), and the save action's validation,
-    error messages, and partial-failure retry.
-  - **Model behavior stays in evals (D30, D37):** whether the model says the right thing isn't a
-    unit test.
-  - **CI:** `.github/workflows/test.yml` runs typecheck, lint, and both suites on every PR and on
-    `develop`/`master`, with Postgres as a service container. No secrets, no tokens.
-- **Options considered:** mocking Prisma (the API's behavior lives in its queries, so this tests
-  the mocks); component tests with Testing Library (2–3 new dependencies; the logic worth testing
-  is in the action); Playwright end to end (slow and flaky for this scope; listed in the rollout
-  plan); running tests only locally (nothing would stop a regression from merging).
-- **Safety:** the API tests refuse any database whose name doesn't end in `_test`, because the seed
-  deletes every row first. That guard came from a real near miss: Vitest's `test.env` doesn't reach
-  `globalSetup`, so the first version pointed at the dev database. Prisma's own guard against AI
-  agents running `migrate reset` stopped it, and the setup now uses the non-destructive
-  `migrate deploy`.
+- **Decision:** Which behaviors to test, and where.
+- **Choice:** API tests against a real Postgres through the real Express app (contract shapes,
+  privacy, bad input, ownership rules, rate limit); about 100 web unit tests in Node (parsing,
+  formatting, request checks before any model call, the save action's errors and retry). Model
+  behavior stays in evals (D30). CI (`.github/workflows/test.yml`) runs both on every PR, with
+  Postgres as a service container and no secrets.
+- **Options considered:** mocking Prisma (the behavior lives in the queries, so it would test the
+  mocks); component tests (new dependencies); Playwright (slow for this scope; in the rollout plan).
+- **Safety:** the API tests refuse any database whose name doesn't end in `_test`, because the
+  seed deletes every row. That came from a near miss where setup pointed at the dev database.
 
 ## D36. Notes can only land on the vehicle's own cases {#note-ownership}
 
-- **Decision:** Where to enforce that a saved note belongs to a case on the vehicle the rep has
-  open.
+- **Decision:** Where to enforce that a saved note belongs to the vehicle the rep has open.
 - **Finding:** the save action posted whatever case ID the browser sent, and the API didn't check
-  the case's vehicle. A server action is a public POST endpoint and case IDs are in the page, so a
-  stale tab or a crafted request could attach a note to another customer's case.
-- **Options considered:** check in the API (the note body carries the VIN; the API refuses a case
-  that isn't that vehicle's); check in the web action (compare against `getCases(vin)`, one extra
-  read, and only this client is protected).
-- **Choice:** the API. `POST /cases/:id/notes` now requires `vin` and returns 404 unless the case
-  belongs to it. The system of record enforces its own integrity, so every client gets it. The web
-  app sends the VIN it has open.
-- **Rollout note:** this is a required field, so the API and web app ship together. In a real
-  integration I'd accept the VIN as optional first, then require it once every client sends it.
+  it. A Server Action is a public POST endpoint, so a crafted request could attach a note to
+  another customer's case.
+- **Options considered:** check in the API (the note carries the VIN; the API refuses a case that
+  isn't that vehicle's); check in the web action (one extra read, and only this client is
+  protected).
+- **Choice:** the API. The system of record enforces its own integrity, so every client gets it.
+- **Rollout note:** a new required field, so the API ships before the web app. In a real
+  integration I'd accept it as optional first, then require it once every client sends it.
 
 ## D37. Transcripts that aren't vehicle support calls {#junk-transcripts}
 
 - **Decision:** What the call summary does with a transcript that isn't a real support call.
-- **Finding:** with nothing to summarize, the model presented the vehicle record as the call. A
-  transcript of "." produced the issue "Recurring battery coolant pump faults and reduced
-  propulsion power". A dealership-hours call got next steps about the fault code.
+- **Finding:** with nothing to summarize, the model presented the vehicle record as the call (a
+  transcript of "." produced a battery fault issue).
 - **Options considered:** prompt rules alone; prompt rules plus a `callType` field the UI can act
   on; refusing short transcripts on the server (brittle: real short calls exist).
-- **Choice:** prompt rules plus `callType` (`vehicle_issue`, `other`, `no_conversation`) in the
-  draft schema. The issue and summary come only from what was said; the record grounds next steps
-  for the issue actually raised. Anything other than `vehicle_issue` shows a warning in the review
-  form. The field isn't saved, so the database doesn't change, and it gives the evals something
-  exact to check instead of phrasing.
-- **Length limits in the draft schema:** stated in descriptions, not enforced. The browser validates
-  the streamed draft against the same schema, so a draft one character over would silently vanish.
-  The save action instead names the field that's too long.
-- **Results (3 runs per case):** `callType` was right in every run. With 7 summary and 10 agent
-  cases, Gemini passed 51/51 and Claude 50/51. Claude's miss was real: one "his" despite the
-  pronoun rule. Gemini's reported miss was a grader bug: "call Dana Whitfield back" didn't match
-  a pattern that only allowed "call the customer back", so the check now allows a name between. Off-topic requests are now declined in one line, and the
-  agent still corrects a false claim that the recall repair costs $400.
+- **Choice:** prompt rules plus `callType` (`vehicle_issue`, `other`, `no_conversation`). Anything
+  but `vehicle_issue` shows a warning in the review form. The field isn't saved, and it gives the
+  evals something exact to check.
+- **Length limits in the draft schema** are stated, not enforced: the browser validates the
+  streamed draft against the same schema, so a draft one character over would silently vanish.
+  The save action names the field that's too long instead.
 
 ## D38. What the agent route accepts {#agent-request}
 
 - **Decision:** How strictly the public agent route checks the conversation the browser sends.
-- **Finding:** it accepted any role, any part type (a 27KB file part got past the 2,000-character
-  cap), and an empty question (the model still ran). A forged `system` message was blocked by the
-  AI SDK, but only as a generic error after streaming started.
-- **Options considered:** an allow-list of what the chat UI sends; rebuilding the history as plain
-  text (stricter, but the agent would re-fetch data on every follow-up).
-- **Choice:** the allow-list, in `lib/ai/agent-request.ts`: roles `user` and `assistant` only, user
-  messages text-only, a non-empty last question, 2,000 characters per question, and 80,000
-  characters across the last 10 messages, measured after trimming so long conversations aren't
-  refused for messages the model never sees. Assistant parts stay, so follow-ups keep their tool
-  results. Rejections return 400 or 413 before any model call.
-- **Sizing:** I proposed about 40,000 characters, then measured: each assistant turn carries its
-  tool results, and a real customer with years of cases makes those far larger than the seed. 80,000
-  is about 20,000 tokens, roughly a cent on Gemini, and still blocks megabyte-sized abuse.
-- **Limit to flag:** an attacker can still forge earlier assistant turns, but only in their own
-  session, and the tools can only read the vehicle the route names (D25).
+- **Finding:** it accepted any role, any part type (a 27KB file part got past the per-message
+  cap), and empty questions.
+- **Options considered:** an allow-list of what the chat UI sends; rebuilding the history as
+  plain text.
+- **Choice:** the allow-list (`lib/ai/agent-request.ts`): `user` and `assistant` roles, text-only
+  user messages, 2,000 characters per question, 80,000 across the last 10 messages, measured
+  after trimming. Rejections return 400 or 413 before any model call.
+- **Limit to flag:** a caller can forge earlier assistant turns, but only in their own session;
+  the server drops earlier tool results (D41) and the tool reads only the vehicle the route names.
 
 ## D39. The customer's current state {#current-state}
 
-- **Decision:** What Meridian's console runs on today, which the proposal and architecture
-  diagrams compare the build against.
-- **Options:** A client-rendered single-page app served from one region; Next.js self-hosted on
-  GKE behind Cloud CDN, with an assistant already built on Vertex AI; the same app on VMs; a
-  shared Next.js cache on Redis (Memorystore).
-- **Choice:** Next.js on GKE in `us-central1` behind Cloud CDN and a load balancer, with Next.js's
-  default cache on each pod's own disk. An assistant route calls Gemini through the Vertex AI SDK,
-  with hand-written tool calls. Releases go through Cloud Build and Argo CD to one shared staging
-  namespace. The APIs and Postgres sit in the private network.
-- **Why:** An enterprise that has invested in this console would already have a CDN and a modern
+- **Decision:** What Meridian's console runs on today, which the proposal compares against.
+- **Options:** a client-rendered SPA served from one region; Next.js self-hosted on GKE behind
+  Cloud CDN with an assistant already on Vertex AI; the same app on VMs; a shared Next.js cache on
+  Redis.
+- **Choice:** Next.js on GKE in `us-central1` behind Cloud CDN, with Next.js's default cache on
+  each pod's disk. An assistant route calls Gemini through the Vertex AI SDK with hand-written
+  tool calls. Releases go through Cloud Build and Argo CD to one shared staging namespace. The
+  APIs and Postgres sit in the private network.
+- **Why:** an enterprise that invested in this console would already have a CDN and a modern
   framework, and a reviewer would see through a weaker starting point. The case then rests on
-  what a CDN can't fix (personal vehicle pages render at origin), what self-hosting Next.js costs
-  (a cache per pod, upgrades, version skew during rolling deploys), the missing per-change
-  previews, and a single-provider assistant. It uses all three roles cleanly: replace the
-  self-hosted Next.js platform, augment the Vertex agent with AI Gateway (Gemini on Vertex stays
-  primary, D11), and connect to the systems that stay.
-- **Why no Redis:** a shared cache handler is built for content-heavy sites with ISR, not a
-  per-customer internal tool, and it's one more system for the app team to run. With a cache on
-  each pod, specs and recalls are reused, but cases go uncached: a saved note clears only the pod
-  that handled the save, and every rolling deploy or scale-out starts with empty caches. A shared
-  Runtime Cache with `updateTag` on save (D24) is what makes caching cases safe.
-- **Relation to D1:** D1's Connect role and scope stand. The lead pain moves from "reps assemble
-  each vehicle's story across screens" to slow dynamic pages, self-hosting cost, and an
-  assistant with no fallback; the screens problem remains as a secondary pain.
-- **Honest limits:** Vercel Functions still run in one region next to the data (D21), so the
-  gain for advisors abroad is the prerendered shell from the edge and panels that stream as
-  they're ready, not faster data. In this build the vehicle API runs on Cloud Run as a stand-in
-  for Meridian's existing GKE services; in their environment those stay put behind an
-  identity-checked internal endpoint.
+  what a CDN can't fix (personal pages render at origin), what self-hosting Next.js costs (a cache
+  per pod, upgrades, version skew during rolling deploys), no per-change previews, and a
+  single-provider assistant. Replace the self-hosted platform, augment the Vertex agent with AI
+  Gateway, connect to the systems that stay.
+- **Why no Redis today:** with a cache per pod, a saved note clears only the pod that handled the
+  save, and every rolling deploy starts cold, so cases go uncached. A shared Runtime Cache with
+  `updateTag` on save (D24) is what makes caching cases safe.
+- **Honest limits:** functions still run in one region next to the data (D21), so the gain for
+  advisors abroad is the edge-served shell and streaming panels, not faster data.
 
 ## D40. Error states in the UI {#error-states}
 
 - **Decision:** How the UI handles each failure the testing turned up.
-- **Findings:** one failing panel replaced the whole vehicle page (an error in a panel inside
-  `<Suspense>` bubbles to the page's `error.tsx`); the lookup page had no error boundary, so a
-  down customer system showed Next's default error screen; a call-summary draft that failed schema
-  validation vanished silently (`useObject` reports it only to `onFinish`); every call-summary
-  failure showed the same message, including rate limits; the chat had no retry.
+- **Findings:** one failing panel replaced the whole vehicle page (an error inside `<Suspense>`
+  bubbles to `error.tsx`); the lookup page had no error boundary; an invalid call-summary draft
+  vanished silently; the chat had no retry.
 - **Choice:**
-  - **Panels fail alone:** `lib/load-panel.ts` catches a panel's fetch failure and the panel shows
-    "Telematics couldn't be loaded… The rest of the record is still current" with Retry
-    (`router.refresh()`). `unstable_rethrow` lets Next's own control-flow errors through:
-    `connection()` postpones prerendering by throwing, and swallowing that would break the static
-    shell. Verified by simulating a telematics outage, and the build still shows the page as
-    Partial Prerender.
-  - **Lookup:** the search action returns an inline error when the customer system is down;
-    `app/error.tsx` is the last resort.
-  - **One error vocabulary for both AI features** (`lib/ai-request-error.ts`): the call-summary
-    route now answers `{ error: { code } }` like the agent route, a custom `fetch` on `useObject`
-    tags Firewall 429s, and both features show the same wording for the same failure. An incomplete
-    draft says so and keeps the transcript.
-  - **Chat:** a failed answer offers Try again (`regenerate()`).
-- **Options considered:** a client error boundary per panel (catches render errors too, but needs a
-  class component or a dependency, and server-side failures are the ones that happen here).
+  - **Panels fail alone:** `lib/load-panel.ts` catches a panel's fetch failure and the panel
+    offers Retry. `unstable_rethrow` lets Next's control-flow errors through: `connection()`
+    postpones prerendering by throwing, and swallowing it would break the static shell.
+  - **Lookup:** the search action returns an inline error; `app/error.tsx` is the last resort.
+  - **One error vocabulary for both AI routes** (`{ error: { code } }`), with Firewall 429s
+    recognized by status.
+  - **Chat:** a failed answer offers Try again.
+- **Options considered:** a client error boundary per panel (needs a class component or a
+  dependency; server-side failures are the ones that happen here).
 
 ## D41. Load the record before the agent runs {#agent-context}
 
 - **Decision:** Whether the agent fetches the vehicle's data itself (a tool loop) or gets it up
   front, and how its prompt is built.
-- **Finding:** in every eval run, both models called all three tools for every question, usually
-  in one parallel step. That first model round-trip decided nothing.
-- **Options considered:**
-  - **Load up front, keep a tool for depth:** the route loads the record; one optional tool for
-    older telematics.
-  - **Force the first step to call the tools** (`prepareStep` with `toolChoice`): keeps the loop,
-    but Claude rejects forced tool choice with thinking on, so the fallback would fail.
-  - **Keep the loop as it was.**
-- **Choice:** load up front (research: Anthropic's "Building effective agents" and "Effective
-  context engineering").
-  - **The record:** vehicle, cases, and the 20 newest telematics events, loaded with the page's
-    cached fetchers. It goes in as its own system message, in `<vehicle_record>` tags, after a
-    static prompt that providers can cache. A source that fails is marked `unavailable` and the
-    model says so (as the page does, D40).
-  - **Shaped for the model** (`lib/ai/model-context.ts`): no internal IDs, dates already in
-    "Nov 9, 2026" form, and repeat counts per fault code computed in code. The call summary uses the
-    same formatter.
-  - **One tool:** `getTelematics` for history older than the record, with a fuller description of
-    when to use it. Step cap 3.
-  - **The prompt:** sections (`<role>`, `<grounding>`, `<output_format>`, `<safety_and_policy>`,
-    `<examples>`), rules stated with their reasons, and three short examples about a fictional
-    vehicle (a recurring fault, a safety-first answer, an off-topic decline).
-  - **History:** earlier turns' tool results are dropped on the server. They came from the browser,
-    so they could be forged, and the record is reloaded each turn. Text and reasoning parts stay,
-    because Gemini needs its reasoning sent back as it was.
-  - **AI Gateway:** `caching: 'auto'` (Anthropic needs it; Gemini caches on its own) and
-    `tags: ['feature:agent' | 'feature:call-summary']` for spend and latency by feature.
-- **Results (10 agent cases × 3 runs, same cases before and after):**
-
-  | | Before | After |
-  |---|---|---|
-  | Gemini pass rate · median · tokens | 30/30 · 4.7s · 1,416 | 30/30 · 2.6s · 1,602 |
-  | Claude pass rate · median · tokens | 29/30 · 5.4s · 3,399 | 30/30 · 4.0s · 2,696 |
-  | Model steps per answer | 2 | 1 |
-
-  Gemini uses slightly more tokens (the examples and the record ride on every request), but
-  answers almost twice as fast. Claude made no pronoun slips in 30 answers after the rule gained
-  its reason. Call summaries: 21/21 on both models.
-- **Found while testing:** Claude classified a call about a *different* vehicle as `other`, because
-  `vehicle_issue` said "the vehicle". It now says "a vehicle, even one that may not match the
-  record", so the mismatch lands in the next steps instead of a misleading "not a vehicle issue"
-  warning.
-- **Not adopted from the research:** an output-token cap (D25 decided against it); provider
-  timeouts for Gemini's slow tail (whether a timeout falls through to Claude is unverified, so
-  check Gateway Logs first); OpenTelemetry tracing (two new packages; listed as a production step).
-- **Trade-off for the interview:** the assistant does less visible "agent" work: the "sources
-  checked" chips appear only when it reaches for older telematics. The evals showed the loop added
+- **Finding:** in every eval run, both models called all three tools for every question. That
+  first round-trip decided nothing.
+- **Options considered:** load up front and keep one tool for depth; force the first step to call
+  the tools (Claude rejects forced tool choice with thinking on, so failover would break); keep
+  the loop.
+- **Choice:** load up front.
+  - **The record:** vehicle, cases, and the 20 newest telematics events, from the page's cached
+    fetchers, as a second system message after a static prompt providers can cache. A source that
+    fails is marked `unavailable` and the model says so.
+  - **Shaped for the model** (`lib/ai/model-context.ts`): no internal IDs, dates pre-formatted,
+    repeat counts per fault code computed in code.
+  - **One tool:** `getTelematics` for older history. Step cap 3.
+  - **History:** earlier turns' tool results are dropped on the server (they came from the
+    browser and could be forged); text and reasoning stay.
+  - **AI Gateway:** `caching: 'auto'` and a `feature:` tag per route, for spend and latency by
+    feature.
+- **Results (10 cases × 3 runs):** Gemini 30/30 at 2.6 s median (was 4.7 s); Claude 30/30 (was
+  29/30) at 4.0 s (was 5.4 s) with ~20% fewer tokens. One model step per answer instead of two.
+- **Trade-off:** the assistant does less visible "agent" work. The evals showed the loop added
   nothing, so the decision moved into code, and the tool stays for the one choice the model
   really makes.
 
 ## D42. Case view {#case-view}
 
-- **Decision:** How a rep reads and works one case, after a UX audit of the vehicle page found
-  that "1 open case" led nowhere, an open case showed only its first line, a neglected case
-  looked the same as a current one, and the only way to write a note was an AI draft.
+- **Decision:** How a rep reads and works one case, after a UX audit found that "1 open case" led
+  nowhere, an open case showed only its first line, a neglected case looked like a current one,
+  and the only way to write a note was an AI draft.
 - **Options considered:** the audit's full proposal (case numbers, escalation, owner, priority,
-  waiting states, note authors, a fault history route, dealer repairs) or a trimmed version
-  shaped for one rep.
+  waiting states, note authors, a fault history route, dealer repairs) or a trimmed version for
+  one rep.
 - **Choice:** the trimmed version, with **no change to the customer's schema**:
-  - **Routes:** `/vehicles/[vin]/cases/[caseId]` beside the vehicle page. The assistant moved
-    into `vehicles/[vin]/layout.tsx`, so the chat and an unsaved call-summary draft survive moving
-    between the vehicle and its cases. `not-found.tsx` moved up to `vehicles/`, so a bad VIN or
-    case replaces the whole view instead of showing an assistant for a vehicle that isn't there.
-  - **Case view:** status, an overdue banner, a quick rep note (the same fields as a reviewed call
-    summary), Close case with a required resolution, the activity thread, and related faults.
-  - **Identifiers:** the case's existing ID in the URL; the UI names cases by subject and date, as
-    the agent does (D25), so the agent's no-IDs rule is unchanged.
-  - **API:** `POST /cases/:id/close` (`vin` + `resolution`; same ownership check as D36; 409 if
-    already closed, checked in the update itself so two closes can't both win). The vehicle read
-    now lists the owner's vehicles (VIN and model only), for customers with more than one. The
-    phone stays out (D35).
-  - **Overdue:** an open case with more than 5 business days since its newest note (or opening),
-    Monday to Friday in UTC, holidays ignored. Worked out in the web app (`lib/cases.ts`): it's
-    this desk's policy, not the customer's data.
-  - **Related faults:** coded faults logged in the 7 days before the case opened, and earlier
-    cases matched to the same code. Cases have no link to telematics, so the page says it's a
-    match by date.
-  - **Caching:** the case view picks its case from the cached case list (`cases:{vin}`, D24);
-    saving a note or closing a case clears that tag. Overdue needs today's date, so one clock
-    reading per request (`lib/case-snapshot.ts`) is shared by the status row, Case history, and
-    the case view, behind their Suspense boundaries. Both routes still build as Partial Prerender.
-  - **Call summary:** "Save to" defaults to the case the rep has open.
-  - **Seed:** note threads on Dana's three cases and Marcus's open case, written to the rules the
-    evals enforce. Dana's open case has no contact for 11 days (always overdue); Marcus's was
-    contacted yesterday, and his notes never mention the recall, so linking it is still the
-    agent's job.
-- **Why not escalation:** it adds an enum, a migration, an endpoint and a button to say what
-  Dana's latest note already says ("Request sent to the buyback review team"), and the agent
-  reads notes.
-- **Why not case numbers:** a migration, plus a change to the agent's no-IDs rule, for a label.
-- **Cut, and why:** owner, priority, and waiting states need rep identity, which is out of scope;
-  note authors say nothing with one rep; dealer repairs live in another customer system; a fault
-  history route repeats the related-faults section and the agent's recurring-fault answer; a
-  standalone New case button repeats the call summary's.
-- **Production path:** a per-case read (`GET /vehicles/:vin/cases/:id`) and per-case cache tag
-  once customers have hundreds of cases; a holiday calendar and per-tier targets for overdue;
-  a real case-to-fault link in the case system.
-- **Rollout note:** the web app now requires the owner's vehicle list in the vehicle read, so the
-  API deploys before the web app (as in D36).
-- **Agent context unchanged:** the model's `owner` lists name and email explicitly, so the new
-  vehicle list doesn't reach it.
-- **Found while testing:** with Marcus's follow-up note written as "Marcus says the camera went
-  black again", Claude's call summary wrote "he" in 3 of 3 runs; the note now states the fact
-  without reported speech, and passed 5 of 5. Gemini wrote "Attempt a callback to Dana" for a
-  dropped call, which the grader missed; the check now accepts "callback" as well as "call … back".
-- **Results (3 runs per case, against the new seed):** agent 30/30 on both models; call
-  summaries 21/21 on both.
+  - **Routes:** `/vehicles/[vin]/cases/[caseId]`. The assistant moved into
+    `vehicles/[vin]/layout.tsx`, so the chat and an unsaved draft survive moving between the
+    vehicle and its cases.
+  - **Case view:** status, an overdue banner, a quick rep note, Close case with a required
+    resolution, the activity thread, and related faults.
+  - **API:** `POST /cases/:id/close` (same ownership check as D36; 409 if already closed, checked
+    in the update itself so two closes can't both win).
+  - **Overdue:** an open case with more than 5 business days since its newest note. Worked out in
+    the web app: it's this desk's policy, not the customer's data.
+  - **Related faults:** coded faults in the 7 days before the case opened. Cases have no link to
+    telematics, so the page says it's a match by date.
+  - **Caching:** the case view reads from the cached case list (`cases:{vin}`, D24); saving or
+    closing clears that tag. Both routes still build as Partial Prerender.
+- **Cut, and why:** escalation repeats what notes already say and the agent reads; case numbers
+  need a migration and a change to the no-IDs rule; owner, priority, and waiting states need rep
+  identity; dealer repairs live in another customer system.
+- **Production path:** a per-case read and per-case cache tag once customers have hundreds of
+  cases; a holiday calendar for overdue; a real case-to-fault link.
 
-## D42. Release versions {#release-versions}
+## D43. Release versions {#release-versions}
 
 - **Decision:** How releases are numbered.
-- **Options considered:** semantic versions (`0.1.0`), which signal compatibility to people who
-  depend on a package; date-based versions (`YY.MM.DD.N`), which say when a build shipped.
-- **Choice:** date-based. Release branches are `release/26.11.15.1` and tags `v26.11.15.1`; `N`
-  counts releases that day, so a same-day hotfix is `26.11.15.2`. This is a deployed app, not a
-  library: nobody consumes it through a version range, so major/minor/patch would carry no
-  meaning, while a date tells support and reviewers which build is live. `git tag --sort=v:refname`
-  still orders the tags correctly.
-- **`package.json` versions stay as they are:** npm requires three-part semver there, and both
-  packages are private and never published.
+- **Options considered:** semantic versions, which signal compatibility to people who depend on a
+  package; date-based `YY.MM.DD.N`, which say when a build shipped.
+- **Choice:** date-based: `release/26.11.15.1`, tag `v26.11.15.1`; `N` counts releases that day.
+  This is a deployed app, not a library, so a date tells support which build is live.
+  `package.json` versions stay semver (npm requires it; both packages are private).
+- **First release, 26.11.15.1:** the first pipeline run on `master` deployed the API and Vercel
+  promoted the web app. Production still held the spike's seed, so it was reseeded once by hand,
+  never from CI: a temporary `postgres` password, the seed through the Cloud SQL Auth Proxy, then
+  the password rotated to a random value that isn't stored. Verified after release through the
+  production WIF path: vehicle page, agent, call summary, Firewall 429s, API 400 on bad JSON.
+
+## D45. Cost per run {#cost-per-run}
+
+- **Decision:** How cost per answer is measured, and what bounds it.
+- **Options considered:** compute it from token counts and a price table kept in the repo (goes
+  stale as prices change); read the AI Gateway dashboard or spend report by tag (totals only, no
+  per-answer figure); read the cost AI Gateway returns on every response.
+- **Choice:** the per-response cost. Each step's `providerMetadata.gateway` carries `marketCost`
+  (the tokens at list price), `gatewayCost` (the Gateway's own fees) and the routing record
+  (provider served, every failover attempt). `lib/ai/usage.ts` sums them per answer. Both AI
+  routes log one `ai_usage` line per answer to Vercel's runtime logs, and the eval report shows
+  average cost per answer per model.
+- **Why `marketCost`:** with our own keys, the Gateway's `cost` is 0; the provider bills the
+  tokens. `marketCost` is what those tokens cost at list price, so it's the number to report. The
+  real bill is the provider's invoice, after any discounts or credits.
+- **Measured (evals, Nov 2026, average per answer at list price, two full runs):**
+
+  | | Gemini 3.8 Flash | Claude Sonnet 5.5 |
+  |---|---|---|
+  | Agent answer | $0.0019–0.0020 | $0.0042–0.0059 |
+  | Call summary | $0.0019 | $0.0039–0.0058 |
+
+  About $2 per 1,000 answers on Gemini. Claude varies more with prompt-cache hits. The fallback
+  costs 2–3× as much per answer as well as being slower, one more reason Gemini is primary.
+- **Found while measuring:** reporting tags have a Gateway fee of $0.000075 per request
+  (`gatewayCost`), about 4% on a Gemini answer. Kept: it's what splits spend by feature.
+- **Bounded by:** one model step per typical answer and a cap of 3 (D41); input caps (D38, D26);
+  20 AI requests a minute per IP at the edge (D29); provider spend limits (D34).
+
+## D46. Concurrency and scaling {#concurrency}
+
+- **Decision:** How each layer scales under load, and where it stops.
+- **What exists now:**
+  - **Vercel:** Fluid Compute, so one function instance serves many requests that are waiting on
+    a model or on GCP, billed for active CPU. Functions in `cle1` only (D21).
+  - **Cloud Run:** up to 3 instances per environment, 80 concurrent requests each (default),
+    scale to zero.
+  - **Cloud SQL:** one `db-f1-micro` instance for both environments, with a limit of about 25
+    connections.
+- **Finding:** each API instance opened up to 5 connections, so both environments at full scale
+  (2 × 3 × 5 = 30) would hit connection errors before Cloud Run's own limits.
+- **Options considered:** a pool of 4 per instance (free, one line); cap staging at one instance
+  (no load testing on staging); a larger instance (`db-g1-small`, about $25/month more, and it hides
+  the math).
+- **Choice:** a pool of 4: 2 × 3 × 4 = 24. Each instance's 80 concurrent requests share 4
+  connections, which is fine for millisecond queries. The limit is written next to both
+  settings, so raising max instances means revisiting it.
+- **Production path:** the database's connection limit is the real ceiling, not Fluid Compute or
+  Cloud Run. Beyond it: a larger instance or a connection pooler (PgBouncer, or Cloud SQL Managed
+  Connection Pooling).
+
+## D47. Rollout and rollback {#rollout}
+
+- **Decision:** How a change reaches production and how it's undone.
+- **What exists now:** every branch gets a Preview Deployment against staging (D22); `develop`
+  deploys the staging API; a `release/*` branch merged to `master` deploys the production API
+  and promotes the web app (D43). Web rollback is Vercel Instant Rollback (the previous
+  deployment is still live). API rollback is shifting traffic to the previous Cloud Run
+  revision; migrations are expand-then-contract (D23), so the old revision still works against
+  the new schema. When a change spans both, the API ships first (D36).
+- **Out of scope:** Rolling Releases (canary a percentage of production traffic); in the rollout
+  plan as the production step.
+- **Status:** documented; details in the submission's rollout plan.

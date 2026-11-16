@@ -5,8 +5,8 @@ import { CallSummaryPanel } from "@/components/call-summary-panel";
 import { Skeleton } from "@/components/ui/skeleton";
 import { WithVin } from "@/components/with-vin";
 
-// The assistant lives in the layout, so moving between the vehicle and its cases keeps the chat
-// thread and any unsaved draft. See docs/decisions.md#case-view
+// Decision (D42): the assistant lives in the layout, so moving between the vehicle and its cases
+// keeps the chat thread and any unsaved draft. See docs/decisions.md#case-view
 export default function VehicleLayout({ children, params }: LayoutProps<"/vehicles/[vin]">) {
   return (
     <main className="mx-auto w-full max-w-content px-4 py-6 xl:px-6">

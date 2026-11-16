@@ -4,8 +4,9 @@ import { UNAVAILABLE, type VehicleRecord } from "./model-context";
 
 export const RECORD_TELEMATICS = 20;
 
-// Loaded on the server before the model runs: the evals showed the agent fetched all of this for
-// every question anyway, so the loop's first round-trip decided nothing. See docs/decisions.md#agent-context
+// Decision (D41): the record is loaded before the model runs, not fetched by tools. Why: the evals
+// showed the agent fetched all of it for every question, so that round-trip decided nothing.
+// Trade-off: every request carries the record's tokens. See docs/decisions.md#agent-context
 // Vehicle details are required; if cases or telematics fail, the record says so and the model
 // tells the rep, as the page does.
 export async function loadVehicleRecord(vin: string, loaders: VehicleLoaders): Promise<VehicleRecord | null> {

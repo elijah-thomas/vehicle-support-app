@@ -12,6 +12,7 @@ export type Row = {
   seconds: number;
   steps?: number;
   tokens?: number;
+  costUsd?: number;
   failures: string[];
   output: unknown;
 };
@@ -32,6 +33,8 @@ export function createReport(name: string) {
         passed: `${group.filter((r) => r.pass).length}/${group.length}`,
         "median s": median(group.map((r) => r.seconds)).toFixed(1),
         "avg tokens": Math.round(average(group.map((r) => r.tokens ?? 0))),
+        // AI Gateway's list-price cost per answer; see lib/ai/usage.ts.
+        "avg cost $": average(group.map((r) => r.costUsd ?? 0)).toFixed(5),
       });
       const byCase = groupBy(rows, (r) => `${r.model}\u0000${r.case}`).map((group) => ({
         model: group[0].model,

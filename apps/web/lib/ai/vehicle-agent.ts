@@ -1,5 +1,5 @@
 import "server-only";
-import { isStepCount, ToolLoopAgent, tool, type InferAgentUIMessage } from "ai";
+import { isStepCount, ToolLoopAgent, tool, type InferAgentUIMessage, type StepResult, type ToolSet } from "ai";
 import { z } from "zod";
 import { getCases, getTelematics, getVehicle } from "@/lib/customer/vehicles";
 import { telematicsForModel, type VehicleRecord, vehicleRecordForModel } from "./model-context";
@@ -80,8 +80,9 @@ I can only help with this vehicle's support. Try asking "What changed since the 
 </example>
 </examples>`;
 
-// The record is loaded by the caller (lib/ai/vehicle-record.ts). The one tool reaches further back
-// than the record; it takes no VIN, so no prompt can make it read another customer's vehicle.
+// Decision (D25): the one tool takes no VIN; the route binds the vehicle the rep has open. Why: no
+// prompt can make the agent read another customer's vehicle. Trade-off: it can't compare a
+// customer's vehicles. The record itself is loaded by the caller (lib/ai/vehicle-record.ts).
 // See docs/decisions.md#agent
 export function createVehicleAgent(
   record: VehicleRecord,
@@ -89,7 +90,8 @@ export function createVehicleAgent(
     model = defaultModel,
     loaders = cachedLoaders,
     asOf = new Date(),
-  }: { model?: ModelChoice; loaders?: VehicleLoaders; asOf?: Date } = {},
+    onUsage,
+  }: { model?: ModelChoice; loaders?: VehicleLoaders; asOf?: Date; onUsage?: (steps: readonly StepResult<ToolSet>[]) => void } = {},
 ) {
   const vin = record.vehicle.vin;
   return new ToolLoopAgent({
@@ -101,6 +103,7 @@ export function createVehicleAgent(
     providerOptions: { gateway: gatewayOptionsFor(model, "agent") },
     // One answer, plus room for a deeper telematics lookup and the answer after it.
     stopWhen: isStepCount(3),
+    onEnd: ({ steps }) => onUsage?.(steps),
     // No output-token cap: a cut-off answer is worse than a long one. Cost per message is bounded
     // by the step cap, input caps in the route, and the Firewall rate limit.
     // Low reasoning depth suits short, grounded answers and keeps latency and cost down.

@@ -27,7 +27,7 @@ type Props = {
 };
 
 // Paste a transcript → the AI draft streams in → the rep edits it, picks a case, and saves.
-// Nothing reaches the case system until the rep presses Save. See docs/decisions.md#call-summary
+// Nothing reaches the case system until the rep presses Save. See docs/decisions.md#call-summary-generation
 export function CallSummary({ vin, cases, cannedTranscript }: Props) {
   const [transcript, setTranscript] = useState("");
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -204,7 +204,6 @@ function ReviewForm({
         onSaved({ noteId: result.noteId, caseId: result.caseId, caseSubject });
         return;
       }
-      if (result.createdCaseId) setCaseId(result.createdCaseId);
       setError(result.error);
     });
   }

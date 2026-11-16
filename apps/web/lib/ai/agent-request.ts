@@ -1,9 +1,9 @@
 import { z } from "zod";
 import { VIN_PATTERN } from "@/lib/format";
 
-// The browser sends the whole conversation, so everything in it is untrusted. Only what the chat
-// UI itself produces is accepted: user messages are text only, roles are user or assistant
-// (assistant parts carry the earlier tool results), and the total size is bounded.
+// Decision (D38): the browser sends the whole conversation, so everything in it is untrusted. Only
+// what the chat UI produces is accepted: text-only user messages, user or assistant roles, and a
+// bounded total size. Trade-off: a caller can still forge assistant turns, in their own session.
 // See docs/decisions.md#agent-request
 export const MAX_MESSAGES = 10;
 export const MAX_TEXT_LENGTH = 2000;
