@@ -670,8 +670,9 @@ why. To change one, add a new entry that supersedes it rather than editing histo
   the streamed draft against the same schema, so a draft one character over would silently vanish.
   The save action instead names the field that's too long.
 - **Results (3 runs per case):** `callType` was right in every run. With 7 summary and 10 agent
-  cases, Gemini passed 50/51 and Claude 50/51; the misses were a pronoun (Claude) and a dropped
-  call without a callback step (Gemini). Off-topic requests are now declined in one line, and the
+  cases, Gemini passed 51/51 and Claude 50/51. Claude's miss was real: one "his" despite the
+  pronoun rule. Gemini's reported miss was a grader bug: "call Dana Whitfield back" didn't match
+  a pattern that only allowed "call the customer back", so the check now allows a name between. Off-topic requests are now declined in one line, and the
   agent still corrects a false claim that the recall repair costs $400.
 
 ## D38. What the agent route accepts {#agent-request}

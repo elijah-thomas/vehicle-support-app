@@ -180,7 +180,7 @@ export const summaryCases: SummaryCase[] = [
     callType: "no_conversation",
     issue: { exclude: [RECORD_FAULT] },
     summary: { exclude: [RECORD_FAULT] },
-    note: { include: [/call (the customer )?back|follow up|reach|contact|return the call/i] },
+    note: { include: [/\bcall\b[^.\n]*\bback\b|follow up|reach|contact|return the call/i] },
   },
   {
     name: "Dana: a question about dealer hours stays about dealer hours",
