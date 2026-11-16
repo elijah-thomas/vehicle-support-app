@@ -15,7 +15,8 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
   boundary · [D16](#api-shape) Shape of the customer's API · [D17](#contracts) How the web app
   knows the API's shapes · [D19](#db-access) Cloud Run → Cloud SQL · [D21](#function-region)
   Vercel function region · [D46](#concurrency) Concurrency and scaling ·
-  [D48](#warm-api) Keeping the production API warm
+  [D48](#warm-api) Keeping the production API warm · [D49](#telematics-windows) Caching past
+  telematics
 
 **Delivery and rendering**
 - [D24](#vehicle-page-caching) Vehicle page rendering and caching · [D28](#vehicle-status) Status
@@ -224,7 +225,8 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
   |---|---|---|
   | Vehicle, specs, recalls | `use cache: remote`, `hours` (`minutes` if not found) | `vehicle:{vin}` |
   | Cases and notes | `use cache: remote`, `minutes`; cleared by `updateTag` on save | `cases:{vin}` |
-  | Telematics | Not cached; request time (`connection()`) | — |
+  | Telematics (live feed, agent) | Not cached; request time (`connection()`) | — |
+  | Telematics windows (related faults) | `use cache: remote`, `days`, once settled (D49) | `telematics:{vin}` |
   | Customer search by email | Not cached; Server Action, so the email never appears in a URL | — |
 
   No vehicle pages are prerendered at build time.
@@ -638,3 +640,26 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
 - **Doesn't fix:** the Vercel side of a cold path. The Runtime Cache starts empty after each
   deploy, and each new Fluid instance does one token exchange (now shared by concurrent calls,
   D3). A warm API removes the largest single piece, not all of it.
+
+## D49. Caching past telematics {#telematics-windows}
+
+- **Decision:** Whether any telematics can be cached, after D24 kept it all fresh.
+- **Finding:** related faults read the 50 newest events and filtered them to the week before each
+  case opened. On a real vehicle with thousands of events, an older case's week falls outside the
+  newest 50 and its related faults come back empty.
+- **Options considered:** cache the live feed for 1–5 minutes (can hide the fault a customer is
+  calling about, and a call costs a round trip whatever its size); fetch only events newer than
+  the last ones seen and append them (saves bytes, not calls, and misses late uploads); fetch each
+  case's week by date and cache it once it can no longer change.
+- **Choice:** the last. The API takes `from`/`to` on `GET /vehicles/:vin/telematics`, a plain date
+  filter on the existing `(vin, recordedAt)` index. The case page reads one window per case
+  (`getTelematicsWindow`). A window that ended over 24 hours ago is cached with `days`; a newer one
+  reads fresh. The live feed and the agent are unchanged.
+- **Why 24 hours:** vehicles buffer events when offline and upload them late, and events carry
+  only the vehicle's own `recordedAt`, so a window is only safe to cache once it has settled.
+- **Trade-off:** a case page reads one window per earlier case (in parallel, cached when settled);
+  a window is capped at 200 events.
+- **Production path:** the ingest pipeline clears `telematics:{vin}` when a late event lands.
+  Repeat counts on the live panel still come from the newest 20 events and undercount on a long
+  history; the API returning per-code counts would fix that. Live updates during a call need the
+  API to hand back a bookmark of what's been seen (phase 2).

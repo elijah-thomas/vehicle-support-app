@@ -94,3 +94,9 @@ export function fetchCases(vin: string): Promise<Case[] | null> {
 export function fetchTelematics(vin: string, limit = 50): Promise<TelematicsEvent[] | null> {
   return vehicleApiOrNull(`${vinPath(vin)}/telematics?limit=${limit}`, z.array(telematicsEventSchema));
 }
+
+// Events recorded between two ISO times, inclusive. 200 is the API's cap per response.
+export function fetchTelematicsWindow(vin: string, from: string, to: string): Promise<TelematicsEvent[] | null> {
+  const query = new URLSearchParams({ from, to, limit: "200" });
+  return vehicleApiOrNull(`${vinPath(vin)}/telematics?${query}`, z.array(telematicsEventSchema));
+}
