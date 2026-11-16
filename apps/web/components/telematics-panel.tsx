@@ -1,8 +1,10 @@
 import { Info, OctagonAlert, TriangleAlert } from "lucide-react";
+import { PanelUnavailable } from "@/components/panel-unavailable";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { TelematicsEvent } from "@/lib/customer/vehicles";
 import { formatDateTime, formatRelative, ordinal, telematicsReading } from "@/lib/format";
+import { loadPanel } from "@/lib/load-panel";
 import { getTelematicsSnapshot, newestPerCode, occurrences } from "@/lib/telematics";
 
 const severityDisplay = {
@@ -12,7 +14,9 @@ const severityDisplay = {
 } as const satisfies Record<TelematicsEvent["severity"], object>;
 
 export async function TelematicsPanel({ vin }: { vin: string }) {
-  const snapshot = await getTelematicsSnapshot(vin);
+  const loaded = await loadPanel("telematics", () => getTelematicsSnapshot(vin));
+  if (!loaded.ok) return <PanelUnavailable title="Telematics" id="telematics" />;
+  const snapshot = loaded.data;
   if (!snapshot) return null;
 
   const { events, fetchedAt: now } = snapshot;
