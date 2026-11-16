@@ -14,7 +14,8 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
 - [D2](#gcp-backend) GCP compute and database · [D3](#boundary-auth) Authenticating across the
   boundary · [D16](#api-shape) Shape of the customer's API · [D17](#contracts) How the web app
   knows the API's shapes · [D19](#db-access) Cloud Run → Cloud SQL · [D21](#function-region)
-  Vercel function region · [D46](#concurrency) Concurrency and scaling
+  Vercel function region · [D46](#concurrency) Concurrency and scaling ·
+  [D48](#warm-api) Keeping the production API warm
 
 **Delivery and rendering**
 - [D24](#vehicle-page-caching) Vehicle page rendering and caching · [D28](#vehicle-status) Status
@@ -232,8 +233,16 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
   starts empty after each deploy.
 - **Why these lifetimes:** specs never change; recall status rarely does. Cases also change in the
   existing CRM, which never tells this app, so a short lifetime bounds staleness there.
-- **Personal data:** owner names, emails, and case text are cached briefly, in one region,
-  isolated per environment. Flagged as a customer approval item.
+- **Accepted staleness:** `hours` refreshes after an hour and keeps an entry up to a day. A recall
+  completed, or owner details changed, in the CRM can show here for about an hour. Recalls are
+  rare, so refreshing more often would cost GCP calls for almost no gain. Nothing clears
+  `vehicle:{vin}` today; the tag is the hook for the production path.
+- **Personal data:** owner names and emails are cached up to a day, case text up to an hour, in
+  one region, isolated per environment. Flagged as a customer approval item.
+- **Production path:** the CRM emits change events (customer updated, recall completed, case
+  changed) to an authenticated Vercel route that calls `revalidateTag` for that VIN. Then
+  lifetimes can grow, since staleness no longer depends on them. Not built: a demo has no CRM
+  writing behind its back.
 - **Measured against staging:** first load ~5 s (scaled to zero, token exchange, connector
   setup); warm loads 0.08–0.3 s.
 
@@ -585,8 +594,8 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
 - **What exists now:**
   - **Vercel:** Fluid Compute, so one function instance serves many requests that are waiting on
     a model or on GCP, billed for active CPU. Functions in `cle1` only (D21).
-  - **Cloud Run:** up to 3 instances per environment, 80 concurrent requests each (default),
-    scale to zero.
+  - **Cloud Run:** up to 3 instances per environment, 80 concurrent requests each (default).
+    Production keeps one warm; staging scales to zero (D48).
   - **Cloud SQL:** one `db-f1-micro` instance for both environments, with a limit of about 25
     connections.
 - **Finding:** each API instance opened up to 5 connections, so both environments at full scale
@@ -613,3 +622,19 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
 - **Out of scope:** Rolling Releases (canary a percentage of production traffic); in the rollout
   plan as the production step.
 - **Status:** documented; details in the submission's rollout plan.
+
+## D48. Keeping the production API warm {#warm-api}
+
+- **Decision:** Whether the vehicle API scales to zero, given that D24 measured a ~5 s first load
+  (container start, Cloud SQL connector setup, token exchange) against ~0.1–0.3 s warm.
+- **Options considered:** a Cloud Scheduler job pinging `/health` every ~10 minutes (nearly free,
+  but Cloud Run may still stop an idle instance, it warms only one, and it needs its own invoker
+  service account); `min_instance_count = 1` on production; neither, only trimming startup.
+- **Choice:** one minimum instance on production; staging still scales to zero. It's Cloud Run's
+  supported setting, needs no new service or IAM, and stays inside D46's connection math (max is
+  still 3 instances × 4 connections).
+- **Cost:** an idle instance is billed at Cloud Run's reduced idle rate, roughly $10/month for
+  1 vCPU and 512 MiB (estimate; confirm in the pricing calculator).
+- **Doesn't fix:** the Vercel side of a cold path. The Runtime Cache starts empty after each
+  deploy, and each new Fluid instance does one token exchange (now shared by concurrent calls,
+  D3). A warm API removes the largest single piece, not all of it.

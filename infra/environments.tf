@@ -10,6 +10,8 @@ locals {
       vercel_envs = ["production"]
       # Vehicle API requests per minute for the whole Vercel app (D31).
       api_rate_limit = 1200
+      # Instances kept running when idle (D48).
+      min_instances = 1
     }
     staging = {
       suffix         = "-staging"
@@ -17,6 +19,7 @@ locals {
       branch         = "refs/heads/develop"
       vercel_envs    = ["preview", "development"]
       api_rate_limit = 1200
+      min_instances  = 0
     }
   }
 
