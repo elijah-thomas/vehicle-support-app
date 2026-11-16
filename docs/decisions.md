@@ -864,3 +864,16 @@ why. To change one, add a new entry that supersedes it rather than editing histo
   dropped call, which the grader missed; the check now accepts "callback" as well as "call … back".
 - **Results (3 runs per case, against the new seed):** agent 30/30 on both models; call
   summaries 21/21 on both.
+
+## D42. Release versions {#release-versions}
+
+- **Decision:** How releases are numbered.
+- **Options considered:** semantic versions (`0.1.0`), which signal compatibility to people who
+  depend on a package; date-based versions (`YY.MM.DD.N`), which say when a build shipped.
+- **Choice:** date-based. Release branches are `release/26.11.15.1` and tags `v26.11.15.1`; `N`
+  counts releases that day, so a same-day hotfix is `26.11.15.2`. This is a deployed app, not a
+  library: nobody consumes it through a version range, so major/minor/patch would carry no
+  meaning, while a date tells support and reviewers which build is live. `git tag --sort=v:refname`
+  still orders the tags correctly.
+- **`package.json` versions stay as they are:** npm requires three-part semver there, and both
+  packages are private and never published.

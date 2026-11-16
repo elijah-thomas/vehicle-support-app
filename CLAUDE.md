@@ -101,8 +101,8 @@ Rules for collaborating:
   - `develop`: integration branch. All work branches start here and merge back here.
   - `feat/<short-name>`, `fix/<short-name>`, `docs/<short-name>`: one branch per piece of work,
     branched from `develop`.
-  - `release/X.Y.Z` (semver): cut from `develop`, merged into `master` and back into `develop`,
-    then tagged `vX.Y.Z`.
+  - `release/YY.MM.DD.N` (date-based, D42; N counts releases that day, starting at 1): cut from
+    `develop`, merged into `master` and back into `develop`, then tagged `vYY.MM.DD.N`.
 - Merge with `--no-ff` so each branch stays visible in history. Never squash.
 - Propose a commit at each natural stopping point (message included); commit only after I
   approve. The history is part of the submission and should show how the work evolved.
