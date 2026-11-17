@@ -1,7 +1,7 @@
 # Decisions
 
-The architectural decisions behind this build, numbered in the order they were made. Where one
-lands in code, a `Decision (Dnn)` comment marks the line.
+The architectural decisions behind this build, numbered in the order they were made. Where a
+decision is implemented, a `Decision (Dnn)` comment marks the line.
 
 ## Index
 
@@ -33,8 +33,8 @@ lands in code, a `Decision (Dnn)` comment marks the line.
 
 ## D1. Scenario {#scenario}
 
-- **Choice:** Meridian Motors (fictional) is rebuilding its advisors' support console, a React
-  app on Google Cloud, in Next.js on Vercel, one screen at a time. The vehicle workspace moves
+- **Choice:** Meridian Motors (fictional) is rebuilding its advisors' support console (today a
+  React app on Google Cloud) in Next.js on Vercel, one screen at a time. The vehicle workspace moves
   first and gains an AI assistant. The API and database stay on Google Cloud.
 - **Options:** A new Vercel-hosted assistant beside the existing app; a full rebuild at once; a
   screen-by-screen rebuild.
@@ -47,18 +47,18 @@ lands in code, a `Decision (Dnn)` comment marks the line.
 
 - **Choice:** Express on Cloud Run with Cloud SQL Postgres. The API owns the Prisma schema.
 - **Options:** Cloud Run with Firestore; an external Postgres (Neon).
-- **Why:** It's a realistic system of record in the customer's cloud. The API is the only path to
+- **Why:** It's a realistic system of record in Meridian's cloud. The API is the only path to
   the database, and Vercel never connects to Postgres.
 
 ## D3. Authenticating across the boundary {#boundary-auth}
 
-- **Choice:** Vercel's OIDC token is exchanged through WIF for a Google ID token, which Cloud Run
-  IAM checks. The ID token is cached per function instance for about an
+- **Choice:** Vercel's OIDC (OpenID Connect) token is exchanged through Workload Identity
+  Federation (WIF) for a Google ID token, which Cloud Run IAM checks. The ID token is cached per function instance for about an
   hour.
 - **Options:** A shared API key, which is a long-lived secret to leak and rotate.
 - **Why:** No secret is stored, access is scoped per Vercel project and environment (D12), and
   anonymous calls get a 403. GitHub Actions deploys the same way (D13).
-- **Verified:** It works end to end from a Vercel deployment, including inside a `"use cache"`
+- **Verified:** The exchange works end to end from a Vercel deployment, including inside a `"use cache"`
   function.
 - **Production option:** If Meridian's policy requires private APIs, Vercel Secure Compute and a
   site-to-site VPN can reach an internal load balancer instead (Enterprise).
@@ -74,24 +74,42 @@ lands in code, a `Decision (Dnn)` comment marks the line.
 
 ## D5. Models and failover {#models}
 
-- **Choice:** Gemini 3.8 Flash on Vertex AI first (BYOK, billed to Meridian's GCP commitment),
-  then Claude Sonnet 5.5 on Anthropic (BYOK), then Vercel's keys through AI
-  Gateway's automatic retry. `only: ["vertex", "anthropic"]` keeps each model on the provider that
-  bills for it.
+- **Choice:** Gemini 3.8 Flash on Vertex AI first, then Claude Sonnet 5.5 on Anthropic. Both use
+  Meridian's own keys (BYOK, bring your own key): Gemini is billed to Meridian's GCP commitment,
+  Claude to Meridian's Anthropic org.
+  - **Vercel's keys:** If a BYOK key fails, AI Gateway retries the same model on the same provider
+    with Vercel's own key, so either model can also run on Vercel's keys. This is on by default
+    ([docs](https://vercel.com/docs/ai-gateway/authentication-and-byok/byok)).
+  - **`only: ["vertex", "anthropic"]`** keeps each model on its provider. It doesn't decide whose
+    key is used, so it doesn't stop the retry on Vercel's keys.
+  - **Unconfirmed order:** The docs don't say how that retry interleaves with the switch to Claude.
+    The likely order is Gemini on Meridian's key, Gemini on Vercel's, Claude on Meridian's, then
+    Claude on Vercel's. AI Gateway Logs show which credential each request used.
 - **Options:** Vercel's keys only; Gemini and Claude both on Vertex AI.
 - **Why:** With two vendors on two clouds, a Vertex-wide failure still leaves a working path.
   Claude on Vertex would share the primary's failures and needs Model Garden setup.
-- **Consequences:** The Vertex BYOK key is the system's one long-lived credential, limited to the
-  Vertex AI User role and stored only in AI Gateway. Gateway budgets don't cap BYOK spend (D23). Answers differ by model, so evals run on both (D19). Fallback sends data outside
-  Google Cloud.
+- **Consequences:**
+  - The Vertex BYOK key is the system's one long-lived Google Cloud credential, limited to the
+    Vertex AI User role and stored only in AI Gateway.
+  - Gateway budgets don't cap BYOK spend (D23). Requests on Vercel's keys are billed to AI Gateway
+    Credits rather than to Meridian's GCP commitment or Anthropic org, and unlike BYOK spend they
+    count toward Gateway budgets. The team setting "Fallback to Vercel Keys" turns the retry off,
+    at $0.20 per 1,000 BYOK requests.
+  - Answers differ by model, so evals run on both (D19).
+  - Falling back to Claude sends data outside Google Cloud.
 
 ## D6. Data model {#data-model}
 
 - **Choice:** Eight tables: `customers`, `vehicle_models` (specs), `vehicles` (keyed by VIN),
   `telematics_events`, `recalls`, `vehicle_recalls`, `cases` and `case_notes`. The seed holds five
-  synthetic stories: a recurring fault, a symptom that matches an open recall, a healthy vehicle,
-  a customer with two vehicles, and a fault that returned after its case was closed.
-- **Why:** Specs belong to the model, so they cache best. The VIN is what advisors already use.
+  synthetic stories:
+  - a recurring fault (Dana Whitfield)
+  - a symptom that matches an open recall (Marcus Bell)
+  - a healthy vehicle (Priya Raman)
+  - a customer with two vehicles (Jordan Okafor: an Aster EV, and a Kestrel work truck with a
+    coolant warning)
+  - a fault that returned after its case was closed (Sam Torres)
+- **Why:** Specs belong to the vehicle model, so they cache best. The VIN is what advisors already use.
   Recalls give the agent its most valuable connection, and each story doubles as an eval case.
 
 ## D7. API shape {#api-shape}
@@ -100,7 +118,7 @@ lands in code, a `Decision (Dnn)` comment marks the line.
   (with specs and recalls), telematics, cases with notes, create case, add note and close case.
   Errors share one shape, `{ error: { code, message } }`. Express has no auth code, because Cloud
   Run IAM rejects callers before they reach it (D3).
-- **Why:** The customer's API shouldn't change to suit AI, so all AI logic stays on the Vercel
+- **Why:** Meridian's API shouldn't change to suit AI, so all AI logic stays on the Vercel
   side.
 
 ## D8. Contracts {#contracts}
@@ -108,30 +126,32 @@ lands in code, a `Decision (Dnn)` comment marks the line.
 - **Choice:** The web app keeps its own Zod schemas in `lib/customer/` and validates every
   response.
 - **Options:** A shared `packages/contracts`.
-- **Why:** In reality another team owns the API, so the web app treats it as an external contract
+- **Why:** In a real deployment another team would own the API, so the web app treats it as an external contract
   and checks it at the boundary. The cost is that shapes are written twice.
 
 ## D9. Infrastructure as code {#terraform}
 
 - **Choice:** Terraform defines Google Cloud in `infra/`, with state in a versioned GCS bucket.
   Three things stay outside it: the running image (deployed by GitHub Actions), Postgres grants
-  (`infra/sql/grants.sql`) and the Vercel project, whose provider needs a long-lived token.
+  (`infra/sql/grants.sql`) and the Vercel project, because the Vercel Terraform provider needs a
+  long-lived token.
   Firewall rules are JSON in `infra/vercel-firewall/`, applied with the Vercel CLI.
 - **Why:** The boundary (WIF trust and IAM bindings) is what reviewers question, so it
   should be readable code.
 
 ## D10. Cloud Run → Cloud SQL {#db-access}
 
-- **Choice:** The API connects through the Cloud SQL connector with IAM database login, in
-  `us-central1`. The database has a public IP with no authorized networks, so only the
+- **Choice:** The API connects through the Cloud SQL connector with IAM database login. Both run
+  in `us-central1`. The database has a public IP with no authorized networks, so only the
   IAM-checked connector can reach it. The API's database user can't change the schema; migrations
   run as the deployer (D13). The production design would use a private IP.
-- **Why:** No database password exists.
+- **Why:** No workload uses a database password. The API and CI log in with IAM, and Terraform
+  creates only IAM database users. The one exception was a manual step: D32's first reseed.
 
 ## D11. Function region {#function-region}
 
 - **Choice:** `cle1` (Cleveland), set in `apps/web/vercel.json`.
-- **Why:** Every dynamic request goes to `us-central1` (Iowa), and `cle1` is the closest Vercel
+- **Why:** Every dynamic request calls the API in `us-central1` (Iowa), and `cle1` is the closest Vercel
   region. The static shell is still served from Vercel's global edge.
 - **Trade-off:** Functions run in one region. If it fails, Vercel reroutes to the next closest.
 
@@ -165,15 +185,16 @@ lands in code, a `Decision (Dnn)` comment marks the line.
   |---|---|---|
   | Vehicle, specs, recalls | `use cache: remote`, `hours` (`minutes` if not found) | `vehicle:{vin}` |
   | Cases and notes | `use cache: remote`, `minutes`; `updateTag` on save | `cases:{vin}` |
-  | Live telematics, agent | Not cached (`connection()`) | — |
+  | Live telematics, agent answers | Not cached (`connection()`); the agent's record reads use the cached fetchers above (D30) | — |
   | Settled telematics windows | `use cache: remote`, `days` (D37) | `telematics:{vin}` |
-  | Customer search by email | Not cached; a Server Action, so no email appears in a URL | — |
+  | Customer search by email | Not cached, because it runs only in a Server Action, which also keeps emails out of URLs | — |
 
 - **Why the Runtime Cache:** An in-memory cache is per instance, so after a save another instance
   could keep serving old cases. The Runtime Cache is shared within a region and environment. It
   starts empty after each deploy.
-- **Accepted staleness:** A change made in the CRM, such as a completed recall or new owner
-  details, can take about an hour to appear.
+- **Accepted staleness:** A change made outside this app, such as a completed recall or new owner
+  details entered in Meridian's CRM, can take about an hour to appear. The `hours` profile
+  refreshes an entry hourly, but an entry nobody reads can be kept for up to a day.
 - **Personal data:** Owner details are cached for up to a day and case text for up to an hour.
   Meridian needs to approve this.
 - **Production path:** The CRM would send change events to a route that invalidates the VIN's
@@ -185,7 +206,7 @@ lands in code, a `Decision (Dnn)` comment marks the line.
   page.
   - **Scope:** The route supplies the open vehicle, so the model can't choose a VIN.
   - **Limits:** A step cap, `reasoning: "low"`, the last 10 messages and request checks (D27).
-  - **Grounding:** It uses only facts from the record or a tool, with dates. It says when data is
+  - **Grounding:** It uses only facts from the record or a tool, and gives the date of each fact. It says when data is
     missing, never shows internal IDs, and ends with next steps.
 - **No output cap:** Gemini's hidden reasoning counts toward the cap, and at 1,000 tokens answers
   were cut off. Cost is bounded in other ways (D33).
@@ -196,8 +217,9 @@ lands in code, a `Decision (Dnn)` comment marks the line.
 - **Choice:** One structured model call (`streamText` with `Output.object`), with the record
   loaded up front. It fills the `case_notes` fields (issue, summary, next steps), plus a subject
   and category for a new case. The advisor edits the draft and presses Save. A Server Action then
-  writes the note (`AI_DRAFT_EDITED`) and calls `updateTag`. The case picker defaults to the case
-  the advisor has open, otherwise the newest open case. Refined by D45: only open cases are listed.
+  writes the note, marked `AI_DRAFT_EDITED`, and calls `updateTag`. The case picker defaults to
+  the case the advisor is viewing, otherwise the newest open case. Refined by D45: only open cases
+  are listed, so a closed case in view is never the default.
 - **Limits:** Transcripts can be up to 15,000 characters. The call has no tools, so instructions
   hidden in a transcript can't do anything.
 - **Options:** Display only, with no save; the agent with its tools; always opening a new case.
@@ -208,9 +230,12 @@ lands in code, a `Decision (Dnn)` comment marks the line.
 
 - **Recent faults:** Faults from the last 30 days count as current, because telematics has no
   "cleared" flag. The real fix is that flag in the API.
-- **Rendering:** Each status item streams in on its own. The panel and the row share one
-  telematics fetch per request (React `cache()`), so their counts agree.
-- **Links:** Fault codes and recalls in answers become links only if they appear on the page.
+- **Rendering:** Each status item streams in on its own. The telematics panel and the status
+  row share one telematics fetch per request (React `cache()`), so their counts agree.
+- **Links:** Fault codes and recalls in the assistant's answers become links only if they appear
+  on the page.
+- **Later change:** After the move to a shared layout (D41), neither the shared fetch nor this
+  link rule still held. D43 records the changes.
 
 ## D18. Edge rate limits {#rate-limits}
 
@@ -220,21 +245,21 @@ lands in code, a `Decision (Dnn)` comment marks the line.
 - **Why the edge:** A blocked request never starts a function or calls a model.
 - **Limits:** Advisors at a contact center share office IPs, so per-IP limits don't suit
   production. Once Entra ID sign-in exists, limits should count per advisor, using
-  `checkRateLimit()` with a `rateLimitKey`. Spend across many IPs is bounded by D23.
+  `checkRateLimit()` with a `rateLimitKey`. For spend spread across many IPs, the backstop is D23's alerts and Anthropic limit.
 
 ## D19. Evals {#evals}
 
 - **Choice:** Vitest, run on demand with `pnpm eval`. The evals run the real agent and call
   summary against staging, through the real boundary, on each model alone, three times per case.
   Grading is deterministic: required facts must be present, and internal IDs, invented fault
-  codes, assumed pronouns, promises and markdown must be absent. There are 10 agent cases and 7
+  codes, assumed pronouns, promises to the customer and markdown must be absent. There are 10 agent cases and 7
   call-summary cases, including a request for another customer's VIN and a prompt injection.
 - **Options:** HTTP requests against the route; recorded fixtures; an LLM judge.
-- **What they caught:** Claude guessing pronouns, Gemini skipping driver safety and offering a
-  loaner, Claude copying an injected instruction into a note, and a tool loop that added nothing
+- **What they caught:** Claude guessing pronouns, Gemini omitting driver-safety advice and offering
+  a loaner, Claude copying an injected instruction into a note, and a tool loop that added nothing
   (D30).
 - **Results (Nov 2026):** The agent scored 30/30 and call summaries 21/21 on both models. The next
-  step is running them on release PRs.
+  step is running them on release PRs. Later results are in D30, D40 and D44 (the latest).
 
 ## D20. API rate-limit keying {#api-rate-limit-keying}
 
@@ -242,13 +267,16 @@ lands in code, a `Decision (Dnn)` comment marks the line.
   so every advisor shared one budget of 120 requests a minute.
 - **Choice:** Count per calling service account, read from the IAM-verified token, at 1,200 a
   minute per environment. The edge limits people (D18), and the API limits calling systems.
-- **Limit:** Counters live in each instance's memory, so the real ceiling can be up to three times
-  higher. That's acceptable for a backstop.
+- **Limit:** Counters live in each instance's memory, and Cloud Run runs up to 3 instances (D34),
+  so the real ceiling can be up to three times higher. That's acceptable for a backstop.
 
 ## D21. Lookup {#lookup-and-layout}
 
-- **Suggestions:** Suggestions come only from the browser (recent vehicles and live VIN and email
-  checks). Searching the server by prefix would let anyone list customers on a public prototype,
+- **Suggestions:** Suggestions come only from the browser: recent vehicles, the six seeded
+  vehicles, and hints that update as the advisor types, with no server call. Input with a digit
+  is treated as a VIN: the hint counts characters toward 17 and flags I, O or Q, anything other
+  than letters and digits, or more than 17 characters. Input with an "@" is labelled as an email,
+  with no format check. Searching the server by prefix would let anyone list customers on a public prototype,
   so it belongs behind sign-in.
 - **Recents:** The last five vehicles are kept in `localStorage`, never with emails.
 - **Units:** Units are read from the end of each telematics message, such as "(miles)", "(%)" or
@@ -261,12 +289,15 @@ lands in code, a `Decision (Dnn)` comment marks the line.
   advisor's edits.
 - **Choice:** Edits always stay in the form, and the error says what happened (404, 400 with the
   reason, or 429). A new case and its first note are written in one transaction (`POST /cases`),
-  so a retry repeats the whole save.
+  so a failed save leaves nothing behind, and a retry repeats the whole save rather than creating a
+  case with no note.
 
 ## D23. Spend alerts {#spend-alerts}
 
-- **Choice:** A $25/month budget alert on Vertex AI and Gemini spend (`infra/budget.tf`), and a
-  $25/month hard limit on Anthropic.
+- **Choice:** A $25/month budget alert on two Google Cloud billing services, Vertex AI and the
+  Gemini API (`infra/budget.tf`), and a $25/month hard limit on Anthropic. The app calls Gemini
+  only through Vertex AI, but the repo doesn't show which of the two services bills that usage,
+  so the budget covers both.
 - **Options:** A lower Vertex quota; a budget that unlinks billing, which would stop every
   workload in the project.
 - **Detail:** The budget measures spend before credits. Otherwise it would read $0 and never
@@ -289,7 +320,12 @@ lands in code, a `Decision (Dnn)` comment marks the line.
 - **Finding:** A crafted Server Action request could attach a note to another customer's case.
 - **Choice:** The API checks that the case belongs to the note's VIN, which protects every client,
   not just this one.
-- **Rollout:** The VIN is a new required field, so the API ships first.
+- **Rollout:** The VIN is a new required field on note writes. Both sides shipped together in one
+  release, though the web app could safely have gone first: the old API dropped unknown fields, so
+  sending the VIN early was harmless. Shipping the API first would break every caller that
+  doesn't send the VIN yet, including the React app (D7). The safe order for the React app is
+  expand, then contract: the API accepts an optional VIN and checks it when present, every caller
+  starts sending it, and then the API requires it.
 
 ## D26. Non-support transcripts {#junk-transcripts}
 
@@ -298,8 +334,8 @@ lands in code, a `Decision (Dnn)` comment marks the line.
 - **Choice:** Prompt rules plus a `callType` field (`vehicle_issue`, `other` or
   `no_conversation`). Any type other than `vehicle_issue` shows a warning in the review form. The
   field isn't saved, but it gives the evals something exact to check.
-- **Length limits:** The draft schema states length limits but doesn't enforce them, so an
-  over-long draft doesn't vanish in the browser. Instead, the save action names the field that's
+- **Length limits:** The draft schema describes length limits to the model but doesn't reject a
+  draft that exceeds them, so an over-long draft doesn't vanish in the browser. Instead, the save action names the field that's
   too long.
 
 ## D27. Agent request checks {#agent-request}
@@ -312,12 +348,12 @@ lands in code, a `Decision (Dnn)` comment marks the line.
 
 ## D28. Current state {#current-state}
 
-- **Choice:** Meridian's console today is a React app built with Vite, served from Cloud Storage
+- **Today:** Meridian's console is a React app built with Vite, served from Cloud Storage
   behind Cloud CDN, with Microsoft Entra ID sign-in. The browser calls REST services on Cloud Run
   in `us-central1`. Cloud Build uploads each release to the bucket, and there is one shared
   staging environment. About 80 advisors work in North America, Europe and the Middle East.
-- **Options:** Next.js already self-hosted on GKE; the same app on VMs.
-- **Why:** This is how a typical mid-market company runs an internal React app, and its problems
+- **Other starting points I considered:** Next.js already self-hosted on GKE; the same app on VMs.
+- **Why this one:** This is how a typical mid-market company runs an internal React app, and its problems
   are ones a platform and framework solve: slow screens far from Iowa, one shared staging, APIs
   exposed to the browser, and nowhere to run an assistant.
 - **Alternative Meridian weighed:** Running Next.js on Cloud Run, which would mean owning scaling,
@@ -332,11 +368,12 @@ lands in code, a `Decision (Dnn)` comment marks the line.
 - **Choice:** Each panel catches its own failure and offers Retry (`lib/load-panel.ts`, using
   `unstable_rethrow` so prerendering still works). The lookup shows errors inline. Both AI routes
   share one error shape, and a failed answer offers Try again.
+- **Later change:** D43 gives the vehicle header the same Retry card.
 
 ## D30. Record up front {#agent-context}
 
-- **Finding:** Both models called all three tools for every question, so the first round trip
-  decided nothing.
+- **Finding:** Both models called all three of the agent's tools (vehicle, cases and telematics)
+  for every question, so the first round trip was always the same and only added latency.
 - **Choice:** The route loads the vehicle, its cases and the 20 newest telematics events from the
   page's cached fetchers, and sends them as a second system message after a static prompt that
   providers can cache.
@@ -345,7 +382,8 @@ lands in code, a `Decision (Dnn)` comment marks the line.
   - **One tool:** `getTelematics`, for older history, with a step cap of 3.
   - **History:** Earlier tool results sent by the browser are dropped, since they could be forged.
   - **AI Gateway:** `caching: 'auto'`, and a `feature:` tag per route for spend reporting.
-- **Options:** Forcing the first step to call the tools, which Claude rejects with thinking on;
+- **Options:** Forcing the first step to call the tools, which Anthropic's API doesn't allow with
+  extended thinking on;
   keeping the loop.
 - **Results:** Gemini scored 30/30 with a 2.6 s median (down from 4.7 s). Claude scored 30/30 (up
   from 29/30) at 4.0 s (down from 5.4 s), using about 20% fewer tokens.
@@ -353,25 +391,29 @@ lands in code, a `Decision (Dnn)` comment marks the line.
 ## D31. Case view {#case-view}
 
 - **Choice:** A case page at `/vehicles/[vin]/cases/[caseId]`, showing status, an overdue banner,
-  a quick note, Close with a required resolution, the activity thread and related faults. The
-  customer's schema doesn't change. The assistant lives in the vehicle layout, so the chat and any
+  a quick note, Close with a required resolution, the activity thread and related faults.
+  Meridian's schema doesn't change. The assistant lives in the vehicle layout, so the chat and any
   draft survive moving between pages.
   - **Close:** `POST /cases/:id/close`, with the same ownership check as D25. It returns 409 if
     the case is already closed.
-  - **Overdue:** A case is overdue when it's open with no note for 5 business days. That's a desk
-    policy rather than customer data, so the web app computes it.
-  - **Related faults:** Coded faults from the 7 days before the case opened, labelled as a match
-    by date.
+  - **Overdue:** A case is overdue when it's open with no note for 5 business days. That's the support
+    desk's policy rather than data Meridian's API holds, so the web app computes it.
+  - **Related faults:** Coded faults from the 7 days before the case opened, labelled as matched
+    by date rather than by a recorded link.
 - **Cut:** Escalation, case numbers, owner, priority and dealer repairs. Each needs advisor
-  identity, a migration or another customer system.
+  identity, a migration or another Meridian system.
+- **Later changes:** D40 added case numbers, D41 moved the page to `cases/[number]`, D42 changed
+  how faults match cases, and D44 removed the overdue rule and replaced related faults with fault
+  history.
 
 ## D32. Release versions {#release-versions}
 
 - **Choice:** Date-based versions, such as branch `release/26.11.15.1` and tag `v26.11.15.1`. A
   date tells support which build is live, and this is an app, not a library. `package.json`
   versions stay semver.
-- **First release:** Production was reseeded once by hand through the Auth Proxy, with a temporary
-  password rotated afterwards. CI never reseeds production.
+- **First release:** Production was reseeded once by hand through the Auth Proxy, logged in as
+  Cloud SQL's built-in `postgres` user with a temporary password set outside Terraform. Afterwards
+  the password was rotated to a random value that isn't stored. CI never reseeds production.
 
 ## D33. Cost per run {#cost-per-run}
 
@@ -391,10 +433,14 @@ lands in code, a `Decision (Dnn)` comment marks the line.
 
 ## D34. Concurrency {#concurrency}
 
-- **Today:** Fluid compute in `cle1`. Cloud Run runs up to 3 instances of 80 requests each per
-  environment. One `db-f1-micro` database, with about 25 connections, serves both environments.
-- **Finding:** At 5 connections per instance, full scale would need 30.
-- **Choice:** A pool of 4 per instance, 24 in total, noted next to both settings.
+- **Today:** Fluid compute in `cle1`. Cloud Run runs up to 3 instances per environment, each
+  handling up to 80 concurrent requests. One `db-f1-micro` Cloud SQL instance, with about 25
+  connections, holds both environments' databases.
+- **Finding:** At 5 connections per instance, full scale would need 30 (3 instances × 5
+  connections × 2 environments).
+- **Choice:** A pool of 4 per instance, 24 in total. A `Decision (D34)` comment marks both
+  settings: the pool size in `services/vehicle-api/src/db.ts` and `max_instance_count` in
+  `infra/cloud-run.tf`.
 - **Fit:** 80 advisors generate a few requests a second at peak, well within these limits. The
   database's connection limit is the real ceiling; beyond it, use a larger instance or a
   connection pooler.
@@ -403,10 +449,13 @@ lands in code, a `Decision (Dnn)` comment marks the line.
 
 - **Today:** Every branch gets a Preview Deployment against staging (D12). Merging a `release/*`
   branch to `master` deploys the production API and web app (D32). Rollback is Instant Rollback on
-  Vercel and the previous revision on Cloud Run. Migrations are expand-then-contract, and the API
-  ships first when a change spans both sides.
+  Vercel and the previous revision on Cloud Run. Migrations are expand-then-contract. When a change spans
+  both sides, the API ships first, unless it starts requiring something callers don't send yet
+  (D25).
 - **For Meridian:** A pilot group validates each rebuilt screen, and everyone switches once all
-  screens are validated. The React app stays read-only for 30 days. After the switchover,
+  screens are validated. For 30 days after the switchover, the React app stays up for viewing only, and every write
+  (notes, closing cases) goes through the new console. How to enforce that is undecided: a React
+  build without the write screens, or an API that refuses writes from the old app. After the switchover,
   releases use Rolling Releases and Skew Protection.
 
 ## D36. Warm API {#warm-api}
@@ -422,8 +471,8 @@ lands in code, a `Decision (Dnn)` comment marks the line.
 
 ## D37. Past telematics {#telematics-windows}
 
-- **Finding:** Related faults were filtered from the newest 50 events, so an older case's week
-  came back empty.
+- **Finding:** Related faults were filtered from the 50 newest events (the case view's telematics
+  read at the time; the overview reads 20), so an older case's week came back empty.
 - **Choice:** The API accepts `from`, `to` and `codedOnly` on telematics, and the case page reads
   one window per case. A window that ended more than 24 hours ago is cached for days; a newer one
   is read fresh. The 24 hours allows for vehicles that upload late after being offline.
@@ -433,7 +482,7 @@ lands in code, a `Decision (Dnn)` comment marks the line.
 
 ## D38. Seeded case activity {#seed-activity}
 
-- **Choice:** Note threads only where a story needs one, on the current schema. Dana's three
+- **Choice:** Note threads only where a story (D6) needs one, with no schema change. Dana's three
   cases hold 2, 3 and 1 notes, ending with a buyback request sent to the review team and not yet
   answered. Marcus's open case holds 2 notes that never mention the recall, a software update or
   version 3.2.0, because linking the symptom to MR-24-117 is the assistant's job, and an eval
@@ -447,10 +496,11 @@ lands in code, a `Decision (Dnn)` comment marks the line.
 
 ## D39. Suggested questions {#assistant-suggestions}
 
-- **Choice:** The Ask tab suggests up to five questions written for the open vehicle, from fixed
+- **Choice:** The Ask tab suggests questions written for the vehicle in view, from six fixed
   rules: the fault the status row shows (recurring or first time), open cases, the first open
-  recall, what to tell the customer, a status summary, and what changed since the last contact
-  when there's no fault. The vehicle layout starts loading them without waiting and passes the
+  recall, what to tell the customer, a status summary, and what changed since the last contact.
+  The last rule applies only when there's no fault, so it never appears with the fault rule, and
+  a vehicle gets at most five questions. The vehicle layout starts loading them without waiting and passes the
   promise to the chat, which reads it with React's `use()` inside its own `<Suspense>`. The
   question box renders at once; only the suggestion rows wait.
 - **Options:** Fetching suggestions from the browser after the page loads, which costs an extra
@@ -468,17 +518,20 @@ lands in code, a `Decision (Dnn)` comment marks the line.
   only adds, so the running revision keeps working during a deploy (D13).
   - **Case numbers:** An identity column, `number`, starting at 24101, shown as `CS-{number}`.
     `GET /vehicles/:vin/cases/:number` reads one case. The model now sees case numbers and may
-    cite them; internal IDs stay hidden (narrows D15 and D30).
-  - **New writes**, in the existing pattern (`POST /cases/:id/...` with the VIN in the body, a 404
-    for another vehicle's case or note, as in D25): `reopen` with a reason, which clears the
-    resolution and keeps the reason and the old resolution as a rep note; and a note's `remove`
-    and `restore`. A note on another case, a second close, reopen or removal all get a 409.
+    cite them. Internal IDs stay hidden, so this narrows what D15 and D30 count as an internal
+    ID.
+  - **New writes:** `reopen` with a reason, and a note's `remove` and `restore`. They follow the
+    existing pattern: `POST /cases/:id/...` with the VIN in the body, and a 404 for another
+    vehicle's case or note, as in D25. Reopening clears the resolution and keeps the reason and
+    the old resolution as a rep note. A 409 goes to a note that belongs to a different case, a
+    close on a closed case, a reopen on an open case, and a removal of a note already removed.
   - **Removing a note** sets `removedAt`. Case reads leave removed notes out, so the assistant
     never reads them, and restore (Undo) brings a note back unchanged.
-  - **Rep notes** need only a summary; `issue` is nullable. AI-drafted notes still need all three
+  - **Rep notes**, which an advisor writes directly rather than from an AI draft, need only a
+    summary; `issue` is nullable. AI-drafted notes still need all three
     fields.
   - **Vehicle read:** Adds the owner's phone for the contact buttons. The model never gets it.
-- **Options:** A number generated in the web app from the cuid; moving every case route under
+- **Options:** A number generated in the web app from the case's cuid (its internal ID); moving every case route under
   `/vehicles/:vin/cases/:number`; deleting notes; placeholder text for a rep note's issue.
 - **Why:** Advisors read case numbers aloud, and the number belongs to the system of record, so
   the React screens show the same one. Keeping the existing routes leaves the React app's calls
@@ -491,9 +544,10 @@ lands in code, a `Decision (Dnn)` comment marks the line.
 - **Rollout:** The API ships before the web app, which now expects `number` (D35).
 - **Results (Nov 16, 2026, 3 runs per case, after a reseed):** Gemini 30/30 and 21/21; Claude 29/30
   and 20/21. No answer or draft mentioned the removed note, and case numbers appeared without
-  tripping the internal-ID check. Claude's two misses were intermittent and unrelated: one call
-  summary named the injected request while leaving it out (3/3 on a rerun), and one tire-pressure
-  answer called `getTelematics` for older history (6/6 with both the old and new prompt).
+  tripping the internal-ID check. Claude's two misses were intermittent and unrelated to case
+  numbers: one call summary mentioned the transcript's injected request, though it didn't follow
+  it (3/3 on a rerun), and one tire-pressure answer called `getTelematics` for older history (6/6
+  with both the original prompt and the case-number prompt described below).
 - **Prompts unchanged (Nov 16):** A line in each prompt inviting case numbers ("or by case number,
   such as CS-24117") made Claude slip on pronouns: the Marcus call summary failed 5 of 9 runs, and
   two agent cases 4 of 18, against 6/6 and 12/12 with the original prompts. Both prompts went back
@@ -503,13 +557,14 @@ lands in code, a `Decision (Dnn)` comment marks the line.
 ## D41. Vehicle routes {#vehicle-routes}
 
 - **Choice:** `vehicles/[vin]/layout.tsx` owns the header (title, VIN, New case, customer, status
-  row, open-recall banners) and the assistant. Each route replaces only the left column below it:
+  row, open-recall banners) and the assistant. D44 later moves New case to the Cases panel. Each route replaces only the left column below it:
   the overview, `cases/[number]` and `cases/new`. Refines D31: case URLs use the number advisors
   say (`/cases/24117`), and `cases/[caseId]` is gone.
   - **Caching:** The case page reads its case from the cached case list (`cases:{vin}`, D14),
     which every write clears. Telematics stays uncached.
-  - **Chips:** The layout doesn't re-render on client navigation, so the chips that depend on the
-    page are small client components that read the pathname. The open-case chip marks itself
+  - **Chips:** The layout doesn't re-render on client navigation, so the header chips that depend
+    on the page, such as the open-case and fault chips, are small client components that read the
+    pathname. The open-case chip marks itself
     current on its own case; the fault chip scrolls to the fault's newest telematics row on the
     overview and to its fault history on a case page.
   - **Breadcrumb trail:** The path the advisor took within this vehicle, kept in the layout's
@@ -517,13 +572,13 @@ lands in code, a `Decision (Dnn)` comment marks the line.
     trail; a page opened directly shows the overview and the current page. At most three steps
     show, with older ones behind "…".
   - **New case:** A Server Action writes the case and its first rep note in one call (D22), clears
-    the case list and opens the new case.
+    the case list's cache and opens the new case.
 - **Options:** A per-case cached read with its own tag, using `GET /vehicles/:vin/cases/:number`;
   keeping the trail in `sessionStorage` so it survives a reload.
 - **Why:** The header and assistant stay mounted, so the chat thread and an unsaved draft survive
   every move. A per-case read buys nothing yet, because a case page needs the vehicle's whole case
-  list for its fault history; it becomes the path once a vehicle has hundreds of cases, and the
-  endpoint already exists. The trail stays out of the URL so a shared link opens the case, not
+  list for its fault history. The per-case read becomes the right approach once a vehicle has
+  hundreds of cases, and the endpoint already exists. The trail stays out of the URL so a shared link opens the case, not
   someone's route to it.
 - **Accepted:** A case number that doesn't exist shows the not-found view with a 200 status,
   because the static shell has already been sent. The vehicle page behaves the same way.
@@ -531,17 +586,19 @@ lands in code, a `Decision (Dnn)` comment marks the line.
 ## D42. Faults linked to cases {#fault-case-links}
 
 - **Choice:** One helper, `matchFaultsToCases` in `lib/cases.ts`, decides which fault led to which
-  case: a case's fault is the newest coded event in the 7 days before it opened, and a fault
-  links to the earliest case opened 0 to 7 days after it with that code. The telematics panel
+  case: a case's fault is the newest coded event in the 7 days before the case opened, and a
+  fault links to the earliest case, opened 0 to 7 days after the fault, whose matched fault has
+  the same code. The telematics panel
   links each fault row to its case ("CS-24117 opened 2 days later"), and each case row shows its
   fault code. The case view's fault history uses the same helper.
-- **Refines D31:** The page no longer says the link is a match by date. The app reads like the
-  advisors' tool, so the rule lives in the helper's doc comment and here.
+- **Refines D31:** The page no longer says the link is a match by date. The app should read like
+  a tool for advisors rather than explain its own matching, so the rule lives in the helper's doc
+  comment and here.
 - **Rendering:** Each panel now reads the other's data: telematics reads the cached cases, and
   cases read the request's telematics snapshot (React `cache()`, so no extra call). If the other
   source fails, the panel still shows, without links or codes. The cost is that the cases panel
   waits for telematics before it streams in.
-- **Options:** Showing the rule on screen; a real case-to-fault link in the customer's API, which
+- **Options:** Showing the rule on screen; a real case-to-fault link in Meridian's API, which
   is the production path.
 - **Limit:** Matching runs over the 20 newest events on the overview, so on a long history an old
   case may show no code. The case view reads settled windows per case (D37).
@@ -560,14 +617,16 @@ lands in code, a `Decision (Dnn)` comment marks the line.
     screen with the lookup's message (D29).
 - **Choice:**
   - **Accepted:** The layout's reads (header, status row, suggestions, the call summary's case
-    list) are as of entering the vehicle. A save, Retry, or a reload refreshes them. The page's
+    list) reflect the record as it was when the advisor opened the vehicle. A save, Retry, or a reload refreshes them. The page's
     own panels are fresh on every navigation. Extends D39's limit to the whole header.
   - **Fault links:** A fault code is always a link and finds its row when clicked. On the
-    overview it flashes the code's newest row, expanding the list if needed, or the telematics
-    panel if the code isn't among the newest events. Elsewhere it opens the overview first.
+    overview it flashes the code's newest row, expanding the list if needed. If the code isn't
+    among the newest events, it flashes the telematics panel instead. Elsewhere it opens the
+    overview first.
     Recall codes keep the render-time check, because their banners are in the layout.
   - **Header failure:** The header catches its own failure and shows a Retry card, as the panels
-    do (D29). The specs card reads the same record and leaves the explanation to the header.
+    do (D29). The specs card reads the same record; when that read fails, it shows no error of its
+    own and leaves the explanation to the header's Retry card.
 - **Options:** Refreshing the layout on every navigation, which costs a telematics call and a
   token exchange per click; moving the status row into each page, which undoes D41; keeping
   answer links in sync with the page by watching the DOM.
@@ -575,9 +634,10 @@ lands in code, a `Decision (Dnn)` comment marks the line.
   moving within one vehicle, and the panel is the one they read. Resolving on click costs nothing
   until the advisor clicks.
 - **Also corrected:**
-  - D14's "agent: not cached" means its answers. Its record reads use the cached fetchers (D30).
-  - Customer search is not cached because it runs only in a Server Action, so no email reaches a
-    URL; a `connection()` call there did nothing and is gone.
+  - D14's table now says that only the agent's answers are uncached. Its record reads use the
+    cached fetchers (D30).
+  - Customer search runs only in a Server Action, which is never cached, so a `connection()` call
+    there did nothing and is gone. Running in a Server Action also keeps emails out of URLs.
   - No `generateStaticParams`: prerendering the seeded vehicles would put owner details in static
     HTML, and the real fleet is unbounded. One shell serves every VIN.
   - `partialPrefetching`: a link prefetches its route's shell once, shared by every link to that
@@ -590,8 +650,8 @@ lands in code, a `Decision (Dnn)` comment marks the line.
 
 ## D44. Case view and actions {#case-actions}
 
-- **Choice:** The case view carries every write an advisor needs to finish a call, each one call to
-  the case system (D40) followed by clearing the case list.
+- **Choice:** The case view carries every write an advisor needs to finish a call. Each is one
+  call to the API (D40), followed by clearing the case list's cache.
   - **Header:** `CS-{number}`, status and subject; Category, Opened, Last contact and Notes; Close
     case on an open case, Reopen case on a closed one, each as an inline form that requires a
     resolution or a reason.
@@ -603,13 +663,13 @@ lands in code, a `Decision (Dnn)` comment marks the line.
   - **Fault history** replaces related faults: every occurrence of the case's matched fault (D42),
     newest first, with the case each one led to. The case in view is marked rather than linked. A
     case with no matched fault shows none.
-- **Refines D31:** No overdue rule. It was this desk's policy, not the customer's data, and with no
-  advisor identity or escalation states it only labelled cases without changing what anyone
-  did. Escalation and overdue rules are a later phase. "New case" lives in the Cases panel only,
+- **Refines D31:** No overdue rule. It was the support desk's policy, not data Meridian's API
+  holds, and with no advisor identity or escalation states, it only labelled cases without
+  changing what anyone did. Escalation and overdue rules are a later phase. "New case" lives in the Cases panel only,
   not the vehicle header.
 - **Options:** Keeping overdue as built; a confirmation dialog before removing a note.
-- **Why Undo, not a dialog:** Removing is rare and reversible, so a dialog would slow the common
-  case to guard the rare mistake. The note stays in the database, marked removed.
+- **Why Undo, not a dialog:** Removing is rare and reversible, so a dialog would slow every
+  intentional removal to guard against a rare mistake. The note stays in the database, marked removed.
 - **Limit:** The "Note removed" marker lives in the page. After a reload the removed note simply
   isn't there.
 - **Results (Nov 16, 3 runs per case):** agent 30/30 and call summaries 21/21 on both models, with
@@ -622,8 +682,8 @@ lands in code, a `Decision (Dnn)` comment marks the line.
   case. The button names the target: "Save to CS-24117" or "Save to new case".
 - **Options:** Closed cases listed below a divider; "Reopen and save" when the case in view is
   closed.
-- **Why:** A note on a closed case reaches no open-case view (status row, overview), so nobody
-  follows it up. Reopening on the case view (D44) is one click and records why the case came back.
+- **Why:** A note on a closed case doesn't appear anywhere that shows open cases (status row,
+  overview), so nobody follows it up. Reopening on the case view (D44) is one click and records why the case came back.
 - **Limit:** The list is read when the advisor opens the vehicle (D43). Case writes refresh it. If
-  a stale entry slipped through, the case system still accepts the note, so nothing is lost, but
-  the note would sit on a closed case.
+  a case is closed after the list was read, the API still accepts a note on it, so nothing is
+  lost, but the note would sit on a closed case.
