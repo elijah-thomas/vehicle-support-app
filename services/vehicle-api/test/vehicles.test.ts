@@ -14,10 +14,10 @@ describe("GET /vehicles/:vin", () => {
     expect(body.customer).toMatchObject({ firstName: "Marcus", email: "marcus.bell@example.com" });
   });
 
-  test("never returns the customer's phone number", async () => {
+  // The rep's call and email buttons need it.
+  test("returns the owner's phone number for the contact buttons", async () => {
     const { body } = await call(`/vehicles/${VIN.marcus}`);
-    expect(body.customer).not.toHaveProperty("phone");
-    expect(JSON.stringify(body)).not.toContain("555-0102");
+    expect(body.customer.phone).toBe("555-0102");
   });
 
   test("lists the owner's vehicles, so a rep can reach the other one", async () => {
@@ -113,5 +113,37 @@ describe("GET /vehicles/:vin/cases", () => {
     const { status, body } = await call(`/vehicles/${VIN.priya}/cases`);
     expect(status).toBe(200);
     expect(body).toEqual([]);
+  });
+
+  test("numbers every case from 24101, uniquely", async () => {
+    const { body } = await call(`/vehicles/${VIN.dana}/cases`);
+    const numbers = body.map((c: { number: number }) => c.number);
+    expect(numbers.every((n: number) => Number.isInteger(n) && n >= 24101)).toBe(true);
+    expect(new Set(numbers).size).toBe(numbers.length);
+  });
+});
+
+describe("GET /vehicles/:vin/cases/:number", () => {
+  test("returns one case with its notes, by the number reps use", async () => {
+    const [newest] = (await call(`/vehicles/${VIN.dana}/cases`)).body;
+    const { status, body } = await call(`/vehicles/${VIN.dana}/cases/${newest.number}`);
+    expect(status).toBe(200);
+    expect(body).toMatchObject({ id: newest.id, number: newest.number, subject: "Reduced power warning on highway" });
+    expect(body.notes).toHaveLength(newest.notes.length);
+  });
+
+  test("leaves out the note the seed removed from Dana's open case", async () => {
+    const [open] = (await call(`/vehicles/${VIN.dana}/cases`)).body;
+    const single = (await call(`/vehicles/${VIN.dana}/cases/${open.number}`)).body;
+    for (const body of [open, single]) expect(JSON.stringify(body)).not.toMatch(/winter tire/i);
+  });
+
+  test("returns 404 for another vehicle's case number", async () => {
+    const [danaCase] = (await call(`/vehicles/${VIN.dana}/cases`)).body;
+    expect((await call(`/vehicles/${VIN.marcus}/cases/${danaCase.number}`)).status).toBe(404);
+  });
+
+  test.each(["abc", "0", "-1", "1.5"])("rejects case number %s with 400", async (number) => {
+    expect((await call(`/vehicles/${VIN.dana}/cases/${number}`)).status).toBe(400);
   });
 });

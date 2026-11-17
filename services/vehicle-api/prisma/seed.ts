@@ -199,8 +199,8 @@ async function seedCases() {
   const customer = (email: string) =>
     prisma.customer.findUniqueOrThrow({ where: { email } }).then((c) => c.id);
 
-  // Each visit leaves a note thread. The open case's last contact is 11 days ago, so it is always
-  // overdue (more than 5 business days); Marcus's case was contacted yesterday, so it is current.
+  // Each visit leaves a note thread. Dana's open case was last contacted 11 days ago and is waiting
+  // on the buyback review team; Marcus's case was contacted yesterday.
   const dana = await customer("dana.whitfield@example.com");
   await prisma.case.create({
     data: {
@@ -258,11 +258,19 @@ async function seedCases() {
       subject: "Reduced power warning on highway", openedAt: daysAgo(11),
       description: "Vehicle limited propulsion power on the highway. Customer asking for a buyback.",
       notes: {
-        create: {
-          source: "REP", issue: "Reduced propulsion power on the highway (P0C73, third occurrence)",
-          summary: "Dana is asking for a buyback after two earlier repairs. Request sent to the buyback review team.",
-          nextSteps: ["Call Dana with the review team's decision"], createdAt: daysAgo(11),
-        },
+        create: [
+          {
+            source: "REP", issue: "Reduced propulsion power on the highway (P0C73, third occurrence)",
+            summary: "Dana is asking for a buyback after two earlier repairs. Request sent to the buyback review team.",
+            nextSteps: ["Call Dana with the review team's decision"], createdAt: daysAgo(11),
+          },
+          // Saved on the wrong case and removed. No read returns it, and the evals check that no
+          // answer mentions winter tires. See docs/decisions.md#case-numbers
+          {
+            source: "REP", summary: "Asked about winter tire packages and a price quote.",
+            createdAt: daysAgo(10), removedAt: daysAgo(10),
+          },
+        ],
       },
     },
   });

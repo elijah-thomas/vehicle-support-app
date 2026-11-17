@@ -22,7 +22,7 @@ const note = { vin: VIN, caseId: "case-1", issue: "Camera blackouts", summary: "
 
 beforeEach(() => {
   vi.clearAllMocks();
-  createCaseWithNote.mockResolvedValue({ caseId: "new-case", noteId: "note-2" });
+  createCaseWithNote.mockResolvedValue({ caseId: "new-case", caseNumber: 24120, noteId: "note-2" });
   addCaseNote.mockResolvedValue({ id: "note-1" });
 });
 
@@ -34,7 +34,7 @@ test("saves to an existing case, sends the VIN, and refreshes Case history", asy
 
 test("opens a new case with its note in one call", async () => {
   const result = await saveNoteAction({ ...note, caseId: "new", newCase: { subject: "Camera", category: "Electrical" } });
-  expect(result).toEqual({ ok: true, noteId: "note-2", caseId: "new-case" });
+  expect(result).toEqual({ ok: true, noteId: "note-2", caseId: "new-case", caseNumber: 24120 });
   expect(createCaseWithNote).toHaveBeenCalledWith(
     expect.objectContaining({ vin: VIN, subject: "Camera", description: "Customer called.", note: expect.objectContaining({ issue: "Camera blackouts" }) }),
   );

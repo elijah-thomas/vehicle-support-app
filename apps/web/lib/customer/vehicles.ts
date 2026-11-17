@@ -14,7 +14,7 @@ import {
 
 export type { Case, TelematicsEvent, Vehicle };
 
-// Decision (D24): cached for hours in Vercel's shared Runtime Cache ("use cache: remote").
+// Decision (D14): cached for hours in Vercel's shared Runtime Cache ("use cache: remote").
 // Why: specs never change and recall status rarely does; a shared cache lets updateTag reach
 // every instance. Trade-off: owner details and recalls can be about an hour stale, and personal
 // data is kept up to a day. See docs/decisions.md#vehicle-page-caching
@@ -48,7 +48,7 @@ export async function getTelematics(vin: string, limit = 50): Promise<Telematics
 
 const SETTLE_MS = 24 * 60 * 60 * 1000;
 
-// Decision (D49): a past window is cached once it ended more than a day ago; newer ones read fresh.
+// Decision (D37): a past window is cached once it ended more than a day ago; newer ones read fresh.
 // Why: vehicles upload buffered events late, so a window is only safe to cache once it has
 // settled. Trade-off: a later upload into a settled window shows within a day.
 // See docs/decisions.md#telematics-windows

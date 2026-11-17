@@ -7,6 +7,8 @@
   },
   "scripts": {
     "dev": "pnpm -r --parallel dev",
+    "dev:local": "pnpm --filter vehicle-api db:up && pnpm --filter vehicle-api db:deploy && VEHICLE_API_AUTH=none VEHICLE_API_URL=http://localhost:8080 pnpm -r --parallel dev",
+    "db:reset": "pnpm --filter vehicle-api db:up && pnpm --filter vehicle-api db:deploy && pnpm --filter vehicle-api db:seed",
     "build": "pnpm -r build",
     "lint": "pnpm -r lint",
     "typecheck": "pnpm -r typecheck",

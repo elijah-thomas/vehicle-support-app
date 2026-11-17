@@ -41,6 +41,7 @@ vehiclesRouter.get("/:vin", async (req, res) => {
           firstName: true,
           lastName: true,
           email: true,
+          phone: true,
           vehicles: {
             select: { vin: true, model: { select: { year: true, make: true, model: true, trim: true } } },
             orderBy: { purchasedAt: "desc" },
@@ -72,6 +73,9 @@ vehiclesRouter.get("/:vin/telematics", async (req, res) => {
   res.json(events);
 });
 
+// Removed notes never leave the API, so no client (or the assistant) reads them.
+const liveNotes = { where: { removedAt: null }, orderBy: { createdAt: "desc" } } as const;
+
 vehiclesRouter.get("/:vin/cases", async (req, res) => {
   const { vin } = vinParams.parse(req.params);
   await assertVehicleExists(vin);
@@ -79,8 +83,20 @@ vehiclesRouter.get("/:vin/cases", async (req, res) => {
   const cases = await prisma.case.findMany({
     where: { vin },
     orderBy: { openedAt: "desc" },
-    include: { notes: { orderBy: { createdAt: "desc" } } },
+    include: { notes: liveNotes },
   });
 
   res.json(cases);
+});
+
+const caseNumberParams = vinParams.extend({ number: z.coerce.number().int().positive() });
+
+// One case by the number reps use. Scoped by VIN, so another vehicle's number is a 404.
+vehiclesRouter.get("/:vin/cases/:number", async (req, res) => {
+  const { vin, number } = caseNumberParams.parse(req.params);
+
+  const found = await prisma.case.findFirst({ where: { vin, number }, include: { notes: liveNotes } });
+  if (!found) throw new NotFoundError(`No case ${number} for VIN ${vin}`);
+
+  res.json(found);
 });

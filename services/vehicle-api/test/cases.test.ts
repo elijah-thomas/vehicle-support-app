@@ -149,3 +149,114 @@ describe("POST /cases/:id/close", () => {
     expect(status).toBe(400);
   });
 });
+
+async function openTruckCaseWithNote() {
+  const { body } = await call("/cases", {
+    method: "POST",
+    json: { vin: VIN.jordanTruck, category: "Electrical", subject: "Wipers stall", description: "Wipers stop mid-sweep.", note },
+  });
+  return { caseId: body.id as string, noteId: body.notes[0].id as string, number: body.number as number };
+}
+
+const truckCase = async (number: number) => (await call(`/vehicles/${VIN.jordanTruck}/cases/${number}`)).body;
+
+describe("rep notes", () => {
+  test("a rep's note needs only a summary", async () => {
+    const caseId = await firstCaseId(VIN.marcus);
+    const { status, body } = await call(`/cases/${caseId}/notes`, {
+      method: "POST",
+      json: { vin: VIN.marcus, source: "REP", summary: "Left a voicemail." },
+    });
+    expect(status).toBe(201);
+    expect(body).toMatchObject({ source: "REP", issue: null, summary: "Left a voicemail.", nextSteps: [] });
+  });
+
+  test("an AI-drafted note still needs an issue", async () => {
+    const caseId = await firstCaseId(VIN.marcus);
+    const { issue: _issue, ...withoutIssue } = note;
+    const { status } = await call(`/cases/${caseId}/notes`, { method: "POST", json: { ...withoutIssue, vin: VIN.marcus } });
+    expect(status).toBe(400);
+  });
+});
+
+describe("POST /cases/:id/reopen", () => {
+  async function closedTruckCase() {
+    const { caseId, number } = await openTruckCaseWithNote();
+    await call(`/cases/${caseId}/close`, { method: "POST", json: { vin: VIN.jordanTruck, resolution: "Dealer adjusted the linkage." } });
+    return { caseId, number };
+  }
+
+  test("reopens a closed case and keeps the reason and old resolution as a rep note", async () => {
+    const { caseId, number } = await closedTruckCase();
+    const { status, body } = await call(`/cases/${caseId}/reopen`, {
+      method: "POST",
+      json: { vin: VIN.jordanTruck, reason: "Wipers stalled again this morning." },
+    });
+    expect(status).toBe(200);
+    expect(body).toMatchObject({ status: "OPEN", closedAt: null, resolution: null, number });
+    expect(body.notes[0]).toMatchObject({
+      source: "REP",
+      issue: "Case reopened",
+      summary: "Wipers stalled again this morning.\n\nPrevious resolution: Dealer adjusted the linkage.",
+    });
+  });
+
+  test("refuses to reopen an open case", async () => {
+    const { caseId } = await openTruckCaseWithNote();
+    const { status } = await call(`/cases/${caseId}/reopen`, { method: "POST", json: { vin: VIN.jordanTruck, reason: "Again." } });
+    expect(status).toBe(409);
+  });
+
+  test("refuses another vehicle's case, and leaves it closed", async () => {
+    const { caseId, number } = await closedTruckCase();
+    const { status } = await call(`/cases/${caseId}/reopen`, { method: "POST", json: { vin: VIN.marcus, reason: "Again." } });
+    expect(status).toBe(404);
+    expect((await truckCase(number)).status).toBe("CLOSED");
+  });
+
+  test("requires a reason", async () => {
+    const { caseId } = await closedTruckCase();
+    const { status } = await call(`/cases/${caseId}/reopen`, { method: "POST", json: { vin: VIN.jordanTruck, reason: " " } });
+    expect(status).toBe(400);
+  });
+});
+
+describe("removing and restoring a note", () => {
+  const act = (action: "remove" | "restore", caseId: string, noteId: string, vin = VIN.jordanTruck) =>
+    call(`/cases/${caseId}/notes/${noteId}/${action}`, { method: "POST", json: { vin } });
+
+  test("a removed note leaves case reads, and restore brings it back unchanged", async () => {
+    const { caseId, noteId, number } = await openTruckCaseWithNote();
+
+    const removed = await act("remove", caseId, noteId);
+    expect(removed.status).toBe(200);
+    expect(removed.body.removedAt).toEqual(expect.any(String));
+    expect((await truckCase(number)).notes).toEqual([]);
+    const list = (await call(`/vehicles/${VIN.jordanTruck}/cases`)).body;
+    expect(list.find((c: { id: string }) => c.id === caseId).notes).toEqual([]);
+
+    const restored = await act("restore", caseId, noteId);
+    expect(restored.status).toBe(200);
+    expect(restored.body).toMatchObject({ id: noteId, removedAt: null, issue: "Camera blackouts" });
+    expect((await truckCase(number)).notes.map((n: { id: string }) => n.id)).toEqual([noteId]);
+  });
+
+  test("refuses to remove a note twice, or restore one that isn't removed", async () => {
+    const { caseId, noteId } = await openTruckCaseWithNote();
+    expect((await act("restore", caseId, noteId)).status).toBe(409);
+    expect((await act("remove", caseId, noteId)).status).toBe(200);
+    expect((await act("remove", caseId, noteId)).status).toBe(409);
+  });
+
+  test("refuses another vehicle's note, and leaves it in place", async () => {
+    const { caseId, noteId, number } = await openTruckCaseWithNote();
+    expect((await act("remove", caseId, noteId, VIN.marcus)).status).toBe(404);
+    expect((await truckCase(number)).notes).toHaveLength(1);
+  });
+
+  test("refuses a note that isn't on the named case", async () => {
+    const { noteId } = await openTruckCaseWithNote();
+    const other = await openTruckCaseWithNote();
+    expect((await act("remove", other.caseId, noteId)).status).toBe(404);
+  });
+});

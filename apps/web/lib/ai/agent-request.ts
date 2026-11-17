@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { VIN_PATTERN } from "@/lib/format";
 
-// Decision (D38): the browser sends the whole conversation, so everything in it is untrusted. Only
+// Decision (D27): the browser sends the whole conversation, so everything in it is untrusted. Only
 // what the chat UI produces is accepted: text-only user messages, user or assistant roles, and a
 // bounded total size. Trade-off: a caller can still forge assistant turns, in their own session.
 // See docs/decisions.md#agent-request

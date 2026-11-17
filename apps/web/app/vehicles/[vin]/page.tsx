@@ -2,26 +2,23 @@ import { Suspense } from "react";
 import { CaseHistory } from "@/components/case-history";
 import { PanelSkeleton } from "@/components/panel-skeleton";
 import { TelematicsPanel } from "@/components/telematics-panel";
-import { VehicleSummary } from "@/components/vehicle-summary";
-import { VehicleSummarySkeleton } from "@/components/vehicle-summary-skeleton";
+import { VehicleSpecs } from "@/components/vehicle-specs";
+import { VehicleSpecsSkeleton } from "@/components/vehicle-specs-skeleton";
 import { WithVin } from "@/components/with-vin";
 
-// The page itself is a static shell: layout, headings, and skeletons arrive instantly.
-// Each panel streams in independently, so slow telematics never blocks the vehicle summary.
-//   vehicle + specs + recalls → cached (hours)        see lib/customer/vehicles.ts
-//   cases                     → cached (minutes), cleared when a note is saved or a case closed
-//   telematics                → always fresh
-// The assistant is in layout.tsx, beside this column.
-export default function VehiclePage({ params }: PageProps<"/vehicles/[vin]">) {
+// The overview: the left column under the shared header (layout.tsx). A static shell of headings
+// and skeletons; each panel streams in on its own, so slow telematics never blocks the rest.
+//   specs        → cached (hours)                                     see lib/customer/vehicles.ts
+//   cases        → cached (minutes), cleared by every case write
+//   telematics   → always fresh
+export default function VehicleOverviewPage({ params }: PageProps<"/vehicles/[vin]">) {
   return (
     <>
-      <div className="order-1">
-        <Suspense fallback={<VehicleSummarySkeleton />}>
-          <WithVin params={params}>{(vin) => <VehicleSummary vin={vin} />}</WithVin>
-        </Suspense>
-      </div>
+      <Suspense fallback={<VehicleSpecsSkeleton />}>
+        <WithVin params={params}>{(vin) => <VehicleSpecs vin={vin} />}</WithVin>
+      </Suspense>
 
-      <div className="order-3 grid gap-6 xl:grid-cols-2">
+      <div className="grid gap-6 xl:grid-cols-2">
         <Suspense fallback={<PanelSkeleton title="Telematics" rows={8} rowClassName="h-8 w-full" />}>
           <WithVin params={params}>{(vin) => <TelematicsPanel vin={vin} />}</WithVin>
         </Suspense>

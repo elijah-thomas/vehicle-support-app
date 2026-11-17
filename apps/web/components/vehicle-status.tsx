@@ -1,12 +1,13 @@
 import { Check, ChevronRight, FileText, OctagonAlert, ShieldAlert, TriangleAlert, type LucideIcon } from "lucide-react";
-import Link from "next/link";
 import { Suspense } from "react";
+import { MoreRecalls } from "@/components/more-recalls";
+import { CurrentPageLink, PageAwareLink } from "@/components/page-aware-link";
 import { RecordLink } from "@/components/record-link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "cn";
-import { caseHref, contactStatus } from "@/lib/cases";
+import { caseHref } from "@/lib/cases";
 import { getCaseSnapshot } from "@/lib/case-snapshot";
-import { formatDateTime, formatRelative, ordinal } from "@/lib/format";
+import { formatCaseNumber, formatDate, formatDateTime, formatRelative, ordinal } from "@/lib/format";
 import { loadPanel } from "@/lib/load-panel";
 import { getTelematicsSnapshot, RECENT_WINDOW_DAYS, repeatKey, worstRecentEvent } from "@/lib/telematics";
 
@@ -23,23 +24,31 @@ const tones = {
   muted: { bg: "bg-muted", text: "text-muted-foreground" },
 };
 
+// More than two open recalls: the first two as chips, the rest behind a count.
+const RECALL_CHIPS = 2;
+
 export function VehicleStatus({ vin, openRecallCampaigns }: { vin: string; openRecallCampaigns: string[] }) {
   return (
     <ul aria-label="Vehicle status" className="flex flex-wrap gap-2">
       <Suspense fallback={<ItemSkeleton className={ORDER.critical} />}>
         <TelematicsStatus vin={vin} />
       </Suspense>
-      {openRecallCampaigns.map((campaign) => (
+      {openRecallCampaigns.slice(0, RECALL_CHIPS).map((campaign) => (
         <StatusItem
           key={campaign}
           className={ORDER.recall}
-          targetId={`recall-${campaign}`}
+          link={{ kind: "record", targetId: `recall-${campaign}` }}
           tone="warning"
           Icon={ShieldAlert}
           label="Open recall"
           detail={<span className="font-mono">{campaign}</span>}
         />
       ))}
+      {openRecallCampaigns.length > RECALL_CHIPS && (
+        <li className={ORDER.recall}>
+          <MoreRecalls campaigns={openRecallCampaigns.slice(RECALL_CHIPS)} />
+        </li>
+      )}
       <Suspense fallback={<ItemSkeleton className={ORDER.cases} />}>
         <CasesStatus vin={vin} hasOpenRecalls={openRecallCampaigns.length > 0} />
       </Suspense>
@@ -72,7 +81,13 @@ async function TelematicsStatus({ vin }: { vin: string }) {
   return (
     <StatusItem
       className={critical ? ORDER.critical : ORDER.warning}
-      targetId={worst.code ? `dtc-${worst.code}` : "telematics"}
+      // The fault's newest row on the overview; its fault history on a case page.
+      link={{
+        kind: "page",
+        vin,
+        overviewTarget: worst.code ? `dtc-${worst.code}` : "telematics",
+        caseTarget: worst.code ? "fault-history" : undefined,
+      }}
       tone={critical ? "destructive" : "warning"}
       Icon={critical ? OctagonAlert : TriangleAlert}
       label={critical ? "Critical" : "Warning"}
@@ -93,7 +108,7 @@ async function CasesStatus({ vin, hasOpenRecalls }: { vin: string; hasOpenRecall
   const loaded = await loadPanel("cases status", () => getCaseSnapshot(vin));
   const snapshot = loaded.ok ? loaded.data : null;
   if (!snapshot) return null;
-  const { cases, now } = snapshot;
+  const { cases } = snapshot;
 
   const open = cases.filter((supportCase) => supportCase.status === "OPEN");
   if (open.length === 0) {
@@ -101,29 +116,40 @@ async function CasesStatus({ vin, hasOpenRecalls }: { vin: string; hasOpenRecall
     return <StatusItem className={ORDER.cases} tone="muted" label="No open recalls or cases" plainLabel />;
   }
   if (open.length > 1) {
-    return <StatusItem className={ORDER.cases} targetId="cases" tone="info" Icon={FileText} label={`${open.length} open cases`} />;
+    return (
+      <StatusItem
+        className={ORDER.cases}
+        link={{ kind: "page", vin, overviewTarget: "cases" }}
+        tone="info"
+        Icon={FileText}
+        label={`${open.length} open cases`}
+      />
+    );
   }
 
   // One open case: the chip opens it.
   const [only] = open;
-  const overdue = contactStatus(only, now).overdue;
   return (
     <StatusItem
       className={ORDER.cases}
-      href={caseHref(vin, only.id)}
+      link={{ kind: "case", href: caseHref(vin, only.number) }}
       tone="info"
       Icon={FileText}
       label="Open case"
-      detail={only.subject}
-      caption={overdue ? <span className="text-warning">overdue</span> : undefined}
+      detail={<span className="font-mono whitespace-nowrap">{formatCaseNumber(only.number)}</span>}
+      caption={`opened ${formatDate(only.openedAt)}`}
     />
   );
 }
 
+type ItemLink =
+  | { kind: "record"; targetId: string }
+  | { kind: "page"; vin: string; overviewTarget: string; caseTarget?: string }
+  | { kind: "case"; href: string };
+
 function StatusItem({
   className,
-  targetId,
-  href,
+  link,
   tone,
   Icon,
   label,
@@ -132,8 +158,7 @@ function StatusItem({
   caption,
 }: {
   className: string;
-  targetId?: string;
-  href?: string;
+  link?: ItemLink;
   tone: keyof typeof tones;
   Icon?: LucideIcon;
   label: string;
@@ -158,13 +183,22 @@ function StatusItem({
 
   return (
     <li className={cn("max-w-full", className)}>
-      {href ? (
-        <Link href={href} className={linkClass}>
+      {link?.kind === "case" ? (
+        // On the case's own page this chip is the current item: a stronger border and no chevron.
+        <CurrentPageLink
+          href={link.href}
+          className={linkClass}
+          currentClassName={cn(itemClass, "ring-1 ring-info/60")}
+          trailing={<ChevronRight className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />}
+        >
           {content}
-          <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
-        </Link>
-      ) : targetId ? (
-        <RecordLink targetId={targetId} className={linkClass}>
+        </CurrentPageLink>
+      ) : link?.kind === "page" ? (
+        <PageAwareLink vin={link.vin} overviewTarget={link.overviewTarget} caseTarget={link.caseTarget} className={linkClass}>
+          {content}
+        </PageAwareLink>
+      ) : link?.kind === "record" ? (
+        <RecordLink targetId={link.targetId} className={linkClass}>
           {content}
         </RecordLink>
       ) : (

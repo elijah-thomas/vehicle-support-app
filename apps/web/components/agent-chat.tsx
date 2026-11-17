@@ -2,27 +2,27 @@
 
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
-import { ArrowUp, CircleAlert, Square, TriangleAlert } from "lucide-react";
+import { ArrowUp, Car, CircleAlert, FileText, MessageSquare, ShieldAlert, Square, TriangleAlert, type LucideIcon } from "lucide-react";
 import { cn } from "cn";
-import { useEffect, useRef, useState } from "react";
+import { Suspense, use, useEffect, useRef, useState } from "react";
 import { AgentAnswer } from "@/components/agent-answer";
 import { AgentToolStep } from "@/components/agent-tool-step";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { aiErrorCode } from "@/lib/ai-request-error";
 import type { VehicleAgentMessage } from "@/lib/ai/vehicle-agent";
+import type { Suggestion, SuggestionKind } from "@/lib/assistant-suggestions";
 
-const primaryPrompts = [
-  "Summarize this vehicle's status",
-  "Is this a recurring issue?",
-  "What should I tell the customer?",
-];
-const morePrompts = ["What changed since the last contact?", "Could an open recall explain the complaint?"];
-const allPrompts = [...primaryPrompts, ...morePrompts];
-
-const sources = ["Vehicle, specs, recalls", "Telematics", "Case history"];
+const suggestionIcons: Record<SuggestionKind, { Icon: LucideIcon; className: string }> = {
+  critical: { Icon: TriangleAlert, className: "text-destructive" },
+  warning: { Icon: TriangleAlert, className: "text-warning" },
+  case: { Icon: FileText, className: "text-info" },
+  recall: { Icon: ShieldAlert, className: "text-warning" },
+  customer: { Icon: MessageSquare, className: "text-muted-foreground" },
+  summary: { Icon: Car, className: "text-muted-foreground" },
+};
 
 const MAX_TEXT_LENGTH = 2000;
 const MAX_FOLLOW_UPS = 2;
@@ -55,24 +55,119 @@ function PromptButton({ prompt, onAsk, disabled }: { prompt: string; onAsk: (pro
   );
 }
 
-// vin is null while the page's params resolve: the same empty state renders disabled, so it can be
-// the Suspense fallback and prerender in the static shell. See docs/decisions.md#vehicle-page-caching
-export function AgentChat({ vin }: { vin: string | null }) {
+function SuggestionText({ suggestion }: { suggestion: Suggestion }) {
+  if (!suggestion.code) return suggestion.text;
+  const [before, after] = suggestion.text.split(suggestion.code);
+  return (
+    <>
+      {before}
+      <span className="font-mono">{suggestion.code}</span>
+      {after}
+    </>
+  );
+}
+
+function SuggestionList({
+  suggestions,
+  onAsk,
+  disabled,
+}: {
+  suggestions: Promise<Suggestion[]>;
+  onAsk: (prompt: string) => void;
+  disabled: boolean;
+}) {
+  return (
+    <ul className="divide-y overflow-hidden rounded-md border">
+      {use(suggestions).map((suggestion) => {
+        const { Icon, className } = suggestionIcons[suggestion.kind];
+        return (
+          <li key={suggestion.text}>
+            <button
+              type="button"
+              onClick={() => onAsk(suggestion.text)}
+              disabled={disabled}
+              className="flex min-h-10 w-full items-center gap-2.5 bg-card px-3 py-2 text-left text-[13px] hover:bg-muted focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50"
+            >
+              <Icon className={cn("size-4 shrink-0", className)} aria-hidden />
+              <span>
+                <SuggestionText suggestion={suggestion} />
+              </span>
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function SuggestionListSkeleton() {
+  return (
+    <div className="divide-y overflow-hidden rounded-md border" aria-hidden>
+      {[0, 1, 2, 3].map((i) => (
+        <div key={i} className="flex min-h-10 items-center gap-2.5 px-3 py-2">
+          <Skeleton className="size-4 rounded-sm" />
+          <Skeleton className="h-3.5 w-48" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function FollowUps({
+  suggestions,
+  asked,
+  onAsk,
+}: {
+  suggestions: Promise<Suggestion[]>;
+  asked: Set<string>;
+  onAsk: (prompt: string) => void;
+}) {
+  const followUps = use(suggestions)
+    .map((suggestion) => suggestion.text)
+    .filter((text) => !asked.has(text))
+    .slice(0, MAX_FOLLOW_UPS);
+  if (followUps.length === 0) return null;
+  return (
+    <div className="flex flex-wrap gap-1.5 pt-1" aria-label="Follow-up questions">
+      {followUps.map((prompt) => (
+        <PromptButton key={prompt} prompt={prompt} onAsk={onAsk} />
+      ))}
+    </div>
+  );
+}
+
+// vin and suggestions are null while the page's params resolve: the same empty state renders
+// disabled, so it can be the Suspense fallback and prerender in the static shell.
+// See docs/decisions.md#vehicle-page-caching
+export function AgentChat({ vin, suggestions }: { vin: string | null; suggestions: Promise<Suggestion[]> | null }) {
   const loading = vin === null;
   const [input, setInput] = useState("");
-  const [showMore, setShowMore] = useState(false);
   const { messages, sendMessage, regenerate, status, error, stop } = useChat<VehicleAgentMessage>({
     transport: new DefaultChatTransport({ api: "/api/agent", body: { vin } }),
   });
   const busy = status === "submitted" || status === "streaming";
+  const started = messages.length > 0;
+  const rootRef = useRef<HTMLDivElement>(null);
   const logRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  // The question box moves from the top to the bottom on the first question, which remounts it.
+  // Focus follows only if it was already in the chat; on page load the lookup owns focus (`/`).
+  const refocus = useRef(false);
 
   useEffect(() => {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
   }, [messages, status]);
 
+  useEffect(() => {
+    if (started && refocus.current) {
+      refocus.current = false;
+      inputRef.current?.focus();
+    }
+  }, [started]);
+
   function ask(text: string) {
     if (!text.trim() || busy || loading) return;
+    if (!started) refocus.current = rootRef.current?.contains(document.activeElement) ?? false;
     sendMessage({ text });
     setInput("");
   }
@@ -81,59 +176,74 @@ export function AgentChat({ vin }: { vin: string | null }) {
   const asked = new Set(
     messages.flatMap((m) => (m.role === "user" ? m.parts.flatMap((p) => (p.type === "text" ? [p.text] : [])) : [])),
   );
-  const followUps =
-    status === "ready" && messages.at(-1)?.role === "assistant"
-      ? allPrompts.filter((prompt) => !asked.has(prompt)).slice(0, MAX_FOLLOW_UPS)
-      : [];
+  const showFollowUps = status === "ready" && messages.at(-1)?.role === "assistant";
+
+  const questionBox = (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        ask(input);
+      }}
+      className={cn("space-y-1.5", started && "border-t bg-card p-3")}
+    >
+      <div className="flex gap-2">
+        <Input
+          ref={inputRef}
+          value={input}
+          onChange={(event) => setInput(event.target.value)}
+          placeholder={started ? "Ask a follow-up" : "Ask about this vehicle"}
+          aria-label={started ? "Ask a follow-up" : "Ask about this vehicle"}
+          maxLength={MAX_TEXT_LENGTH}
+          disabled={loading}
+          aria-describedby="agent-scope"
+        />
+        {busy ? (
+          <Button type="button" variant="outline" size="icon" onClick={() => stop()} aria-label="Stop answering">
+            <Square className="fill-current" />
+          </Button>
+        ) : (
+          <Button type="submit" size="icon" disabled={!input.trim()} aria-label="Ask">
+            <ArrowUp />
+          </Button>
+        )}
+      </div>
+      {/* The assistant gets only this vehicle's record (D30), so the rep knows not to ask about
+          other vehicles or policy. */}
+      <p id="agent-scope" className="text-xs text-muted-foreground">
+        Answers use only this vehicle&apos;s record, telematics and case history.
+      </p>
+    </form>
+  );
+
+  if (!started) {
+    return (
+      <div ref={rootRef} className="space-y-4 p-4">
+        {questionBox}
+        <section aria-labelledby="agent-suggestions" className="space-y-2">
+          <h3 id="agent-suggestions" className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+            Suggested for this vehicle
+          </h3>
+          {suggestions ? (
+            <Suspense fallback={<SuggestionListSkeleton />}>
+              <SuggestionList suggestions={suggestions} onAsk={ask} disabled={loading} />
+            </Suspense>
+          ) : (
+            <SuggestionListSkeleton />
+          )}
+        </section>
+      </div>
+    );
+  }
 
   return (
-    <>
+    <div ref={rootRef} className="contents">
       <div
         ref={logRef}
         role="log"
         aria-live="polite"
-        aria-busy={busy || loading}
-        className={cn(
-          "max-h-[60vh] min-h-40 flex-1 overflow-y-auto p-4 lg:max-h-none",
-          messages.length === 0 ? "flex flex-col justify-between gap-6" : "space-y-5",
-        )}
+        aria-busy={busy}
+        className="max-h-[60vh] min-h-40 flex-1 space-y-5 overflow-y-auto p-4 lg:max-h-none"
       >
-        {messages.length === 0 && (
-          <>
-            <div className="space-y-2">
-              <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-                Answers use only this vehicle&apos;s record
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {sources.map((source) => (
-                  <Badge key={source} variant="secondary">
-                    {source}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-            <div className="space-y-2">
-              <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Start with</p>
-              <div className="flex flex-col items-start gap-2">
-                {(showMore ? allPrompts : primaryPrompts).map((prompt) => (
-                  <PromptButton key={prompt} prompt={prompt} onAsk={ask} disabled={loading} />
-                ))}
-                {!showMore && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-accent-foreground"
-                    onClick={() => setShowMore(true)}
-                    disabled={loading}
-                  >
-                    {morePrompts.length} more questions
-                  </Button>
-                )}
-              </div>
-            </div>
-          </>
-        )}
-
         {messages.map((message) =>
           message.role === "user" ? (
             <div key={message.id} className="flex flex-col items-end gap-1">
@@ -158,13 +268,11 @@ export function AgentChat({ vin }: { vin: string | null }) {
                   )}
                 </div>
               )}
-              {message.parts.map((part, i) => (part.type === "text" ? <AgentAnswer key={i} text={part.text} /> : null))}
-              {message === messages.at(-1) && followUps.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 pt-1" aria-label="Follow-up questions">
-                  {followUps.map((prompt) => (
-                    <PromptButton key={prompt} prompt={prompt} onAsk={ask} />
-                  ))}
-                </div>
+              {vin && message.parts.map((part, i) => (part.type === "text" ? <AgentAnswer key={i} vin={vin} text={part.text} /> : null))}
+              {message === messages.at(-1) && showFollowUps && suggestions && (
+                <Suspense fallback={null}>
+                  <FollowUps suggestions={suggestions} asked={asked} onAsk={ask} />
+                </Suspense>
               )}
             </div>
           ),
@@ -192,31 +300,7 @@ export function AgentChat({ vin }: { vin: string | null }) {
         )}
       </div>
 
-      <form
-        onSubmit={(event) => {
-          event.preventDefault();
-          ask(input);
-        }}
-        className="flex gap-2 border-t bg-card p-3"
-      >
-        <Input
-          value={input}
-          onChange={(event) => setInput(event.target.value)}
-          placeholder="Ask about this vehicle"
-          aria-label="Ask about this vehicle"
-          maxLength={MAX_TEXT_LENGTH}
-          disabled={loading}
-        />
-        {busy ? (
-          <Button type="button" variant="outline" size="icon" onClick={() => stop()} aria-label="Stop answering">
-            <Square className="fill-current" />
-          </Button>
-        ) : (
-          <Button type="submit" size="icon" disabled={!input.trim()} aria-label="Ask">
-            <ArrowUp />
-          </Button>
-        )}
-      </form>
-    </>
+      {questionBox}
+    </div>
   );
 }

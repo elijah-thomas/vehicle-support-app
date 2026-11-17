@@ -23,6 +23,7 @@ const vehicleSchema = z.object({
     firstName: z.string(),
     lastName: z.string(),
     email: z.string(),
+    phone: z.string(),
     vehicles: z.array(
       z.object({
         vin: z.string(),
@@ -56,6 +57,7 @@ const telematicsEventSchema = z.object({
 
 const caseSchema = z.object({
   id: z.string(),
+  number: z.number().int(),
   status: z.enum(["OPEN", "CLOSED"]),
   category: z.string(),
   subject: z.string(),
@@ -67,7 +69,8 @@ const caseSchema = z.object({
     z.object({
       id: z.string(),
       source: z.enum(["REP", "AI_DRAFT_EDITED"]),
-      issue: z.string(),
+      // A rep's quick note may have no issue; AI-drafted notes always do.
+      issue: z.string().nullable(),
       summary: z.string(),
       nextSteps: z.array(z.string()),
       createdAt: z.string(),

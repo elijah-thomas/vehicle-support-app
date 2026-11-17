@@ -25,7 +25,8 @@ const saveSchema = z.object({
 });
 
 export type SaveNoteResult =
-  | { ok: true; noteId: string; caseId: string }
+  // caseNumber comes back for a new case; for an existing one the form already knows it.
+  | { ok: true; noteId: string; caseId: string; caseNumber?: number }
   | { ok: false; error: string };
 
 function saveError(error: unknown) {
@@ -49,7 +50,7 @@ export async function saveNoteAction(input: z.input<typeof saveSchema>): Promise
       caseId === "new"
         ? await createCaseWithNote({ vin, ...newCase!, description: summary, note })
         : { caseId, noteId: (await addCaseNote(caseId, { vin, ...note })).id };
-    // Decision (D24): updateTag gives read-your-own-writes: the next render waits for fresh cases
+    // Decision (D14): updateTag gives read-your-own-writes: the next render waits for fresh cases
     // instead of serving the cached list. See docs/decisions.md#vehicle-page-caching
     updateTag(cacheTags.cases(vin));
     return { ok: true, ...saved };

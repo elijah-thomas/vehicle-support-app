@@ -12,13 +12,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { caseHref } from "@/lib/cases";
+import { formatCaseNumber } from "@/lib/format";
 import { type CallSummary as Draft, callSummarySchema, type CallType, MAX_TRANSCRIPT_LENGTH } from "@/lib/call-summary-schema";
 import { aiErrorCode, rateLimitAwareFetch, type AiErrorCode } from "@/lib/ai-request-error";
 import { flashWhenPresent } from "@/lib/flash-element";
 
-export type CaseOption = { id: string; label: string; open: boolean; subject: string };
+// An open case the note can be saved to (D45), newest first.
+export type CaseOption = { id: string; number: number; label: string; subject: string };
 
-type Saved = { noteId: string; caseId: string; caseSubject: string };
+type Saved = { noteId: string; caseNumber: number; caseSubject: string };
 
 type Props = {
   // null while the page's params and cases load: the empty form renders disabled as the fallback.
@@ -90,7 +92,7 @@ export function CallSummary({ vin, cases, cannedTranscript }: Props) {
         )}
         <div className="flex flex-wrap gap-2">
           <Button onClick={generate} disabled={vin === null || !transcript.trim()}>
-            Draft summary
+            Summarize call
           </Button>
           {cannedTranscript && (
             <Button variant="outline" onClick={() => setTranscript(cannedTranscript.text)} title={cannedTranscript.label}>
@@ -118,11 +120,11 @@ export function CallSummary({ vin, cases, cannedTranscript }: Props) {
       {saved && (
         <Alert variant="success" role="status">
           <CircleCheck aria-hidden />
-          <AlertTitle>Saved to the case</AlertTitle>
+          <AlertTitle>Saved to {formatCaseNumber(saved.caseNumber)}</AlertTitle>
           <AlertDescription className="text-foreground">
             Added to &ldquo;{saved.caseSubject}&rdquo;.{" "}
             <Link
-              href={`${caseHref(vin, saved.caseId)}#note-${saved.noteId}`}
+              href={`${caseHref(vin, saved.caseNumber)}#note-${saved.noteId}`}
               className="font-medium underline underline-offset-2"
             >
               Open the case
@@ -165,9 +167,10 @@ function ReviewForm({
   draft: Draft;
   onSaved: (saved: Saved) => void;
 }) {
-  // The case the rep has open, else the most recent open case. See docs/decisions.md#case-view
-  const params = useParams<{ caseId?: string }>();
-  const defaultCase = cases.find((c) => c.id === params.caseId) ?? cases.find((c) => c.open);
+  // The case in view if it's open, else the newest open case, else a new case.
+  // See docs/decisions.md#call-summary-target
+  const params = useParams<{ number?: string }>();
+  const defaultCase = cases.find((c) => String(c.number) === params.number) ?? cases[0];
   const [caseId, setCaseId] = useState(defaultCase?.id ?? "new");
   const [issue, setIssue] = useState(draft.issue);
   const [summary, setSummary] = useState(draft.summary);
@@ -176,12 +179,7 @@ function ReviewForm({
   const [category, setCategory] = useState(draft.suggestedCase.category);
   const [error, setError] = useState<string | null>(null);
   const [saving, startSaving] = useTransition();
-
-  // A case created by an earlier, half-finished save may not be in the refreshed list yet.
-  const options =
-    caseId !== "new" && !cases.some((c) => c.id === caseId)
-      ? [...cases, { id: caseId, label: `New case · ${subject}`, open: true, subject }]
-      : cases;
+  const picked = cases.find((c) => c.id === caseId);
 
   function save() {
     setError(null);
@@ -202,8 +200,12 @@ function ReviewForm({
         return;
       }
       if (result.ok) {
-        const caseSubject = caseId === "new" ? subject : (options.find((c) => c.id === caseId)?.subject ?? subject);
-        onSaved({ noteId: result.noteId, caseId: result.caseId, caseSubject });
+        const caseNumber = result.caseNumber ?? picked?.number;
+        if (caseNumber === undefined) {
+          setError("Saved, but the case couldn't be found. Reload the page.");
+          return;
+        }
+        onSaved({ noteId: result.noteId, caseNumber, caseSubject: picked?.subject ?? subject });
         return;
       }
       setError(result.error);
@@ -243,7 +245,7 @@ function ReviewForm({
           onChange={(e) => setCaseId(e.target.value)}
           className="h-9 w-full rounded-md border bg-transparent px-3 text-sm"
         >
-          {options.map((c) => (
+          {cases.map((c) => (
             <option key={c.id} value={c.id}>
               {c.label}
             </option>
@@ -273,7 +275,7 @@ function ReviewForm({
       )}
 
       <Button onClick={save} disabled={saving}>
-        {saving ? "Saving…" : "Save to case"}
+        {saving ? "Saving…" : picked ? `Save to ${formatCaseNumber(picked.number)}` : "Save to new case"}
       </Button>
     </div>
   );
