@@ -6,18 +6,18 @@ the code and the commit history, and in the interview they will ask me to explai
 change it live. Every rule below follows from that: **a human must be able to read and navigate
 this repo in minutes, and I must have made and understood every architectural decision in it.**
 
-## Scenario (draft — details settle in docs/decisions.md)
+## Scenario (settled — see docs/decisions.md D1 and D28)
 
-- **Customer:** a large automaker's customer-support organization (fictional; all data is
-  synthetic, no real company branding or data).
-- **Current stack:** an internal support/CRM tool on GCP. Agents look customers up by email or
-  VIN, then manually read vehicle configuration, telematics logs, prior cases, and specs across
-  separate screens.
-- **Vercel role:** Connect (and lightly Augment): a Vercel-hosted agent experience that reads
-  from the systems that stay on GCP.
-- **What stays on GCP:** the backend API and the database of customers, vehicles, logs, and cases.
-- **Demo:** look up a vehicle, then ask an AI agent for a status summary, compiled history, and
-  next-step guidance built from the GCP data.
+- **Customer:** Meridian Motors, a fictional mid-market automaker (all data synthetic). About 80
+  service advisors in North America, Europe and the Middle East.
+- **Current stack:** a React app (Vite) in Cloud Storage behind Cloud CDN, Entra ID sign-in,
+  REST services on Cloud Run called from the browser, one shared staging.
+- **Vercel role:** the console is rebuilt in Next.js on Vercel, screen by screen. The vehicle
+  workspace moves first and gains an AI assistant. A pilot group validates each screen, then all
+  advisors switch over.
+- **What stays on GCP:** the API and the database of customers, vehicles, telematics and cases.
+- **Demo:** look up a vehicle, see its status, ask the assistant about its history, and turn a
+  call transcript into a saved case note.
 
 ## In scope
 
