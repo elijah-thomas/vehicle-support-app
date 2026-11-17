@@ -1,5 +1,4 @@
 import "server-only";
-import { connection } from "next/server";
 import { z } from "zod";
 import { vehicleApiOrNull } from "./vehicle-api";
 
@@ -19,8 +18,8 @@ const customerSchema = z.object({
 
 export type Customer = z.infer<typeof customerSchema>;
 
-// Not cached: searches are rarely repeated.
+// Not cached, and only called from the search Server Action, so the email never appears in a URL.
+// See docs/decisions.md#vehicle-page-caching
 export async function findCustomerByEmail(email: string): Promise<Customer | null> {
-  await connection();
   return vehicleApiOrNull(`/customers?email=${encodeURIComponent(email)}`, customerSchema);
 }

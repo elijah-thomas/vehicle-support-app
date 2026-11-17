@@ -1,6 +1,7 @@
 import { FilePlus, Mail, Phone, ShieldAlert } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { PanelUnavailable } from "@/components/panel-unavailable";
 import { PeekButton } from "@/components/peek-button";
 import { RecordVisit } from "@/components/record-visit";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -9,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { VehicleStatus } from "@/components/vehicle-status";
 import { newCaseHref } from "@/lib/cases";
 import { getVehicle } from "@/lib/customer/vehicles";
+import { loadPanel } from "@/lib/load-panel";
 
 // Phone and email look the same: one outlined button each, icon plus value.
 const contactButton = buttonVariants({ variant: "outline", size: "sm", className: "bg-card" });
@@ -16,7 +18,20 @@ const contactButton = buttonVariants({ variant: "outline", size: "sm", className
 // The same header on every vehicle page: it lives in the [vin] layout, above whichever view the
 // left column shows. Open-recall banners sit here too, so the recall chips reach them from any page.
 export async function VehicleHeader({ vin }: { vin: string }) {
-  const vehicle = await getVehicle(vin);
+  // Decision (D43): the header catches its own failure. Why: it renders in the layout, which the
+  // [vin] error.tsx doesn't cover, so a throw here would replace the whole page with the root error.
+  // Trade-off: the page answers 200 with a Retry card, not an error status. See
+  // docs/decisions.md#layout-freshness
+  const loaded = await loadPanel("vehicle header", () => getVehicle(vin));
+  if (!loaded.ok) {
+    return (
+      <PanelUnavailable
+        title="This vehicle"
+        message="The vehicle record couldn't be loaded from the vehicle data service. Try again in a moment."
+      />
+    );
+  }
+  const vehicle = loaded.data;
   if (!vehicle) notFound();
 
   const { model, customer } = vehicle;

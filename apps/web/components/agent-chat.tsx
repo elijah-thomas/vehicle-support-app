@@ -268,7 +268,7 @@ export function AgentChat({ vin, suggestions }: { vin: string | null; suggestion
                   )}
                 </div>
               )}
-              {message.parts.map((part, i) => (part.type === "text" ? <AgentAnswer key={i} text={part.text} /> : null))}
+              {vin && message.parts.map((part, i) => (part.type === "text" ? <AgentAnswer key={i} vin={vin} text={part.text} /> : null))}
               {message === messages.at(-1) && showFollowUps && suggestions && (
                 <Suspense fallback={null}>
                   <FollowUps suggestions={suggestions} asked={asked} onAsk={ask} />
