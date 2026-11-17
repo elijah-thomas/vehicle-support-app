@@ -25,10 +25,12 @@ export function viewLabel(view: VehicleView) {
 
 // The path a rep took within one vehicle, kept out of the URL. Back (or a crumb) returns to a step
 // already in the trail, which drops everything after it; anything else is a new step. A page
-// opened directly starts at the overview.
+// opened directly starts at the overview. The new-case form is never a step behind the rep: the
+// page after it (usually the case it just opened) takes its place.
 export function nextTrail(trail: string[], pathname: string, overview: string): string[] {
   if (trail.length === 0) return pathname === overview ? [overview] : [overview, pathname];
   const index = trail.indexOf(pathname);
   if (index >= 0) return trail.slice(0, index + 1);
-  return [...trail, pathname];
+  const leavingNewCase = trail.at(-1) === `${overview}/cases/new`;
+  return [...(leavingNewCase ? trail.slice(0, -1) : trail), pathname];
 }

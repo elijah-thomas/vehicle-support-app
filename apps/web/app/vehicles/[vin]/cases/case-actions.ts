@@ -1,7 +1,7 @@
 "use server";
 
 import { updateTag } from "next/cache";
-import { redirect } from "next/navigation";
+import { RedirectType, redirect } from "next/navigation";
 import { z } from "zod";
 import { cacheTags } from "@/lib/customer/cache-tags";
 import {
@@ -122,5 +122,6 @@ export async function openCaseAction(input: z.input<typeof openCaseSchema>): Pro
     return { ok: false, error: caseSystemError(error, "The case system refused the case.") };
   }
   updateTag(cacheTags.cases(vin));
-  redirect(caseHref(vin, caseNumber));
+  // Replace, not push: browser Back skips the submitted form, matching the breadcrumb trail.
+  redirect(caseHref(vin, caseNumber), RedirectType.replace);
 }

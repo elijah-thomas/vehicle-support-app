@@ -570,7 +570,9 @@ decision is implemented, a `Decision (Dnn)` comment marks the line.
   - **Breadcrumb trail:** The path the advisor took within this vehicle, kept in the layout's
     state rather than the URL. Back, or a crumb, returns to an earlier step; a new VIN starts a new
     trail; a page opened directly shows the overview and the current page. At most three steps
-    show, with older ones behind "…".
+    show, with older ones behind "…". The new-case form never stays in the trail: the page after
+    it, usually the case it opened, takes its place, and the redirect replaces the browser's
+    history entry, so Back skips the submitted form too (Nov 17).
   - **New case:** A Server Action writes the case and its first rep note in one call (D22), clears
     the case list's cache and opens the new case.
 - **Options:** A per-case cached read with its own tag, using `GET /vehicles/:vin/cases/:number`;

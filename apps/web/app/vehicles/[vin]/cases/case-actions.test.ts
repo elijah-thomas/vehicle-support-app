@@ -11,7 +11,7 @@ const updateTag = vi.fn();
 const redirect = vi.fn();
 vi.mock("@/lib/customer/cases", () => ({ addCaseNote, closeCase, createCaseWithNote, reopenCase, removeNote, restoreNote }));
 vi.mock("next/cache", () => ({ updateTag }));
-vi.mock("next/navigation", () => ({ redirect }));
+vi.mock("next/navigation", () => ({ redirect, RedirectType: { push: "push", replace: "replace" } }));
 vi.mock("@/lib/customer/vehicle-api", async () => {
   class VehicleApiError extends Error {
     constructor(public status: number, public code: string, message: string) {
@@ -111,7 +111,7 @@ describe("openCaseAction", () => {
       note: { source: "REP", summary: "Wipers stop mid-sweep." },
     });
     expect(updateTag).toHaveBeenCalledWith(`cases:${VIN}`);
-    expect(redirect).toHaveBeenCalledWith(`/vehicles/${VIN}/cases/24120`);
+    expect(redirect).toHaveBeenCalledWith(`/vehicles/${VIN}/cases/24120`, "replace");
   });
 
   test("names the empty field and writes nothing", async () => {
