@@ -2,9 +2,7 @@ import { Check, LoaderCircle, X } from "lucide-react";
 import { cn } from "cn";
 
 const labels: Record<string, { running: string; done: string }> = {
-  "tool-getVehicle": { running: "Checking vehicle, specs, and recalls", done: "Vehicle, specs, and recalls" },
   "tool-getTelematics": { running: "Checking telematics", done: "Telematics" },
-  "tool-getCases": { running: "Checking case history", done: "Case history" },
 };
 
 export function AgentToolStep({ type, state }: { type: string; state?: string }) {
