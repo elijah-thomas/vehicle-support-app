@@ -22,7 +22,7 @@ decision is implemented, a `Decision (Dnn)` comment marks the line.
   [D39](#assistant-suggestions) Suggested questions
 - **Data integrity:** [D6](#data-model) Data model · [D25](#note-ownership) Note ownership ·
   [D22](#save-feedback) Save failures · [D38](#seed-activity) Seeded case activity ·
-  [D40](#case-numbers) Case numbers and case actions
+  [D40](#case-numbers) Case numbers and case actions · [D46](#repeat-safe-save) Repeat-safe save
 - **Release path:** [D9](#terraform) Terraform · [D12](#environments) Environments ·
   [D13](#pipeline) API pipeline · [D35](#rollout) Rollout · [D32](#release-versions) Versions ·
   [D24](#tests) Tests
@@ -40,8 +40,8 @@ decision is implemented, a `Decision (Dnn)` comment marks the line.
   screen-by-screen rebuild.
 - **Why:** The scenario comes from a support tool I worked on. Advisors piece together a
   vehicle's history from several screens, and one workspace with an assistant removes that work.
-  Rebuilding one screen at a time lets a pilot group validate each screen before everyone
-  switches (D35).
+  Rebuilding one screen at a time lets each screen reach advisors as soon as it's validated
+  (D35).
 
 ## D2. GCP backend {#gcp-backend}
 
@@ -291,6 +291,10 @@ decision is implemented, a `Decision (Dnn)` comment marks the line.
   reason, or 429). A new case and its first note are written in one transaction (`POST /cases`),
   so a failed save leaves nothing behind, and a retry repeats the whole save rather than creating a
   case with no note.
+- **Later change (D46):** A save can also fail only from the browser's point of view: the API
+  writes the note but the response is lost. A retry then wrote the note twice, or opened a second
+  case. Each AI draft now carries an ID, and the API writes it once. The draft itself is kept in
+  `sessionStorage`, so a reload no longer loses it.
 
 ## D23. Spend alerts {#spend-alerts}
 
@@ -334,6 +338,10 @@ decision is implemented, a `Decision (Dnn)` comment marks the line.
 - **Choice:** Prompt rules plus a `callType` field (`vehicle_issue`, `other` or
   `no_conversation`). Any type other than `vehicle_issue` shows a warning in the review form. The
   field isn't saved, but it gives the evals something exact to check.
+- **Borderline calls (Nov 17):** A wrong number can fairly be read as `other` or
+  `no_conversation`. Both show a warning, so the `no_conversation` wording ("Nothing to summarize
+  from this call") fits silence, noise and wrong numbers alike. The prompt is unchanged, because
+  prompt edits have cost eval regressions before (D40).
 - **Length limits:** The draft schema describes length limits to the model but doesn't reject a
   draft that exceeds them, so an over-long draft doesn't vanish in the browser. Instead, the save action names the field that's
   too long.
@@ -452,13 +460,21 @@ decision is implemented, a `Decision (Dnn)` comment marks the line.
   Vercel and the previous revision on Cloud Run. Migrations are expand-then-contract. When a change spans
   both sides, the API ships first, unless it starts requiring something callers don't send yet
   (D25).
-- **For Meridian:** A pilot group validates each rebuilt screen, and everyone switches once all
-  screens are validated. For 30 days after the switchover, the React app stays up for viewing only, and every write
-  (notes, closing cases) goes through the new console. How to enforce that is undecided: a React
-  build without the write screens, or an API that refuses writes from the old app. After the switchover,
-  releases use Rolling Releases and Skew Protection.
+- **For- **For Meridian:** An incremental migration, following Vercel's guide. Meridian's domain points to
+  Vercel from the start. Next.js fallback rewrites send every path the new app doesn't have yet to
+  the React app, so advisors see one address. Each rebuilt screen goes first to a pilot group,
+  chosen by Routing Middleware (`proxy.ts`) from the advisor's Entra ID group and a flag in Global
+  Config, then widens to every advisor. Rolling back a screen is a flag change, with no redeploy.
+  The React app retires when nothing falls back to it. Every release uses Rolling Releases and
+  Skew Protection.
+- **Options:** A pilot group on the new app, then everyone switching at once when every screen is
+  done; Vercel Microfrontends.
+- **Why:** Each screen's value reaches every advisor as soon as it's ready, rollback is per screen,
+  and there is no single switchover where problems surface late.
+- **Trade-offs:** Links between the two apps load a full page, so both apps' navigation must
+  match. Group flags need Entra ID sign-in at the edge, which the prototype doesn't have yet.
 
-## D36. Warm API {#warm-api}
+ Warm API {#warm-api}
 
 - **Measured:** With staging at zero instances, the first vehicle page took 6.8 s. About 3.8 s
   was Cloud Run starting up; the rest was a cold function, the token exchange and an empty cache.
@@ -570,7 +586,9 @@ decision is implemented, a `Decision (Dnn)` comment marks the line.
   - **Breadcrumb trail:** The path the advisor took within this vehicle, kept in the layout's
     state rather than the URL. Back, or a crumb, returns to an earlier step; a new VIN starts a new
     trail; a page opened directly shows the overview and the current page. At most three steps
-    show, with older ones behind "…".
+    show, with older ones behind "…". The new-case form never stays in the trail: the page after
+    it, usually the case it opened, takes its place, and the redirect replaces the browser's
+    history entry, so Back skips the submitted form too (Nov 17).
   - **New case:** A Server Action writes the case and its first rep note in one call (D22), clears
     the case list's cache and opens the new case.
 - **Options:** A per-case cached read with its own tag, using `GET /vehicles/:vin/cases/:number`;
@@ -687,3 +705,56 @@ decision is implemented, a `Decision (Dnn)` comment marks the line.
 - **Limit:** The list is read when the advisor opens the vehicle (D43). Case writes refresh it. If
   a case is closed after the list was read, the API still accepts a note on it, so nothing is
   lost, but the note would sit on a closed case.
+
+## D46. Repeat-safe save and unsaved drafts {#repeat-safe-save}
+
+- **Finding:** Two gaps in the call summary save (D16, D22).
+  - **Repeated save:** If the API writes the note but the response never reaches the browser
+    (timeout, dropped connection, a 500 after the commit), the advisor sees "didn't go through" and
+    retries. The retry writes a second copy of the note, or on New case a second case with its own
+    CS number. The Save button is already disabled while the save runs, so double-clicks weren't
+    the problem.
+  - **Reload:** The transcript, draft and edits lived only in React state. Moving between pages
+    kept them (D31), but a reload or crashed tab lost them.
+- **Choice, repeated save:** Each draft gets an ID (`crypto.randomUUID()`) in the browser when it
+  finishes streaming. The ID goes through the Server Action to the API, which stores it in
+  `case_notes.draftId` under a unique index.
+  - **Repeat, same target:** The database refuses the second insert (Prisma `P2002`). The API
+    answers 200 with the note already saved, and for New case with the case that draft opened.
+    The browser shows "Saved to CS-…" as if the first response had arrived.
+  - **Repeat, other target:** If the advisor switched case before retrying, the API answers 409.
+    The form says the draft is already saved to another case and refreshes Case history, so it
+    shows there.
+  - **New case:** The duplicate note fails the whole nested create, so no second case is opened.
+    It does use up a case number, so CS numbers can skip one.
+  - **Contract:** `draftId` is optional on the API, so a web deploy that doesn't send it keeps
+    working (D13). Rep notes and seeded notes have none; Postgres allows many NULLs in a unique
+    column. The web app always sends it for AI drafts.
+- **Choice, unsaved draft:** `sessionStorage`, one entry per VIN (`vs:call-summary:{vin}`), holding
+  the transcript, the generated draft, the advisor's edits and picked case, and the draft ID. It's
+  cleared after a successful save. Entries are checked with Zod when read, and blocked storage
+  just means no restore. The form reads storage only after hydration, so the server-rendered HTML
+  never depends on it.
+- **Options:**
+  - **Repeated save:** An `Idempotency-Key` header with a table of stored responses (the Stripe
+    pattern), which covers every write but adds a table, middleware and an expiry policy;
+    matching on content within a time window, which is a guess that can block a real second note.
+  - **Unsaved draft:** `localStorage` with a 24-hour expiry, which survives a crash but keeps
+    transcripts on shared machines; server-side drafts, which need advisor sign-in (out of scope).
+- **Why:**
+  - **ID made in the browser:** An ID made on the server would be new on every retry, so it
+    couldn't recognize one.
+  - **Database index:** The guarantee holds even when two requests race, which a check in
+    application code can't promise.
+  - **Storing the ID with the draft:** A save after a reload is still recognized as a repeat.
+  - **`sessionStorage`:** Transcripts carry names and phone numbers. It covers a reload and is
+    gone when the tab closes, in line with D21 keeping emails out of browser storage.
+- **Accepted:**
+  - The first write wins: edits made between a lost-response save and its retry aren't saved. The
+    success message links to the note as saved.
+  - A crash or a second tab starts with an empty form, and a reload mid-stream keeps the
+    transcript but not the half-written draft.
+  - Only the call summary is covered. The quick rep note and the New case form can repeat the same
+    way, and would take the same `draftId` field if needed.
+- **Production path:** Server-side drafts once advisors sign in, and an idempotency key on every
+  write as Meridian's API grows.

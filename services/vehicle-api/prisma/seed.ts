@@ -11,6 +11,9 @@ const daysAgo = (days: number) => new Date(Date.now() - days * 24 * 60 * 60 * 10
 async function reset() {
   await prisma.caseNote.deleteMany();
   await prisma.case.deleteMany();
+  // Deleting rows keeps the identity counter, so without this a reseed renumbers every case
+  // (CS-24112 instead of CS-24103). ALTER needs the table owner, which the seed runs as.
+  await prisma.$executeRaw`ALTER TABLE "cases" ALTER COLUMN "number" RESTART WITH 24101`;
   await prisma.vehicleRecall.deleteMany();
   await prisma.recall.deleteMany();
   await prisma.telematicsEvent.deleteMany();

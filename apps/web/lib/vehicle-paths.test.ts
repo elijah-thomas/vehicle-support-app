@@ -24,3 +24,10 @@ test("each new page is a step, and going back drops the steps after it", () => {
   expect(nextTrail(forward, caseA, overview)).toEqual([overview, caseA]);
   expect(nextTrail(forward, overview, overview)).toEqual([overview]);
 });
+
+test("the new-case form is replaced by the page after it", () => {
+  const form = nextTrail([overview], `${overview}/cases/new`, overview);
+  expect(form).toEqual([overview, `${overview}/cases/new`]);
+  expect(nextTrail(form, caseA, overview)).toEqual([overview, caseA]);
+  expect(nextTrail(form, overview, overview)).toEqual([overview]);
+});
