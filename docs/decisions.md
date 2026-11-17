@@ -40,8 +40,8 @@ decision is implemented, a `Decision (Dnn)` comment marks the line.
   screen-by-screen rebuild.
 - **Why:** The scenario comes from a support tool I worked on. Advisors piece together a
   vehicle's history from several screens, and one workspace with an assistant removes that work.
-  Rebuilding one screen at a time lets a pilot group validate each screen before everyone
-  switches (D35).
+  Rebuilding one screen at a time lets each screen reach advisors as soon as it's validated
+  (D35).
 
 ## D2. GCP backend {#gcp-backend}
 
@@ -456,13 +456,21 @@ decision is implemented, a `Decision (Dnn)` comment marks the line.
   Vercel and the previous revision on Cloud Run. Migrations are expand-then-contract. When a change spans
   both sides, the API ships first, unless it starts requiring something callers don't send yet
   (D25).
-- **For Meridian:** A pilot group validates each rebuilt screen, and everyone switches once all
-  screens are validated. For 30 days after the switchover, the React app stays up for viewing only, and every write
-  (notes, closing cases) goes through the new console. How to enforce that is undecided: a React
-  build without the write screens, or an API that refuses writes from the old app. After the switchover,
-  releases use Rolling Releases and Skew Protection.
+- **For- **For Meridian:** An incremental migration, following Vercel's guide. Meridian's domain points to
+  Vercel from the start. Next.js fallback rewrites send every path the new app doesn't have yet to
+  the React app, so advisors see one address. Each rebuilt screen goes first to a pilot group,
+  chosen by Routing Middleware (`proxy.ts`) from the advisor's Entra ID group and a flag in Global
+  Config, then widens to every advisor. Rolling back a screen is a flag change, with no redeploy.
+  The React app retires when nothing falls back to it. Every release uses Rolling Releases and
+  Skew Protection.
+- **Options:** A pilot group on the new app, then everyone switching at once when every screen is
+  done; Vercel Microfrontends.
+- **Why:** Each screen's value reaches every advisor as soon as it's ready, rollback is per screen,
+  and there is no single switchover where problems surface late.
+- **Trade-offs:** Links between the two apps load a full page, so both apps' navigation must
+  match. Group flags need Entra ID sign-in at the edge, which the prototype doesn't have yet.
 
-## D36. Warm API {#warm-api}
+ Warm API {#warm-api}
 
 - **Measured:** With staging at zero instances, the first vehicle page took 6.8 s. About 3.8 s
   was Cloud Run starting up; the rest was a cold function, the token exchange and an empty cache.
