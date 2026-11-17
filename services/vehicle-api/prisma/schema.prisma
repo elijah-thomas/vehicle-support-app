@@ -136,6 +136,8 @@ model VehicleRecall {
 
 model Case {
   id          String     @id @default(cuid())
+  /// What reps read and say: shown as CS-{number}. An identity column, starting at 24101.
+  number      Int        @unique @default(autoincrement())
   vin         String
   customerId  String
   status      CaseStatus
@@ -158,10 +160,13 @@ model CaseNote {
   id        String     @id @default(cuid())
   caseId    String
   source    NoteSource
-  issue     String
+  /// Optional on a rep's quick note; AI-drafted notes always have one.
+  issue     String?
   summary   String
   nextSteps String[]
   createdAt DateTime   @default(now())
+  /// Set when a rep removes the note; case reads leave it out. Cleared by restore (Undo).
+  removedAt DateTime?
   case      Case       @relation(fields: [caseId], references: [id])
 
   @@index([caseId, createdAt])

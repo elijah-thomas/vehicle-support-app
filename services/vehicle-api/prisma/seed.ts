@@ -258,11 +258,19 @@ async function seedCases() {
       subject: "Reduced power warning on highway", openedAt: daysAgo(11),
       description: "Vehicle limited propulsion power on the highway. Customer asking for a buyback.",
       notes: {
-        create: {
-          source: "REP", issue: "Reduced propulsion power on the highway (P0C73, third occurrence)",
-          summary: "Dana is asking for a buyback after two earlier repairs. Request sent to the buyback review team.",
-          nextSteps: ["Call Dana with the review team's decision"], createdAt: daysAgo(11),
-        },
+        create: [
+          {
+            source: "REP", issue: "Reduced propulsion power on the highway (P0C73, third occurrence)",
+            summary: "Dana is asking for a buyback after two earlier repairs. Request sent to the buyback review team.",
+            nextSteps: ["Call Dana with the review team's decision"], createdAt: daysAgo(11),
+          },
+          // Saved on the wrong case and removed. No read returns it, and the evals check that no
+          // answer mentions winter tires. See docs/decisions.md#case-numbers
+          {
+            source: "REP", summary: "Asked about winter tire packages and a price quote.",
+            createdAt: daysAgo(10), removedAt: daysAgo(10),
+          },
+        ],
       },
     },
   });

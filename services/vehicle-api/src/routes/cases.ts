@@ -5,29 +5,37 @@ import { ConflictError, NotFoundError } from "../errors.js";
 
 export const casesRouter = Router();
 
-const createNoteBody = z.object({
-  vin: z.string().toUpperCase().length(17),
-  source: z.enum(["REP", "AI_DRAFT_EDITED"]),
-  issue: z.string().trim().min(1).max(300),
-  summary: z.string().trim().min(1).max(4000),
-  nextSteps: z.array(z.string().trim().min(1).max(500)).min(1).max(10),
-});
+const vin = z.string().toUpperCase().length(17);
+const issue = z.string().trim().min(1).max(300);
+const summary = z.string().trim().min(1).max(4000);
+const nextStep = z.string().trim().min(1).max(500);
+
+// A rep's quick note needs only a summary. An AI-drafted note always carries all three fields,
+// as the call summary produces them (D16).
+const note = z.discriminatedUnion("source", [
+  z.object({ source: z.literal("REP"), issue: issue.optional(), summary, nextSteps: z.array(nextStep).max(10).default([]) }),
+  z.object({ source: z.literal("AI_DRAFT_EDITED"), issue, summary, nextSteps: z.array(nextStep).min(1).max(10) }),
+]);
+
+const createNoteBody = z.intersection(z.object({ vin }), note);
 
 // A new case can carry its first note, so the two are written together or not at all.
 const createCaseBody = z.object({
-  vin: z.string().toUpperCase().length(17),
+  vin,
   category: z.string().trim().min(1).max(100),
   subject: z.string().trim().min(1).max(200),
   description: z.string().trim().min(1).max(4000),
-  note: createNoteBody.omit({ vin: true }).optional(),
+  note: note.optional(),
 });
 
 const caseParams = z.object({ id: z.string().min(1) });
+const noteParams = caseParams.extend({ noteId: z.string().min(1) });
 
-const closeCaseBody = z.object({
-  vin: z.string().toUpperCase().length(17),
-  resolution: z.string().trim().min(1).max(1000),
-});
+const closeCaseBody = z.object({ vin, resolution: z.string().trim().min(1).max(1000) });
+const reopenCaseBody = z.object({ vin, reason: z.string().trim().min(1).max(1000) });
+const vinBody = z.object({ vin });
+
+const liveNotes = { where: { removedAt: null }, orderBy: { createdAt: "desc" } } as const;
 
 casesRouter.post("/", async (req, res) => {
   const { note, ...body } = createCaseBody.parse(req.body);
@@ -81,4 +89,72 @@ casesRouter.post("/:id/close", async (req, res) => {
   if (!count) throw new ConflictError(`Case ${id} is already closed`);
 
   res.json(await prisma.case.findUniqueOrThrow({ where: { id } }));
+});
+
+// Reopening clears the resolution, so the reason and the old resolution are kept as a rep note:
+// the case's history still reads in order. Both writes happen together or not at all.
+casesRouter.post("/:id/reopen", async (req, res) => {
+  const { id } = caseParams.parse(req.params);
+  const { vin, reason } = reopenCaseBody.parse(req.body);
+
+  // Same ownership rule as notes and close. See docs/decisions.md#note-ownership
+  const existing = await prisma.case.findFirst({ where: { id, vin } });
+  if (!existing) throw new NotFoundError(`No case with id ${id} for VIN ${vin}`);
+
+  const reopened = await prisma.$transaction(async (tx) => {
+    // The status check is in the update itself, so two reopens racing can't both succeed.
+    const { count } = await tx.case.updateMany({
+      where: { id, status: "CLOSED" },
+      data: { status: "OPEN", closedAt: null, resolution: null },
+    });
+    if (!count) throw new ConflictError(`Case ${id} is already open`);
+
+    await tx.caseNote.create({
+      data: {
+        caseId: id,
+        source: "REP",
+        issue: "Case reopened",
+        summary: existing.resolution ? `${reason}\n\nPrevious resolution: ${existing.resolution}` : reason,
+        nextSteps: [],
+      },
+    });
+    return tx.case.findUniqueOrThrow({ where: { id }, include: { notes: liveNotes } });
+  });
+
+  res.json(reopened);
+});
+
+// Removing marks the note instead of deleting it, so restore (Undo) brings it back unchanged.
+// Each write names the vehicle, and a note on another vehicle's case is a 404 (D25).
+async function findOwnedNote(id: string, noteId: string, vin: string) {
+  const found = await prisma.caseNote.findFirst({ where: { id: noteId, caseId: id, case: { vin } } });
+  if (!found) throw new NotFoundError(`No note ${noteId} on case ${id} for VIN ${vin}`);
+}
+
+casesRouter.post("/:id/notes/:noteId/remove", async (req, res) => {
+  const { id, noteId } = noteParams.parse(req.params);
+  const { vin } = vinBody.parse(req.body);
+  await findOwnedNote(id, noteId, vin);
+
+  const { count } = await prisma.caseNote.updateMany({
+    where: { id: noteId, removedAt: null },
+    data: { removedAt: new Date() },
+  });
+  if (!count) throw new ConflictError(`Note ${noteId} is already removed`);
+
+  res.json(await prisma.caseNote.findUniqueOrThrow({ where: { id: noteId } }));
+});
+
+casesRouter.post("/:id/notes/:noteId/restore", async (req, res) => {
+  const { id, noteId } = noteParams.parse(req.params);
+  const { vin } = vinBody.parse(req.body);
+  await findOwnedNote(id, noteId, vin);
+
+  const { count } = await prisma.caseNote.updateMany({
+    where: { id: noteId, removedAt: { not: null } },
+    data: { removedAt: null },
+  });
+  if (!count) throw new ConflictError(`Note ${noteId} isn't removed`);
+
+  res.json(await prisma.caseNote.findUniqueOrThrow({ where: { id: noteId } }));
 });
