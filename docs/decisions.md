@@ -16,7 +16,8 @@ lands in code, a `Decision (Dnn)` comment marks the line.
   [D21](#lookup-and-layout) Lookup
 - **AI:** [D5](#models) Models and failover · [D15](#agent) Agent · [D30](#agent-context) Record
   up front · [D16](#call-summary-generation) Call summary · [D26](#junk-transcripts) Non-support
-  transcripts · [D33](#cost-per-run) Cost per run · [D19](#evals) Evals
+  transcripts · [D33](#cost-per-run) Cost per run · [D19](#evals) Evals ·
+  [D39](#assistant-suggestions) Suggested questions
 - **Data integrity:** [D6](#data-model) Data model · [D25](#note-ownership) Note ownership ·
   [D22](#save-feedback) Save failures · [D38](#seed-activity) Seeded case activity
 - **Release path:** [D9](#terraform) Terraform · [D12](#environments) Environments ·
@@ -440,3 +441,20 @@ lands in code, a `Decision (Dnn)` comment marks the line.
 - **Why:** Case history and the case view need real threads to show. The assistant reads these
   notes, so they follow the rules the evals apply to its answers: first names, no pronouns, no
   promises, no instructions to the assistant and no case IDs.
+
+## D39. Suggested questions {#assistant-suggestions}
+
+- **Choice:** The Ask tab suggests up to five questions written for the open vehicle, from fixed
+  rules: the fault the status row shows (recurring or first time), open cases, the first open
+  recall, what to tell the customer, a status summary, and what changed since the last contact
+  when there's no fault. The vehicle layout starts loading them without waiting and passes the
+  promise to the chat, which reads it with React's `use()` inside its own `<Suspense>`. The
+  question box renders at once; only the suggestion rows wait.
+- **Options:** Fetching suggestions from the browser after the page loads, which costs an extra
+  telematics call and a loading flash; rendering them on the server as a slot, which leaves the
+  follow-up chips needing a second copy of the list.
+- **Why:** Rules cost nothing and are ready with the record. The layout uses the page's own
+  fetchers, cached or shared per request, so suggestions add no calls to Google Cloud. If any
+  read fails, the chat falls back to three general questions.
+- **Limit:** Layouts don't re-render on client navigation, so suggestions reflect the record as
+  the advisor entered the vehicle, until a save refreshes the page.
