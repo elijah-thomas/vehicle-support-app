@@ -12,16 +12,17 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { contactStatus, OVERDUE_AFTER_BUSINESS_DAYS } from "@/lib/cases";
 import { getCaseSnapshot } from "@/lib/case-snapshot";
 import type { Case } from "@/lib/customer/vehicles";
-import { formatDate } from "@/lib/format";
+import { formatCaseNumber, formatDate } from "@/lib/format";
 import { loadPanel } from "@/lib/load-panel";
 
-// One case, read from the vehicle's cached case list (no per-case endpoint or cache tag).
-// See docs/decisions.md#case-view
-export async function CaseDetail({ vin, caseId }: { vin: string; caseId: string }) {
+// Decision (D41): one case, read from the vehicle's cached case list, which every write clears. The
+// fault history needs the whole list anyway, so a per-case read would add a call and a cache entry
+// for nothing yet. See docs/decisions.md#vehicle-routes
+export async function CaseDetail({ vin, number }: { vin: string; number: number }) {
   const loaded = await loadPanel("case", () => getCaseSnapshot(vin));
   if (!loaded.ok) return <PanelUnavailable title="This case" />;
   const cases = loaded.data?.cases ?? [];
-  const supportCase = cases.find((c) => c.id === caseId);
+  const supportCase = cases.find((c) => c.number === number);
   if (!supportCase || !loaded.data) notFound();
 
   const contact = contactStatus(supportCase, loaded.data.now);
@@ -33,10 +34,13 @@ export async function CaseDetail({ vin, caseId }: { vin: string; caseId: string 
         <div className="flex flex-wrap items-start gap-3">
           <div className="min-w-0 flex-1 space-y-1">
             <div className="flex flex-wrap items-center gap-2">
+              <span className="font-mono text-[13px] whitespace-nowrap text-muted-foreground">
+                {formatCaseNumber(supportCase.number)}
+              </span>
               <Badge variant={isOpen ? "info" : "secondary"}>{isOpen ? "Open" : "Closed"}</Badge>
               {contact.overdue && <Badge variant="warning">Overdue</Badge>}
             </div>
-            <h1 className="text-xl font-semibold tracking-tight">{supportCase.subject}</h1>
+            <h2 className="text-xl font-semibold tracking-tight">{supportCase.subject}</h2>
           </div>
           {isOpen && <CloseCaseForm vin={vin} caseId={supportCase.id} />}
         </div>
@@ -67,7 +71,7 @@ export async function CaseDetail({ vin, caseId }: { vin: string; caseId: string 
           {isOpen && <CaseNoteForm vin={vin} caseId={supportCase.id} />}
           <Activity supportCase={supportCase} />
         </div>
-        <div className="border-t p-4 lg:border-t-0">
+        <div id="fault-history" className="scroll-mt-18 border-t p-4 transition-colors lg:border-t-0">
           <Suspense fallback={<Skeleton className="h-24 w-full" />}>
             <RelatedFaults vin={vin} supportCase={supportCase} cases={cases} />
           </Suspense>

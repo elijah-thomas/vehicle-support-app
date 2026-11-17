@@ -17,6 +17,7 @@ export async function CallSummaryPanel({ vin }: { vin: string }) {
       cannedTranscript={cannedTranscripts[vin]}
       cases={cases.map((c) => ({
         id: c.id,
+        number: c.number,
         open: c.status === "OPEN",
         subject: c.subject,
         label: `${c.status === "OPEN" ? "Open" : "Closed"} · ${c.subject} · ${formatDate(c.openedAt)}`,

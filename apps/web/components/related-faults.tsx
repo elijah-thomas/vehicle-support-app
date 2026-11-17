@@ -70,7 +70,7 @@ export async function RelatedFaults({ vin, supportCase, cases }: { vin: string; 
             {earlier.map((other) => (
               <li key={other.id}>
                 <Link
-                  href={caseHref(vin, other.id)}
+                  href={caseHref(vin, other.number)}
                   className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                 >
                   <div className="min-w-0 flex-1">
