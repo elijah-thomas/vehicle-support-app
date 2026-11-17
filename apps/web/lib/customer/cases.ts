@@ -42,3 +42,25 @@ export function closeCase(caseId: string, input: { vin: string; resolution: stri
     body: JSON.stringify(input),
   });
 }
+
+export function reopenCase(caseId: string, input: { vin: string; reason: string }) {
+  return vehicleApi(`/cases/${encodeURIComponent(caseId)}/reopen`, createdSchema, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+// Removing marks the note; restore (Undo) clears the mark. Both name the vehicle, as notes do.
+export function removeNote(caseId: string, noteId: string, vin: string) {
+  return vehicleApi(`/cases/${encodeURIComponent(caseId)}/notes/${encodeURIComponent(noteId)}/remove`, createdSchema, {
+    method: "POST",
+    body: JSON.stringify({ vin }),
+  });
+}
+
+export function restoreNote(caseId: string, noteId: string, vin: string) {
+  return vehicleApi(`/cases/${encodeURIComponent(caseId)}/notes/${encodeURIComponent(noteId)}/restore`, createdSchema, {
+    method: "POST",
+    body: JSON.stringify({ vin }),
+  });
+}

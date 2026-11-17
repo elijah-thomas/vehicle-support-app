@@ -4,7 +4,14 @@ import { updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { cacheTags } from "@/lib/customer/cache-tags";
-import { addCaseNote, closeCase, createCaseWithNote } from "@/lib/customer/cases";
+import {
+  addCaseNote,
+  closeCase,
+  createCaseWithNote,
+  removeNote,
+  reopenCase,
+  restoreNote,
+} from "@/lib/customer/cases";
 import { VehicleApiError } from "@/lib/customer/vehicle-api";
 import { caseHref } from "@/lib/cases";
 import { VIN_PATTERN } from "@/lib/format";
@@ -18,17 +25,11 @@ const target = {
   caseId: z.string().min(1),
 };
 
-const noteSchema = z.object({
-  ...target,
-  issue: text("Issue", 300),
-  summary: text("Summary", 4000),
-  nextSteps: z
-    .array(text("Each next step", 500))
-    .min(1, "Add at least one next step")
-    .max(10, "Keep it to 10 next steps or fewer"),
-});
-
+// A quick note is only its summary (D40). Transcripts go through Call summary instead.
+const noteSchema = z.object({ ...target, summary: text("Note", 4000) });
 const closeSchema = z.object({ ...target, resolution: text("Resolution", 1000) });
+const reopenSchema = z.object({ ...target, reason: text("Reason", 1000) });
+const noteTarget = z.object({ ...target, noteId: z.string().min(1) });
 
 const openCaseSchema = z.object({
   vin: target.vin,
@@ -48,36 +49,57 @@ function caseSystemError(error: unknown, conflict: string) {
   return "The case system didn't respond. Try again in a moment.";
 }
 
-// Both actions clear the vehicle's cached case list, so the case view and the vehicle page show
-// the change on the next render. See docs/decisions.md#case-view
-export async function addRepNoteAction(input: z.input<typeof noteSchema>): Promise<CaseActionResult> {
-  const parsed = noteSchema.safeParse(input);
-  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid note" };
-  const { vin, caseId, ...note } = parsed.data;
-
+// Every write clears the vehicle's cached case list, so the case view, the overview and the
+// assistant read the change on the next render. See docs/decisions.md#vehicle-routes
+async function write(vin: string, call: () => Promise<unknown>, conflict: string): Promise<CaseActionResult> {
   try {
-    await addCaseNote(caseId, { vin, source: "REP", ...note });
+    await call();
   } catch (error) {
-    return { ok: false, error: caseSystemError(error, "The case system refused the note.") };
+    // Changed elsewhere since the page loaded (a 409): refresh so the page shows the current state.
+    if (error instanceof VehicleApiError && error.status === 409) updateTag(cacheTags.cases(vin));
+    return { ok: false, error: caseSystemError(error, conflict) };
   }
   updateTag(cacheTags.cases(vin));
   return { ok: true };
 }
 
+function invalid(error: z.ZodError, fallback: string): CaseActionResult {
+  return { ok: false, error: error.issues[0]?.message ?? fallback };
+}
+
+export async function addRepNoteAction(input: z.input<typeof noteSchema>): Promise<CaseActionResult> {
+  const parsed = noteSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error, "Invalid note");
+  const { vin, caseId, summary } = parsed.data;
+  return write(vin, () => addCaseNote(caseId, { vin, source: "REP", summary }), "The case system refused the note.");
+}
+
 export async function closeCaseAction(input: z.input<typeof closeSchema>): Promise<CaseActionResult> {
   const parsed = closeSchema.safeParse(input);
-  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid resolution" };
+  if (!parsed.success) return invalid(parsed.error, "Invalid resolution");
   const { vin, caseId, resolution } = parsed.data;
+  return write(vin, () => closeCase(caseId, { vin, resolution }), "This case was already closed. The page now shows its resolution.");
+}
 
-  try {
-    await closeCase(caseId, { vin, resolution });
-  } catch (error) {
-    // Closed elsewhere since the page loaded: refresh so the page shows it.
-    if (error instanceof VehicleApiError && error.status === 409) updateTag(cacheTags.cases(vin));
-    return { ok: false, error: caseSystemError(error, "This case was already closed. The page now shows its resolution.") };
-  }
-  updateTag(cacheTags.cases(vin));
-  return { ok: true };
+export async function reopenCaseAction(input: z.input<typeof reopenSchema>): Promise<CaseActionResult> {
+  const parsed = reopenSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error, "Invalid reason");
+  const { vin, caseId, reason } = parsed.data;
+  return write(vin, () => reopenCase(caseId, { vin, reason }), "This case was already reopened. The page now shows it open.");
+}
+
+export async function removeNoteAction(input: z.input<typeof noteTarget>): Promise<CaseActionResult> {
+  const parsed = noteTarget.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error, "Invalid note");
+  const { vin, caseId, noteId } = parsed.data;
+  return write(vin, () => removeNote(caseId, noteId, vin), "This note was already removed.");
+}
+
+export async function restoreNoteAction(input: z.input<typeof noteTarget>): Promise<CaseActionResult> {
+  const parsed = noteTarget.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error, "Invalid note");
+  const { vin, caseId, noteId } = parsed.data;
+  return write(vin, () => restoreNote(caseId, noteId, vin), "This note is already back.");
 }
 
 // A case always starts with its first note: what the customer reported is the case's description

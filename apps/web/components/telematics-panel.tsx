@@ -1,21 +1,13 @@
-import { Info, OctagonAlert, TriangleAlert } from "lucide-react";
 import Link from "next/link";
 import { ExpandableList } from "@/components/expandable-list";
 import { PanelUnavailable } from "@/components/panel-unavailable";
-import { Badge } from "@/components/ui/badge";
+import { SeverityBadge } from "@/components/severity-badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCaseSnapshot } from "@/lib/case-snapshot";
 import { caseHref, daysBetween, matchFaultsToCases } from "@/lib/cases";
-import type { TelematicsEvent } from "@/lib/customer/vehicles";
 import { formatCaseNumber, formatDateTime, formatRelative, ordinal, telematicsReading } from "@/lib/format";
 import { loadPanel } from "@/lib/load-panel";
 import { getTelematicsSnapshot, newestPerCode, occurrences } from "@/lib/telematics";
-
-const severityDisplay = {
-  CRITICAL: { variant: "destructive", Icon: OctagonAlert, label: "Critical" },
-  WARN: { variant: "warning", Icon: TriangleAlert, label: "Warning" },
-  INFO: { variant: "info", Icon: Info, label: "Info" },
-} as const satisfies Record<TelematicsEvent["severity"], object>;
 
 const NEWEST_SHOWN = 10;
 
@@ -52,7 +44,6 @@ export async function TelematicsPanel({ vin }: { vin: string }) {
             initial={NEWEST_SHOWN}
             noun={["older event", "older events"]}
             items={events.map((event) => {
-              const { variant, Icon, label } = severityDisplay[event.severity];
               const count = occurrence.get(event.id) ?? 1;
               const reading = telematicsReading(event.message, event.value);
               const ledTo = caseForEvent.get(event.id);
@@ -66,10 +57,7 @@ export async function TelematicsPanel({ vin }: { vin: string }) {
                     id={anchor}
                     className="grid scroll-mt-18 grid-cols-[92px_minmax(0,1fr)_auto] items-start gap-x-3 rounded-md px-1 py-1.5 text-sm transition-colors"
                   >
-                    <Badge variant={variant} className="justify-self-start">
-                      <Icon data-icon="inline-start" aria-hidden />
-                      {label}
-                    </Badge>
+                    <SeverityBadge severity={event.severity} className="justify-self-start" />
                     <div className="min-w-0">
                       <p>
                         {event.code && <span className="mr-1.5 font-mono font-medium">{event.code}</span>}

@@ -1,12 +1,9 @@
 import { describe, expect, test } from "vitest";
 import type { Case, TelematicsEvent } from "@/lib/customer/vehicle-records";
 import {
-  businessDaysSince,
-  casesNeedingFaultWindows,
-  contactStatus,
   daysBetween,
-  earlierCasesWithSameFault,
   faultWindow,
+  isReopenNote,
   lastContact,
   matchFaultsToCases,
   relatedFaults,
@@ -23,35 +20,15 @@ const fault = (id: string, date: string, code: string | null = "P0C73"): Telemat
   id, recordedAt: utc(date), type: code ? "DTC" : "ODOMETER", code, severity: "WARN", message: "", value: null,
 });
 
-describe("businessDaysSince", () => {
-  // Thursday Nov 5, 2026: the 6th business day after it is Friday Nov 13.
-  test.each([
-    ["2026-11-06", 1],
-    ["2026-11-08", 1], // the weekend adds nothing
-    ["2026-11-12", 5],
-    ["2026-11-13", 6],
-    ["2026-11-05", 0], // the same day
-  ])("from Thu Nov 5 to %s is %i", (today, expected) => {
-    expect(businessDaysSince(utc("2026-11-05"), Date.parse(utc(today)))).toBe(expected);
-  });
+test("last contact is the newest note, or the opening when there are none", () => {
+  expect(lastContact(supportCase("quiet", "2026-11-01"))).toBe(utc("2026-11-01"));
+  expect(lastContact(supportCase("called", "2026-11-01", { notes: [note("2026-11-12"), note("2026-11-05")] }))).toBe(utc("2026-11-12"));
 });
 
-describe("contactStatus", () => {
-  test("an open case goes overdue after more than 5 business days without contact", () => {
-    const open = supportCase("open", "2026-11-05", { status: "OPEN" });
-    expect(contactStatus(open, Date.parse(utc("2026-11-12"))).overdue).toBe(false);
-    expect(contactStatus(open, Date.parse(utc("2026-11-13"))).overdue).toBe(true);
-  });
-
-  test("a note resets the clock", () => {
-    const open = supportCase("open", "2026-11-01", { status: "OPEN", notes: [note("2026-11-12")] });
-    expect(lastContact(open)).toBe(utc("2026-11-12"));
-    expect(contactStatus(open, Date.parse(utc("2026-11-13"))).overdue).toBe(false);
-  });
-
-  test("a closed case is never overdue", () => {
-    expect(contactStatus(supportCase("closed", "2026-01-05"), Date.parse(utc("2026-11-13"))).overdue).toBe(false);
-  });
+test("a reopen is recognized by the note the API writes for it", () => {
+  expect(isReopenNote({ ...note("2026-11-12"), issue: "Case reopened" })).toBe(true);
+  expect(isReopenNote({ ...note("2026-11-12"), issue: "Case reopened", source: "AI_DRAFT_EDITED" })).toBe(false);
+  expect(isReopenNote(note("2026-11-12"))).toBe(false);
 });
 
 test("lists open cases first, then newest", () => {
@@ -69,19 +46,8 @@ describe("related faults", () => {
     expect(relatedFaults(earlier, events).map((e) => e.id)).toEqual(["second"]);
   });
 
-  test("finds earlier cases matched to the same code, not later ones", () => {
-    const unrelated = supportCase("unrelated", "2026-03-01");
-    expect(earlierCasesWithSameFault(current, [current, earlier, unrelated], events).map((c) => c.id)).toEqual(["earlier"]);
-    expect(earlierCasesWithSameFault(earlier, [current, earlier], events)).toEqual([]);
-  });
-
   test("the fetched window is the 7 days up to the moment the case opened", () => {
     expect(faultWindow(current)).toEqual({ from: "2026-10-29T15:00:00.000Z", to: "2026-11-05T15:00:00.000Z" });
-  });
-
-  test("reads windows for the case and earlier cases only", () => {
-    const later = supportCase("later", "2026-12-01");
-    expect(casesNeedingFaultWindows(current, [later, current, earlier]).map((c) => c.id)).toEqual(["current", "earlier"]);
   });
 });
 
