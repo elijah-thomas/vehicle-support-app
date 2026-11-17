@@ -14,6 +14,7 @@ const text = (field: string, max: number) =>
 
 const saveSchema = z.object({
   vin: z.string().toUpperCase().regex(VIN_PATTERN, "This page's VIN isn't valid"),
+  draftId: z.uuid("This draft is missing its ID. Summarize the call again."),
   caseId: z.string().min(1, "Pick a case"), // an existing case ID, or "new"
   newCase: z.object({ subject: text("Case subject", 200), category: text("Category", 100) }).optional(),
   issue: text("Issue", 300),
@@ -31,6 +32,7 @@ export type SaveNoteResult =
 
 function saveError(error: unknown) {
   if (!(error instanceof VehicleApiError)) return "Couldn't reach the case system. Try again in a moment.";
+  if (error.status === 409) return "This draft is already saved to another case. Find it in Case history.";
   if (error.status === 404) return "That case isn't on this vehicle in the case system. Pick another case or New case.";
   if (error.status === 400) return `The case system didn't accept the note: ${error.message}`;
   if (error.status === 429) return "The case system is busy. Wait a minute, then save again.";
@@ -40,9 +42,11 @@ function saveError(error: unknown) {
 export async function saveNoteAction(input: z.input<typeof saveSchema>): Promise<SaveNoteResult> {
   const parsed = saveSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid note" };
-  const { vin, caseId, newCase, issue, summary, nextSteps } = parsed.data;
+  const { vin, draftId, caseId, newCase, issue, summary, nextSteps } = parsed.data;
 
-  const note = { source: "AI_DRAFT_EDITED" as const, issue, summary, nextSteps };
+  // A retry sends the same draftId, so the case system answers with the first save instead of
+  // writing it again (D46). See docs/decisions.md#repeat-safe-save
+  const note = { source: "AI_DRAFT_EDITED" as const, draftId, issue, summary, nextSteps };
   if (caseId === "new" && !newCase) return { ok: false, error: "A new case needs a subject and category" };
 
   try {
@@ -55,6 +59,8 @@ export async function saveNoteAction(input: z.input<typeof saveSchema>): Promise
     updateTag(cacheTags.cases(vin));
     return { ok: true, ...saved };
   } catch (error) {
+    // Already saved elsewhere: refresh Case history so the rep can find it there.
+    if (error instanceof VehicleApiError && error.status === 409) updateTag(cacheTags.cases(vin));
     return { ok: false, error: saveError(error) };
   }
 }

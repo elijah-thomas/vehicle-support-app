@@ -179,6 +179,65 @@ describe("rep notes", () => {
   });
 });
 
+describe("a draft is saved once (D46)", () => {
+  const notesOn = async (vin: string, caseId: string) =>
+    ((await call(`/vehicles/${vin}/cases`)).body as { id: string; notes: unknown[] }[]).find((c) => c.id === caseId)!.notes.length;
+  const caseCount = async (vin: string) => (await call(`/vehicles/${vin}/cases`)).body.length as number;
+
+  test("a repeated note save answers with the first note and writes nothing", async () => {
+    const caseId = await firstCaseId(VIN.marcus);
+    const json = { ...note, vin: VIN.marcus, draftId: crypto.randomUUID() };
+    const first = await call(`/cases/${caseId}/notes`, { method: "POST", json });
+    const before = await notesOn(VIN.marcus, caseId);
+
+    const repeat = await call(`/cases/${caseId}/notes`, { method: "POST", json: { ...json, summary: "Edited later." } });
+    expect(repeat.status).toBe(200);
+    expect(repeat.body).toMatchObject({ id: first.body.id, summary: "Customer called." });
+    expect(await notesOn(VIN.marcus, caseId)).toBe(before);
+  });
+
+  test("two saves racing write one note", async () => {
+    const caseId = await firstCaseId(VIN.marcus);
+    const json = { ...note, vin: VIN.marcus, draftId: crypto.randomUUID() };
+    const responses = await Promise.all([1, 2, 3].map(() => call(`/cases/${caseId}/notes`, { method: "POST", json })));
+    expect(responses.map((r) => r.status).sort()).toEqual([200, 200, 201]);
+    expect(new Set(responses.map((r) => r.body.id)).size).toBe(1);
+  });
+
+  test("a repeated new-case save answers with the case it opened, without opening another", async () => {
+    const json = { vin: VIN.jordanTruck, category: "Electrical", subject: "Horn", description: "Quiet.", note: { ...note, draftId: crypto.randomUUID() } };
+    const first = await call("/cases", { method: "POST", json });
+    const before = await caseCount(VIN.jordanTruck);
+
+    const repeat = await call("/cases", { method: "POST", json });
+    expect(repeat.status).toBe(200);
+    expect(repeat.body).toMatchObject({ id: first.body.id, number: first.body.number, notes: [{ id: first.body.notes[0].id }] });
+    expect(await caseCount(VIN.jordanTruck)).toBe(before);
+  });
+
+  test("refuses the draft on a different target than the one it was saved to", async () => {
+    const [caseId, otherCaseId] = ((await call(`/vehicles/${VIN.jordanTruck}/cases`)).body as { id: string }[]).map((c) => c.id);
+    const draftId = crypto.randomUUID();
+    await call(`/cases/${caseId}/notes`, { method: "POST", json: { ...note, vin: VIN.jordanTruck, draftId } });
+    const before = await caseCount(VIN.jordanTruck);
+
+    const toOtherCase = await call(`/cases/${otherCaseId}/notes`, { method: "POST", json: { ...note, vin: VIN.jordanTruck, draftId } });
+    const toNewCase = await call("/cases", {
+      method: "POST",
+      json: { vin: VIN.jordanTruck, category: "x", subject: "x", description: "x", note: { ...note, draftId } },
+    });
+    expect([toOtherCase.status, toNewCase.status]).toEqual([409, 409]);
+    expect(await caseCount(VIN.jordanTruck)).toBe(before);
+  });
+
+  test("notes without a draft ID are written every time, as before", async () => {
+    const caseId = await firstCaseId(VIN.marcus);
+    const json = { ...note, vin: VIN.marcus };
+    const statuses = [(await call(`/cases/${caseId}/notes`, { method: "POST", json })).status, (await call(`/cases/${caseId}/notes`, { method: "POST", json })).status];
+    expect(statuses).toEqual([201, 201]);
+  });
+});
+
 describe("POST /cases/:id/reopen", () => {
   async function closedTruckCase() {
     const { caseId, number } = await openTruckCaseWithNote();

@@ -7,7 +7,8 @@ const createdSchema = z.object({ id: z.string() });
 // A rep's note may have only a summary; an AI-drafted note always has all three fields.
 type NoteInput =
   | { source: "REP"; issue?: string; summary: string; nextSteps?: string[] }
-  | { source: "AI_DRAFT_EDITED"; issue: string; summary: string; nextSteps: string[] };
+  // draftId lets the case system refuse a repeat of the same save (D46).
+  | { source: "AI_DRAFT_EDITED"; draftId: string; issue: string; summary: string; nextSteps: string[] };
 
 const createdWithNoteSchema = z.object({
   id: z.string(),

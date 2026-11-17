@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../db.js";
 import { ConflictError, NotFoundError } from "../errors.js";
+import { Prisma } from "../generated/prisma/client.js";
 
 export const casesRouter = Router();
 
@@ -14,7 +15,14 @@ const nextStep = z.string().trim().min(1).max(500);
 // as the call summary produces them (D16).
 const note = z.discriminatedUnion("source", [
   z.object({ source: z.literal("REP"), issue: issue.optional(), summary, nextSteps: z.array(nextStep).max(10).default([]) }),
-  z.object({ source: z.literal("AI_DRAFT_EDITED"), issue, summary, nextSteps: z.array(nextStep).min(1).max(10) }),
+  z.object({
+    source: z.literal("AI_DRAFT_EDITED"),
+    // Optional so a web deploy that doesn't send it yet keeps working (D13). See D46.
+    draftId: z.uuid().optional(),
+    issue,
+    summary,
+    nextSteps: z.array(nextStep).min(1).max(10),
+  }),
 ]);
 
 const createNoteBody = z.intersection(z.object({ vin }), note);
@@ -35,6 +43,18 @@ const closeCaseBody = z.object({ vin, resolution: z.string().trim().min(1).max(1
 const reopenCaseBody = z.object({ vin, reason: z.string().trim().min(1).max(1000) });
 const vinBody = z.object({ vin });
 
+// Decision (D46): a draft's ID is unique on case_notes, so the database refuses a second write of
+// it, even from two requests racing. Why: a save whose response is lost looks failed, and the retry
+// would add the note again (or a whole new case). Trade-off: the first write wins; edits made
+// before the retry aren't saved. See docs/decisions.md#repeat-safe-save
+async function findSavedDraft(error: unknown, draftId: string | undefined) {
+  const isUniqueViolation = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+  if (!draftId || !isUniqueViolation) throw error;
+  const saved = await prisma.caseNote.findUnique({ where: { draftId }, include: { case: true } });
+  if (!saved) throw error;
+  return saved;
+}
+
 const liveNotes = { where: { removedAt: null }, orderBy: { createdAt: "desc" } } as const;
 
 casesRouter.post("/", async (req, res) => {
@@ -44,18 +64,28 @@ casesRouter.post("/", async (req, res) => {
   if (!vehicle) throw new NotFoundError(`No vehicle with VIN ${body.vin}`);
 
   // A nested create runs in one transaction: no case is left without the note it was opened for.
-  const created = await prisma.case.create({
-    data: {
-      ...body,
-      customerId: vehicle.customerId,
-      status: "OPEN",
-      openedAt: new Date(),
-      ...(note && { notes: { create: note } }),
-    },
-    include: { notes: true },
-  });
-
-  res.status(201).json(created);
+  try {
+    const created = await prisma.case.create({
+      data: {
+        ...body,
+        customerId: vehicle.customerId,
+        status: "OPEN",
+        openedAt: new Date(),
+        ...(note && { notes: { create: note } }),
+      },
+      include: { notes: true },
+    });
+    res.status(201).json(created);
+  } catch (error) {
+    // A repeat rolls back the whole create, so no second case. It answers with the case this
+    // draft opened, unless the draft was saved somewhere else.
+    const { case: opened, ...saved } = await findSavedDraft(error, note?.source === "AI_DRAFT_EDITED" ? note.draftId : undefined);
+    const firstNote = await prisma.caseNote.findFirst({ where: { caseId: opened.id }, orderBy: { createdAt: "asc" } });
+    if (opened.vin !== body.vin || firstNote?.id !== saved.id) {
+      throw new ConflictError(`This draft is already saved to case ${opened.number}`);
+    }
+    res.json({ ...opened, notes: [saved] });
+  }
 });
 
 casesRouter.post("/:id/notes", async (req, res) => {
@@ -67,9 +97,15 @@ casesRouter.post("/:id/notes", async (req, res) => {
   const existing = await prisma.case.count({ where: { id, vin } });
   if (!existing) throw new NotFoundError(`No case with id ${id} for VIN ${vin}`);
 
-  const created = await prisma.caseNote.create({ data: { ...note, caseId: id } });
-
-  res.status(201).json(created);
+  try {
+    const created = await prisma.caseNote.create({ data: { ...note, caseId: id } });
+    res.status(201).json(created);
+  } catch (error) {
+    // A repeat answers with the note already saved, unless it's on another case.
+    const { case: savedTo, ...saved } = await findSavedDraft(error, note.source === "AI_DRAFT_EDITED" ? note.draftId : undefined);
+    if (savedTo.id !== id) throw new ConflictError(`This draft is already saved to case ${savedTo.number}`);
+    res.json(saved);
+  }
 });
 
 casesRouter.post("/:id/close", async (req, res) => {
