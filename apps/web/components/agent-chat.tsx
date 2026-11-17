@@ -8,7 +8,6 @@ import { useEffect, useRef, useState } from "react";
 import { AgentAnswer } from "@/components/agent-answer";
 import { AgentToolStep } from "@/components/agent-tool-step";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { aiErrorCode } from "@/lib/ai-request-error";
@@ -21,8 +20,6 @@ const primaryPrompts = [
 ];
 const morePrompts = ["What changed since the last contact?", "Could an open recall explain the complaint?"];
 const allPrompts = [...primaryPrompts, ...morePrompts];
-
-const sources = ["Vehicle, specs, recalls", "Telematics", "Case history"];
 
 const MAX_TEXT_LENGTH = 2000;
 const MAX_FOLLOW_UPS = 2;
@@ -95,43 +92,29 @@ export function AgentChat({ vin }: { vin: string | null }) {
         aria-busy={busy || loading}
         className={cn(
           "max-h-[60vh] min-h-40 flex-1 overflow-y-auto p-4 lg:max-h-none",
-          messages.length === 0 ? "flex flex-col justify-between gap-6" : "space-y-5",
+          messages.length === 0 ? "flex flex-col justify-end" : "space-y-5",
         )}
       >
         {messages.length === 0 && (
-          <>
-            <div className="space-y-2">
-              <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-                Answers use only this vehicle&apos;s record
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {sources.map((source) => (
-                  <Badge key={source} variant="secondary">
-                    {source}
-                  </Badge>
-                ))}
-              </div>
+          <div className="space-y-2">
+            <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Start with</p>
+            <div className="flex flex-col items-start gap-2">
+              {(showMore ? allPrompts : primaryPrompts).map((prompt) => (
+                <PromptButton key={prompt} prompt={prompt} onAsk={ask} disabled={loading} />
+              ))}
+              {!showMore && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-accent-foreground"
+                  onClick={() => setShowMore(true)}
+                  disabled={loading}
+                >
+                  {morePrompts.length} more questions
+                </Button>
+              )}
             </div>
-            <div className="space-y-2">
-              <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Start with</p>
-              <div className="flex flex-col items-start gap-2">
-                {(showMore ? allPrompts : primaryPrompts).map((prompt) => (
-                  <PromptButton key={prompt} prompt={prompt} onAsk={ask} disabled={loading} />
-                ))}
-                {!showMore && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-accent-foreground"
-                    onClick={() => setShowMore(true)}
-                    disabled={loading}
-                  >
-                    {morePrompts.length} more questions
-                  </Button>
-                )}
-              </div>
-            </div>
-          </>
+          </div>
         )}
 
         {messages.map((message) =>
@@ -197,25 +180,33 @@ export function AgentChat({ vin }: { vin: string | null }) {
           event.preventDefault();
           ask(input);
         }}
-        className="flex gap-2 border-t bg-card p-3"
+        className="space-y-2 border-t bg-card p-3"
       >
-        <Input
-          value={input}
-          onChange={(event) => setInput(event.target.value)}
-          placeholder="Ask about this vehicle"
-          aria-label="Ask about this vehicle"
-          maxLength={MAX_TEXT_LENGTH}
-          disabled={loading}
-        />
-        {busy ? (
-          <Button type="button" variant="outline" size="icon" onClick={() => stop()} aria-label="Stop answering">
-            <Square className="fill-current" />
-          </Button>
-        ) : (
-          <Button type="submit" size="icon" disabled={!input.trim()} aria-label="Ask">
-            <ArrowUp />
-          </Button>
-        )}
+        <div className="flex gap-2">
+          <Input
+            value={input}
+            onChange={(event) => setInput(event.target.value)}
+            placeholder="Ask about this vehicle"
+            aria-label="Ask about this vehicle"
+            maxLength={MAX_TEXT_LENGTH}
+            disabled={loading}
+            aria-describedby="agent-scope"
+          />
+          {busy ? (
+            <Button type="button" variant="outline" size="icon" onClick={() => stop()} aria-label="Stop answering">
+              <Square className="fill-current" />
+            </Button>
+          ) : (
+            <Button type="submit" size="icon" disabled={!input.trim()} aria-label="Ask">
+              <ArrowUp />
+            </Button>
+          )}
+        </div>
+        {/* The assistant gets only this vehicle's record (D41), so the rep knows not to ask about
+            other vehicles or policy. Under the input, it applies to every answer. */}
+        <p id="agent-scope" className="text-xs text-muted-foreground">
+          Answers use only this vehicle&apos;s record.
+        </p>
       </form>
     </>
   );
