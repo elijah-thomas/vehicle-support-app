@@ -13,8 +13,9 @@ this repo in minutes, and I must have made and understood every architectural de
 - **Current stack:** a React app (Vite) in Cloud Storage behind Cloud CDN, Entra ID sign-in,
   REST services on Cloud Run called from the browser, one shared staging.
 - **Vercel role:** the console is rebuilt in Next.js on Vercel, screen by screen. The vehicle
-  workspace moves first and gains an AI assistant. A pilot group validates each screen, then all
-  advisors switch over.
+  workspace moves first and gains an AI assistant. Vercel sits in front of both apps and falls
+  back to the React app for screens not yet rebuilt; each new screen goes to a pilot group, then
+  to every advisor (D35).
 - **What stays on GCP:** the API and the database of customers, vehicles, telematics and cases.
 - **Demo:** look up a vehicle, see its status, ask the assistant about its history, and turn a
   call transcript into a saved case note.
