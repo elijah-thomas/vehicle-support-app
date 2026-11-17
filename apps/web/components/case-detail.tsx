@@ -1,6 +1,7 @@
 import { CircleCheck, Clock, FilePlus } from "lucide-react";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
+import { CaseNote } from "@/components/case-note";
 import { CaseNoteForm } from "@/components/case-note-form";
 import { CloseCaseForm } from "@/components/close-case-form";
 import { PanelUnavailable } from "@/components/panel-unavailable";
@@ -97,19 +98,7 @@ function Activity({ supportCase }: { supportCase: Case }) {
           </Event>
         )}
         {supportCase.notes.map((note) => (
-          <li key={note.id} id={`note-${note.id}`} className="scroll-mt-18 rounded-md bg-muted p-3 text-sm transition-colors">
-            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              Note · {formatDate(note.createdAt)}
-              {note.source === "AI_DRAFT_EDITED" && <Badge variant="info">AI draft, reviewed by rep</Badge>}
-            </div>
-            <p className="mt-1 font-medium">{note.issue}</p>
-            <p>{note.summary}</p>
-            <ul className="mt-1 list-disc pl-5">
-              {note.nextSteps.map((step) => (
-                <li key={step}>{step}</li>
-              ))}
-            </ul>
-          </li>
+          <CaseNote key={note.id} note={note} id={`note-${note.id}`} />
         ))}
         <Event Icon={FilePlus} title="Case opened" date={supportCase.openedAt}>
           {supportCase.description}
