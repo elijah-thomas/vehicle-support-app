@@ -1,14 +1,13 @@
 # Vehicle Support
 
-An advisor console for Meridian Motors' service advisors. It runs on Vercel and reads customer,
-vehicle, telematics and case data from systems that stay in Meridian's Google Cloud project.
-Advisors look up a vehicle by VIN or customer email, see its status at a glance, ask an assistant
-about its history, and turn a call transcript into a case note.
+The vehicle workspace of Meridian Motors' support tool for service advisors, rebuilt in Next.js
+on Vercel with a new AI assistant. It's the first screen of the tool to move off its React app on
+Google Cloud; the API and database stay on Google Cloud. Advisors look up a vehicle by VIN or
+customer email, see its status at a glance, ask the assistant about its history, and turn a call
+transcript into a case note.
 
-- **Proposal** (problem, architecture, Vercel choices, rollout, success measures, risks):
-  [`docs/vehicle-support-proposal.pdf`](docs/vehicle-support-proposal.pdf)
-- **Architecture**, current and target, with what stays on Google Cloud:
-  [`docs/vehicle-support-architecture.pdf`](docs/vehicle-support-architecture.pdf)
+- **Proposal** (problem, current and target architecture, Vercel choices, rollout, success
+  measures, risks): [`docs/vehicle-support-proposal.pdf`](docs/vehicle-support-proposal.pdf)
 - **Decisions**, each with the options considered and why: [`docs/decisions.md`](docs/decisions.md)
 
 ## Try it
@@ -44,6 +43,8 @@ docs/                  Proposal and decision log
 - The assistant gets the vehicle's record up front, with one tool for older telematics. AI Gateway
   sends requests to Gemini on Vertex AI first and to Claude if Vertex fails, on Meridian's own keys.
 - Vercel Firewall limits the AI routes to 20 requests a minute per IP and note saves to 30.
+- The rest of the support tool stays in its React app until each screen is rebuilt. A pilot group
+  of advisors validates every rebuilt screen, then all advisors switch over at once.
 
 ## Run it locally
 
