@@ -15,7 +15,7 @@ lands in code, a `Decision (Dnn)` comment marks the line.
   Status row · [D29](#error-states) Error states · [D31](#case-view) Case view ·
   [D21](#lookup-and-layout) Lookup · [D41](#vehicle-routes) Vehicle routes ·
   [D42](#fault-case-links) Faults linked to cases · [D43](#layout-freshness) Layout freshness ·
-  [D44](#case-actions) Case view and actions
+  [D44](#case-actions) Case view and actions · [D45](#call-summary-target) Call summary target
 - **AI:** [D5](#models) Models and failover · [D15](#agent) Agent · [D30](#agent-context) Record
   up front · [D16](#call-summary-generation) Call summary · [D26](#junk-transcripts) Non-support
   transcripts · [D33](#cost-per-run) Cost per run · [D19](#evals) Evals ·
@@ -197,7 +197,7 @@ lands in code, a `Decision (Dnn)` comment marks the line.
   loaded up front. It fills the `case_notes` fields (issue, summary, next steps), plus a subject
   and category for a new case. The advisor edits the draft and presses Save. A Server Action then
   writes the note (`AI_DRAFT_EDITED`) and calls `updateTag`. The case picker defaults to the case
-  the advisor has open, otherwise the newest open case.
+  the advisor has open, otherwise the newest open case. Refined by D45: only open cases are listed.
 - **Limits:** Transcripts can be up to 15,000 characters. The call has no tools, so instructions
   hidden in a transcript can't do anything.
 - **Options:** Display only, with no save; the agent with its tools; always opening a new case.
@@ -614,3 +614,16 @@ lands in code, a `Decision (Dnn)` comment marks the line.
   isn't there.
 - **Results (Nov 16, 3 runs per case):** agent 30/30 and call summaries 21/21 on both models, with
   case numbers cited throughout and no mention of the removed note.
+
+## D45. Call summary target {#call-summary-target}
+
+- **Choice (refines D16):** "Save to" lists the vehicle's open cases, newest first, plus New case.
+  The default is the case in view if it's open, otherwise the newest open case, otherwise New
+  case. The button names the target: "Save to CS-24117" or "Save to new case".
+- **Options:** Closed cases listed below a divider; "Reopen and save" when the case in view is
+  closed.
+- **Why:** A note on a closed case reaches no open-case view (status row, overview), so nobody
+  follows it up. Reopening on the case view (D44) is one click and records why the case came back.
+- **Limit:** The list is read when the advisor opens the vehicle (D43). Case writes refresh it. If
+  a stale entry slipped through, the case system still accepts the note, so nothing is lost, but
+  the note would sit on a closed case.
