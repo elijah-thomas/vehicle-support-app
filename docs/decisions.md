@@ -18,7 +18,7 @@ lands in code, a `Decision (Dnn)` comment marks the line.
   up front · [D16](#call-summary-generation) Call summary · [D26](#junk-transcripts) Non-support
   transcripts · [D33](#cost-per-run) Cost per run · [D19](#evals) Evals
 - **Data integrity:** [D6](#data-model) Data model · [D25](#note-ownership) Note ownership ·
-  [D22](#save-feedback) Save failures
+  [D22](#save-feedback) Save failures · [D38](#seed-activity) Seeded case activity
 - **Release path:** [D9](#terraform) Terraform · [D12](#environments) Environments ·
   [D13](#pipeline) API pipeline · [D35](#rollout) Rollout · [D32](#release-versions) Versions ·
   [D24](#tests) Tests
@@ -426,3 +426,17 @@ lands in code, a `Decision (Dnn)` comment marks the line.
 - **Options:** Caching the live feed briefly; fetching only new events.
 - **Production path:** The ingest pipeline would invalidate `telematics:{vin}` when a late event
   arrives.
+
+## D38. Seeded case activity {#seed-activity}
+
+- **Choice:** Note threads only where a story needs one, on the current schema. Dana's three
+  cases hold 2, 3 and 1 notes, ending with a buyback request sent to the review team and not yet
+  answered. Marcus's open case holds 2 notes that never mention the recall, a software update or
+  version 3.2.0, because linking the symptom to MR-24-117 is the assistant's job, and an eval
+  checks it.
+- **Left alone on purpose:** Priya has no cases (the empty state), Jordan's truck has a fault with
+  no case, and Sam keeps one note.
+- **Options:** One note per case, as the seed had before; a thread on every story.
+- **Why:** Case history and the case view need real threads to show. The assistant reads these
+  notes, so they follow the rules the evals apply to its answers: first names, no pronouns, no
+  promises, no instructions to the assistant and no case IDs.
