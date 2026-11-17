@@ -57,6 +57,49 @@ export function relatedFaults(supportCase: Case, events: TelematicsEvent[]) {
   });
 }
 
+/**
+ * Which fault led to which case. Cases carry no link to telematics in the customer's system, so
+ * this is a match by date and code, worked out here:
+ * - a case's fault is the newest coded event logged in the 7 days before the case opened (the
+ *   same window as relatedFaults);
+ * - a fault event led to a case when that case opened 0 to 7 days after it and was matched to the
+ *   same code. If several cases qualify, the earliest one wins.
+ * The vehicle overview (telematics rows and case rows) and the case view's fault history both use
+ * this, so they always agree. The rule stays out of the UI: the page shows only the result.
+ */
+export function matchFaultsToCases(cases: Case[], events: TelematicsEvent[]) {
+  const faultForCase = new Map<string, TelematicsEvent>();
+  for (const supportCase of cases) {
+    const newest = relatedFaults(supportCase, events).reduce<TelematicsEvent | null>(
+      (latest, event) => (!latest || Date.parse(event.recordedAt) > Date.parse(latest.recordedAt) ? event : latest),
+      null,
+    );
+    if (newest) faultForCase.set(supportCase.id, newest);
+  }
+
+  const byOpened = [...cases].sort((a, b) => Date.parse(a.openedAt) - Date.parse(b.openedAt));
+  const caseForEvent = new Map<string, Case>();
+  for (const event of events) {
+    if (!event.code) continue;
+    const recorded = Date.parse(event.recordedAt);
+    const ledTo = byOpened.find((supportCase) => {
+      const opened = Date.parse(supportCase.openedAt);
+      return (
+        opened >= recorded &&
+        opened - recorded <= RELATED_FAULT_WINDOW_DAYS * DAY &&
+        faultForCase.get(supportCase.id)?.code === event.code
+      );
+    });
+    if (ledTo) caseForEvent.set(event.id, ledTo);
+  }
+  return { faultForCase, caseForEvent };
+}
+
+// Whole days from a fault to the case it led to, as the overview says it ("opened 2 days later").
+export function daysBetween(fromIso: string, toIso: string) {
+  return Math.floor((Date.parse(toIso) - Date.parse(fromIso)) / DAY);
+}
+
 // Cases whose fault windows a case's related-faults panel reads: the case and every earlier one.
 export function casesNeedingFaultWindows(supportCase: Case, cases: Case[]) {
   const opened = Date.parse(supportCase.openedAt);

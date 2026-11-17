@@ -1,5 +1,6 @@
 import { Check, ChevronRight, FileText, OctagonAlert, ShieldAlert, TriangleAlert, type LucideIcon } from "lucide-react";
 import { Suspense } from "react";
+import { MoreRecalls } from "@/components/more-recalls";
 import { CurrentPageLink, PageAwareLink } from "@/components/page-aware-link";
 import { RecordLink } from "@/components/record-link";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -23,13 +24,16 @@ const tones = {
   muted: { bg: "bg-muted", text: "text-muted-foreground" },
 };
 
+// More than two open recalls: the first two as chips, the rest behind a count.
+const RECALL_CHIPS = 2;
+
 export function VehicleStatus({ vin, openRecallCampaigns }: { vin: string; openRecallCampaigns: string[] }) {
   return (
     <ul aria-label="Vehicle status" className="flex flex-wrap gap-2">
       <Suspense fallback={<ItemSkeleton className={ORDER.critical} />}>
         <TelematicsStatus vin={vin} />
       </Suspense>
-      {openRecallCampaigns.map((campaign) => (
+      {openRecallCampaigns.slice(0, RECALL_CHIPS).map((campaign) => (
         <StatusItem
           key={campaign}
           className={ORDER.recall}
@@ -40,6 +44,11 @@ export function VehicleStatus({ vin, openRecallCampaigns }: { vin: string; openR
           detail={<span className="font-mono">{campaign}</span>}
         />
       ))}
+      {openRecallCampaigns.length > RECALL_CHIPS && (
+        <li className={ORDER.recall}>
+          <MoreRecalls campaigns={openRecallCampaigns.slice(RECALL_CHIPS)} />
+        </li>
+      )}
       <Suspense fallback={<ItemSkeleton className={ORDER.cases} />}>
         <CasesStatus vin={vin} hasOpenRecalls={openRecallCampaigns.length > 0} />
       </Suspense>

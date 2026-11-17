@@ -16,9 +16,14 @@ export function flashElement(target: HTMLElement) {
   window.setTimeout(() => target.removeAttribute("data-highlight"), HIGHLIGHT_MS);
 }
 
+// Collapsed lists (ExpandableList) listen for this and expand when they hold the row asked for.
+export const REVEAL_EVENT = "record:reveal";
+
 // A saved note reaches the page with the action's refreshed render, which can commit a frame or two
-// after the action resolves, so wait for it briefly.
+// after the action resolves, so wait for it briefly. A row in a collapsed list appears once the list
+// expands, so the same wait covers it.
 export function flashWhenPresent(id: string, timeoutMs = 3000) {
+  window.dispatchEvent(new CustomEvent<string>(REVEAL_EVENT, { detail: id }));
   const start = performance.now();
   function attempt() {
     const target = document.getElementById(id);

@@ -4,9 +4,11 @@ import {
   businessDaysSince,
   casesNeedingFaultWindows,
   contactStatus,
+  daysBetween,
   earlierCasesWithSameFault,
   faultWindow,
   lastContact,
+  matchFaultsToCases,
   relatedFaults,
   sortCases,
 } from "./cases";
@@ -80,5 +82,47 @@ describe("related faults", () => {
   test("reads windows for the case and earlier cases only", () => {
     const later = supportCase("later", "2026-12-01");
     expect(casesNeedingFaultWindows(current, [later, current, earlier]).map((c) => c.id)).toEqual(["current", "earlier"]);
+  });
+});
+
+describe("matchFaultsToCases", () => {
+  // Dana's story: P0C73 three times, and a case opened within the week after each.
+  const events = [
+    fault("third", "2026-11-03"),
+    fault("battery", "2026-11-03", null),
+    fault("second", "2026-07-09"),
+    fault("first", "2026-03-21"),
+    fault("orphan", "2026-01-02", "P0128"),
+  ];
+  const cases = [
+    supportCase("open", "2026-11-05", { status: "OPEN" }),
+    supportCase("returned", "2026-07-11"),
+    supportCase("charging", "2026-03-23"),
+    supportCase("unrelated", "2026-05-01"),
+  ];
+  const { faultForCase, caseForEvent } = matchFaultsToCases(cases, events);
+
+  test("each case gets the coded fault from the week before it opened", () => {
+    expect(faultForCase.get("open")?.id).toBe("third");
+    expect(faultForCase.get("returned")?.id).toBe("second");
+    expect(faultForCase.get("charging")?.id).toBe("first");
+    expect(faultForCase.has("unrelated")).toBe(false);
+  });
+
+  test("each fault links to the case it led to; a fault with no case, or no code, links nowhere", () => {
+    expect(caseForEvent.get("third")?.id).toBe("open");
+    expect(caseForEvent.get("first")?.id).toBe("charging");
+    expect(caseForEvent.has("orphan")).toBe(false);
+    expect(caseForEvent.has("battery")).toBe(false);
+  });
+
+  test("a case opened more than 7 days after the fault isn't matched", () => {
+    const late = matchFaultsToCases([supportCase("late", "2026-03-30")], [fault("first", "2026-03-21")]);
+    expect(late.caseForEvent.size).toBe(0);
+  });
+
+  test("counts whole days from fault to case", () => {
+    expect(daysBetween(utc("2026-11-03"), utc("2026-11-05"))).toBe(2);
+    expect(daysBetween(utc("2026-11-03"), utc("2026-11-03"))).toBe(0);
   });
 });
