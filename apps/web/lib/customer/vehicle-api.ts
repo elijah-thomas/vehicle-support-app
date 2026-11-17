@@ -15,10 +15,11 @@ export class VehicleApiError extends Error {
 
 // Every call across the boundary goes through here: authenticate, fetch, validate the shape.
 export async function vehicleApi<T>(path: string, schema: z.ZodType<T>, init?: RequestInit): Promise<T> {
-  const token = await getVehicleApiIdToken();
+  const auth: Record<string, string> =
+    env.VEHICLE_API_AUTH === "oidc" ? { Authorization: `Bearer ${await getVehicleApiIdToken(env)}` } : {};
   const response = await fetch(new URL(path, env.VEHICLE_API_URL), {
     ...init,
-    headers: { ...init?.headers, Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    headers: { ...init?.headers, ...auth, "Content-Type": "application/json" },
   });
 
   const body = await response.json().catch(() => null);

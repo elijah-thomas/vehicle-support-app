@@ -1,35 +1,40 @@
 import "server-only";
 import { getVercelOidcToken } from "@vercel/oidc";
 import { IdentityPoolClient } from "google-auth-library";
-import { env } from "@/lib/env";
+import type { DeployedEnv } from "@/lib/env";
 
 // Decision (D3): Vercel OIDC token → GCP STS (Workload Identity Federation) → ID token for the
 // caller service account, which Cloud Run IAM checks. Why: no long-lived secret exists in this
 // chain, and each Vercel environment can only become its own caller. Trade-off: identity only;
 // network isolation (Secure Compute) is the production step. See docs/decisions.md#boundary-auth
-const federated = new IdentityPoolClient({
-  type: "external_account",
-  audience: `//iam.googleapis.com/projects/${env.GCP_PROJECT_NUMBER}/locations/global/workloadIdentityPools/${env.GCP_WORKLOAD_IDENTITY_POOL_ID}/providers/${env.GCP_WORKLOAD_IDENTITY_POOL_PROVIDER_ID}`,
-  subject_token_type: "urn:ietf:params:oauth:token-type:jwt",
-  token_url: "https://sts.googleapis.com/v1/token",
-  subject_token_supplier: { getSubjectToken: () => getVercelOidcToken() },
-});
+let federated: IdentityPoolClient | undefined;
+
+function federatedClient(env: DeployedEnv): IdentityPoolClient {
+  federated ??= new IdentityPoolClient({
+    type: "external_account",
+    audience: `//iam.googleapis.com/projects/${env.GCP_PROJECT_NUMBER}/locations/global/workloadIdentityPools/${env.GCP_WORKLOAD_IDENTITY_POOL_ID}/providers/${env.GCP_WORKLOAD_IDENTITY_POOL_PROVIDER_ID}`,
+    subject_token_type: "urn:ietf:params:oauth:token-type:jwt",
+    token_url: "https://sts.googleapis.com/v1/token",
+    subject_token_supplier: { getSubjectToken: () => getVercelOidcToken() },
+  });
+  return federated;
+}
 
 // Reused across requests on the same Fluid Compute instance; refreshed shortly before expiry.
 let cached: { token: string; expiresAt: number } | undefined;
 // A page fires several API calls at once; on a cold instance they share one exchange.
 let pending: Promise<string> | undefined;
 
-export async function getVehicleApiIdToken(): Promise<string> {
+export async function getVehicleApiIdToken(env: DeployedEnv): Promise<string> {
   if (cached && cached.expiresAt - Date.now() > 5 * 60_000) return cached.token;
-  pending ??= mintIdToken().finally(() => {
+  pending ??= mintIdToken(env).finally(() => {
     pending = undefined;
   });
   return pending;
 }
 
-async function mintIdToken(): Promise<string> {
-  const { token: accessToken } = await federated.getAccessToken();
+async function mintIdToken(env: DeployedEnv): Promise<string> {
+  const { token: accessToken } = await federatedClient(env).getAccessToken();
   const response = await fetch(
     `https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/${env.GCP_SERVICE_ACCOUNT_EMAIL}:generateIdToken`,
     {
