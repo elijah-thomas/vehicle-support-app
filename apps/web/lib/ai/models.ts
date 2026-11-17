@@ -1,7 +1,7 @@
 import "server-only";
 import type { GatewayProviderOptions } from "@ai-sdk/gateway";
 
-// Decision (D11): Gemini on Vertex, then Claude on Anthropic, both BYOK. Why: two vendors on two
+// Decision (D5): Gemini on Vertex, then Claude on Anthropic, both BYOK. Why: two vendors on two
 // clouds, each billed under an existing agreement. Trade-off: answers differ by model, so evals
 // run on both. The only place model IDs live. See docs/decisions.md#models
 //

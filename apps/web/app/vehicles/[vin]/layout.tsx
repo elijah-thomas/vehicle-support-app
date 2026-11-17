@@ -5,7 +5,7 @@ import { CallSummary } from "@/components/call-summary";
 import { CallSummaryPanel } from "@/components/call-summary-panel";
 import { WithVin } from "@/components/with-vin";
 
-// Decision (D42): the assistant lives in the layout, so moving between the vehicle and its cases
+// Decision (D31): the assistant lives in the layout, so moving between the vehicle and its cases
 // keeps the chat thread and any unsaved draft. See docs/decisions.md#case-view
 export default function VehicleLayout({ children, params }: LayoutProps<"/vehicles/[vin]">) {
   return (

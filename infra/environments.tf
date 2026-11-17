@@ -8,9 +8,9 @@ locals {
       database    = "vehicle_support"
       branch      = "refs/heads/master"
       vercel_envs = ["production"]
-      # Vehicle API requests per minute for the whole Vercel app (D31).
+      # Vehicle API requests per minute for the whole Vercel app (D20).
       api_rate_limit = 1200
-      # Instances kept running when idle (D48).
+      # Instances kept running when idle (D36).
       min_instances = 1
     }
     staging = {

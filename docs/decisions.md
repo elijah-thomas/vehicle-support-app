@@ -1,46 +1,47 @@
 # Decisions
 
 The architectural decisions behind this build: what was chosen, what else was considered, and
-why. Numbers are stable; gaps are entries that were folded into another or cut as conventional.
-Where a decision lands in code, a short `Decision (Dnn)` comment sits at that line.
+why, numbered in the order they were made. Where a decision lands in code, a short
+`Decision (Dnn)` comment sits at that line. Commits before Nov 16, 2026 use earlier numbers; see
+[Renumbering](#renumbering).
 
 ## Index
 
 **Scenario**
-- [D1](#scenario) Scenario and Vercel's role · [D39](#current-state) The customer's current state ·
-  [D6](#primitives) Vercel primitives
+- [D1](#scenario) Scenario and Vercel's role · [D28](#current-state) The customer's current state ·
+  [D4](#primitives) Vercel primitives
 
 **Boundary and connectivity**
 - [D2](#gcp-backend) GCP compute and database · [D3](#boundary-auth) Authenticating across the
-  boundary · [D16](#api-shape) Shape of the customer's API · [D17](#contracts) How the web app
-  knows the API's shapes · [D19](#db-access) Cloud Run → Cloud SQL · [D21](#function-region)
-  Vercel function region · [D46](#concurrency) Concurrency and scaling ·
-  [D48](#warm-api) Keeping the production API warm · [D49](#telematics-windows) Caching past
+  boundary · [D7](#api-shape) Shape of the customer's API · [D8](#contracts) How the web app
+  knows the API's shapes · [D10](#db-access) Cloud Run → Cloud SQL · [D11](#function-region)
+  Vercel function region · [D34](#concurrency) Concurrency and scaling ·
+  [D36](#warm-api) Keeping the production API warm · [D37](#telematics-windows) Caching past
   telematics
 
 **Delivery and rendering**
-- [D24](#vehicle-page-caching) Vehicle page rendering and caching · [D28](#vehicle-status) Status
-  row · [D40](#error-states) Error states · [D42](#case-view) Case view ·
-  [D32](#lookup-and-layout) Lookup suggestions
+- [D14](#vehicle-page-caching) Vehicle page rendering and caching · [D17](#vehicle-status) Status
+  row · [D29](#error-states) Error states · [D31](#case-view) Case view ·
+  [D21](#lookup-and-layout) Lookup suggestions
 
 **AI and agents**
-- [D11](#models) Models, credentials, failover · [D25](#agent) Vehicle agent ·
-  [D41](#agent-context) Load the record before the agent runs · [D26](#call-summary-generation)
-  Call summary · [D37](#junk-transcripts) Transcripts that aren't support calls ·
-  [D45](#cost-per-run) Cost per run · [D30](#evals) Evals
+- [D5](#models) Models, credentials, failover · [D15](#agent) Vehicle agent ·
+  [D30](#agent-context) Load the record before the agent runs · [D16](#call-summary-generation)
+  Call summary · [D26](#junk-transcripts) Transcripts that aren't support calls ·
+  [D33](#cost-per-run) Cost per run · [D19](#evals) Evals
 
 **Data integrity**
-- [D14](#data-model) Data model and synthetic data · [D36](#note-ownership) Note ownership ·
-  [D33](#save-feedback) Save failures
+- [D6](#data-model) Data model and synthetic data · [D25](#note-ownership) Note ownership ·
+  [D22](#save-feedback) Save failures
 
 **Release path**
-- [D18](#terraform) Infrastructure as code · [D22](#environments) Staging and production ·
-  [D23](#pipeline) API deploy pipeline · [D47](#rollout) Rollout and rollback ·
-  [D43](#release-versions) Release versions · [D35](#tests) Tests
+- [D9](#terraform) Infrastructure as code · [D12](#environments) Staging and production ·
+  [D13](#pipeline) API deploy pipeline · [D35](#rollout) Rollout and rollback ·
+  [D32](#release-versions) Release versions · [D24](#tests) Tests
 
 **Protection and spend**
-- [D29](#rate-limits) Edge rate limits · [D31](#api-rate-limit-keying) API rate-limit keying ·
-  [D38](#agent-request) What the agent route accepts · [D34](#spend-alerts) Spend alerts
+- [D18](#rate-limits) Edge rate limits · [D20](#api-rate-limit-keying) API rate-limit keying ·
+  [D27](#agent-request) What the agent route accepts · [D23](#spend-alerts) Spend alerts
 
 ---
 
@@ -48,7 +49,7 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
 
 - **Decision:** Which customer scenario, and what role Vercel plays.
 - **Options:** Replace, Augment, Connect.
-- **Choice:** Connect (with Replace and Augment where D39 calls for them). A fictional
+- **Choice:** Connect (with Replace and Augment where D28 calls for them). A fictional
   automaker's support org keeps its customer, vehicle, telematics, and case data on GCP. Vercel
   hosts the rep-facing app and agent that read from it and write case notes back.
 - **Why:** Based on a support/CRM tool I operated. Reps lose time flipping between screens to
@@ -72,17 +73,17 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
 - **Choice:** Vercel OIDC → Workload Identity Federation → Cloud Run IAM. The federated
   credential calls `generateIdToken` for the caller service account directly (one permission,
   one hop); the ID token is cached per function instance for about an hour.
-- **Why:** No long-lived secret anywhere, access scoped per Vercel project and environment (D22),
+- **Why:** No long-lived secret anywhere, access scoped per Vercel project and environment (D12),
   and the Cloud Run service isn't callable from the internet without a Google-signed token.
-  GitHub Actions deploys the same way (D23).
+  GitHub Actions deploys the same way (D13).
 - **Verified (boundary spike):** works end to end from a Vercel deployment (anonymous calls get
   403), and the OIDC token is available inside a `"use cache"` function at request time, so the
-  caching plan (D24) needed no fallback.
+  caching plan (D14) needed no fallback.
 - **Production design, not built:** network isolation as well as identity: Cloud Run internal
   ingress behind a load balancer, reached through Vercel Secure Compute (static IPs, VPC
   peering; Enterprise plan).
 
-## D6. Vercel primitives {#primitives}
+## D4. Vercel primitives {#primitives}
 
 - **Decision:** Which Vercel products the demo uses, beyond the Next.js app itself.
 - **Options considered:** Workflows, Cache Components, Rolling Releases, Fluid Compute.
@@ -94,9 +95,9 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
   cheap to retry, so durable execution adds cost without benefit today. It earns its place
   once summaries become a background job with an async supervisor approval.
 - **Why Fluid Compute:** an agent request spends most of its time waiting on the model; Fluid
-  bills active CPU and lets one instance serve many waiting requests (D46).
+  bills active CPU and lets one instance serve many waiting requests (D34).
 
-## D11. Models, credentials, and failover {#models}
+## D5. Models, credentials, and failover {#models}
 
 - **Decision:** Which models answer, whose credentials pay for them, and what happens when one
   fails.
@@ -112,12 +113,12 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
 - **Facts checked (vercel.com/docs/ai-gateway, Nov 2026):** Vertex BYOK takes a service-account
   key only (the one long-lived credential in the system, scoped to Vertex AI User and stored only
   in AI Gateway). BYOK requires purchased Gateway credits. AI Gateway budgets don't cap BYOK
-  spend (hence D34).
-- **Consequences:** answers can differ between models, so evals run on both (D30). The
+  spend (hence D23).
+- **Consequences:** answers can differ between models, so evals run on both (D19). The
   Vercel-key fallback means a request can leave my provider agreements; `only` doesn't disable
   it. Sending data to Anthropic leaves GCP, which matters if residency becomes a constraint.
 
-## D14. Data model and synthetic data {#data-model}
+## D6. Data model and synthetic data {#data-model}
 
 - **Decision:** The shape of the customer's existing data, and what the test data tells.
 - **Options:** a leaner model without recalls; a full model with recalls.
@@ -130,7 +131,7 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
   VIN is the identifier reps already use. Recalls enable the highest-value connection the agent
   can make. Each story is also an eval case.
 
-## D16. Shape of the customer's API {#api-shape}
+## D7. Shape of the customer's API {#api-shape}
 
 - **Decision:** Whether the GCP API returns raw records or agent-ready summaries.
 - **Options:** shaped around the data; shaped for the agent (pre-summarized endpoints).
@@ -142,7 +143,7 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
 - **Note:** Express has no auth code: Cloud Run IAM rejects unauthenticated callers before a
   request reaches the container (D3).
 
-## D17. How the web app knows the API's shapes {#contracts}
+## D8. How the web app knows the API's shapes {#contracts}
 
 - **Decision:** Share types between the API and the web app, or keep them separate.
 - **Options:** a shared `packages/contracts`; the web app owns its own Zod schemas.
@@ -151,7 +152,7 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
 - **Why:** in reality another team owns the customer's API; the Vercel app treats it as an
   external contract and checks it at the boundary. Cost: shapes are written twice.
 
-## D18. Infrastructure as code {#terraform}
+## D9. Infrastructure as code {#terraform}
 
 - **Decision:** How the GCP side is defined and changed.
 - **Options:** ad hoc gcloud commands; Terraform for GCP only; Terraform for GCP and Vercel.
@@ -162,17 +163,17 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
 - **Why:** the boundary (WIF trust, IAM bindings) is what reviewers will question, so it should
   be readable code, and constraint changes become reviewed diffs.
 
-## D19. Cloud Run → Cloud SQL access and region {#db-access}
+## D10. Cloud Run → Cloud SQL access and region {#db-access}
 
 - **Decision:** How the API connects and authenticates to Postgres, and where it runs.
 - **Options:** connector + password; connector + IAM database login; private IP in a VPC.
 - **Choice:** Cloud SQL connector with IAM database login, in `us-central1`. The database has a
   public IP with no authorized networks, so only the IAM-checked, mTLS connector can connect. The
   API's database user reads and writes rows but can't change the schema; migrations run as the
-  environment's deployer (D23). Private IP is the production design.
+  environment's deployer (D13). Private IP is the production design.
 - **Why:** extends "no long-lived secrets" to the database: no database password exists.
 
-## D21. Vercel function region {#function-region}
+## D11. Vercel function region {#function-region}
 
 - **Decision:** Where Vercel Functions run.
 - **Options:** `iad1` (default, Washington D.C.); `cle1` (Cleveland); multiple regions.
@@ -183,7 +184,7 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
 - **Trade-off:** one region. If `cle1` fails, Vercel reroutes to the next closest region
   (per-function failover is Enterprise).
 
-## D22. Staging and production environments {#environments}
+## D12. Staging and production environments {#environments}
 
 - **Decision:** Whether the GCP side has one environment or two.
 - **Options:** one environment for every Vercel deployment; staging + production.
@@ -198,7 +199,7 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
 - **Why:** a preview deployment can never read or write production data, so the rollout plan
   (preview → staging → production) is real rather than described.
 
-## D23. API deploy pipeline {#pipeline}
+## D13. API deploy pipeline {#pipeline}
 
 - **Decision:** How the GCP API is built, migrated, and released.
 - **Choice:** GitHub Actions (`.github/workflows/deploy-api.yml`) on push to `develop` or
@@ -214,7 +215,7 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
   be backward compatible (expand, then contract) because the old revision serves until the new
   one is ready.
 
-## D24. Vehicle page rendering and caching {#vehicle-page-caching}
+## D14. Vehicle page rendering and caching {#vehicle-page-caching}
 
 - **Decision:** What is static, cached, or fresh on `/vehicles/[vin]`, and where cached data lives.
 - **Options (store):** plain `"use cache"` (in memory per instance, free) or `"use cache: remote"`
@@ -226,7 +227,7 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
   | Vehicle, specs, recalls | `use cache: remote`, `hours` (`minutes` if not found) | `vehicle:{vin}` |
   | Cases and notes | `use cache: remote`, `minutes`; cleared by `updateTag` on save | `cases:{vin}` |
   | Telematics (live feed, agent) | Not cached; request time (`connection()`) | — |
-  | Telematics windows (related faults) | `use cache: remote`, `days`, once settled (D49) | `telematics:{vin}` |
+  | Telematics windows (related faults) | `use cache: remote`, `days`, once settled (D37) | `telematics:{vin}` |
   | Customer search by email | Not cached; Server Action, so the email never appears in a URL | — |
 
   No vehicle pages are prerendered at build time.
@@ -251,16 +252,16 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
   lifetimes can grow, since staleness no longer depends on them. Not built: a demo has no CRM
   writing behind its back.
 
-## D25. Vehicle agent {#agent}
+## D15. Vehicle agent {#agent}
 
-*Data loading and the prompt were redesigned in D41; scope and limits still hold.*
+*Data loading and the prompt were redesigned in D30; scope and limits still hold.*
 
 - **Decision:** How the AI assistant is scoped and bounded.
 - **Choice:** a `ToolLoopAgent` (AI SDK) behind `POST /api/agent`, in a chat panel on the vehicle
   page with canned prompts.
   - **Scope:** the tool takes no VIN. The route passes the vehicle the rep has open, so no prompt
     can make the agent read another customer's record.
-  - **Limits:** step cap, `reasoning: "low"`, last 10 messages, request checks (D38). No
+  - **Limits:** step cap, `reasoning: "low"`, last 10 messages, request checks (D27). No
     output-token cap.
   - **Grounding:** only facts in the record or a tool result, cited with dates; says so when data
     is missing; never quotes internal IDs; ends with next steps.
@@ -268,9 +269,9 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
   vehicles, but a crafted prompt could pull any record); cheaper models (Haiku, Flash Lite).
 - **Why no output cap:** Gemini's hidden reasoning counts toward `maxOutputTokens`; at 1,000 it
   cut answers off. A truncated answer is worse than a long one, and cost per message is already
-  bounded by the step cap, input caps, and rate limits (D45).
+  bounded by the step cap, input caps, and rate limits (D33).
 
-## D26. Call summary {#call-summary-generation}
+## D16. Call summary {#call-summary-generation}
 
 - **Decision:** How a pasted transcript becomes a saved case note.
 - **Choice:**
@@ -291,7 +292,7 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
 - **Risk to flag:** transcripts are personal data sent to the model providers. Production answer:
   AI Gateway Zero Data Retention routing and a retention review with the customer's privacy team.
 
-## D28. Vehicle status row {#vehicle-status}
+## D17. Vehicle status row {#vehicle-status}
 
 - **Decision:** How the vehicle page answers "what's wrong with this car?" at a glance.
 - **"Recent" faults:** 30 days. Telematics has no active/cleared state, so a time window stands
@@ -304,7 +305,7 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
 - **References in answers:** fault codes and recall campaigns in the agent's text become links
   by pattern match, only if the target exists on the page. No new data flows to the client.
 
-## D29. Rate limits on the public endpoints {#rate-limits}
+## D18. Rate limits on the public endpoints {#rate-limits}
 
 - **Decision:** Where and how tightly to rate-limit the unauthenticated AI and save endpoints.
 - **Options considered:** Vercel Firewall custom rules at the edge; `@vercel/firewall`
@@ -318,10 +319,10 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
   compute and no tokens.
 - **Verified:** 25 POSTs returned 20 × 400 then 5 × 429, on preview and production. Project
   rules apply to preview deployments too.
-- **Limits to flag:** per-IP limits don't bound spend from many IPs (D34 is the backstop), and
+- **Limits to flag:** per-IP limits don't bound spend from many IPs (D23 is the backstop), and
   counters are per region. With rep login (out of scope) the limit would key on the rep.
 
-## D30. Evals {#evals}
+## D19. Evals {#evals}
 
 - **Decision:** How to check that the agent and call summaries stay grounded, on both models.
 - **Choice:**
@@ -341,11 +342,11 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
   alternative and its reason, not a bare ban); Gemini skipped driver safety on a CRITICAL fault
   and offered a loaner (safety first; coverage and loaner requests are routed, not promised);
   Claude copied an injected instruction into a saved note, a stored prompt injection (the
-  prompt now leaves such text out); the agent's tool loop added nothing (D41).
+  prompt now leaves such text out); the agent's tool loop added nothing (D30).
 - **Latest results (3 runs per case, Nov 2026):** agent 30/30 on both models; call summaries 21/21
   on both.
 
-## D31. Vehicle API rate-limit keying {#api-rate-limit-keying}
+## D20. Vehicle API rate-limit keying {#api-rate-limit-keying}
 
 - **Decision:** What the vehicle API's backstop rate limit counts per client.
 - **Finding:** it counted per IP, but every rep's traffic arrives from Vercel's shared outbound
@@ -353,14 +354,14 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
 - **Options considered:** per calling system (the service account in the ID token); per rep
   (needs rep login); no API limit (nothing protects the backend from a retry loop); keep per IP.
 - **Choice:** per calling system, 1,200/min, set per environment in Terraform. Each layer has one
-  job: the Firewall limits each person at the edge (D29); the customer's API limits each calling
+  job: the Firewall limits each person at the edge (D18); the customer's API limits each calling
   system. A second internal system would get its own budget automatically.
 - **Why reading the token is safe:** Cloud Run IAM verifies the ID token before the request
   reaches the container. Locally there is no token, so the limiter falls back to the IP.
 - **Limit to flag:** counters live in each instance's memory, so with up to 3 instances the real
   ceiling is up to 3×. A shared store would make it exact; not worth it for a backstop.
 
-## D32. Lookup suggestions {#lookup-and-layout}
+## D21. Lookup suggestions {#lookup-and-layout}
 
 - **Decision:** What the lookup suggests, and how telematics units are shown.
 - **Lookup suggestions:**
@@ -376,7 +377,7 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
 - **Layout:** Call summary is a tab beside Ask in the assistant column, and both tabs stay
   mounted, so switching never loses the chat or an unsaved draft.
 
-## D33. Save failures {#save-feedback}
+## D22. Save failures {#save-feedback}
 
 - **Decision:** What happens when saving a call note fails.
 - **Found:** a save that failed before the Server Action answered (a Firewall 429, a dropped
@@ -392,7 +393,7 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
   without one are unaffected. The API deploys before the web app, which now expects the note in
   the response.
 
-## D34. Spend alerts on the model providers {#spend-alerts}
+## D23. Spend alerts on the model providers {#spend-alerts}
 
 - **Decision:** What stops runaway model spend beyond per-IP rate limits.
 - **Options considered (GCP):** a budget alert in Terraform; an alert plus a lower Vertex
@@ -405,20 +406,20 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
 - **Limits to flag:** GCP budgets alert, they don't stop, and billing data lags by hours. In
   production: Vertex quotas per model and alerts to on-call rather than email.
 
-## D35. Tests {#tests}
+## D24. Tests {#tests}
 
 - **Decision:** Which behaviors to test, and where.
 - **Choice:** API tests against a real Postgres through the real Express app (contract shapes,
   privacy, bad input, ownership rules, rate limit); about 100 web unit tests in Node (parsing,
   formatting, request checks before any model call, the save action's errors and retry). Model
-  behavior stays in evals (D30). CI (`.github/workflows/test.yml`) runs both on every PR, with
+  behavior stays in evals (D19). CI (`.github/workflows/test.yml`) runs both on every PR, with
   Postgres as a service container and no secrets.
 - **Options considered:** mocking Prisma (the behavior lives in the queries, so it would test the
   mocks); component tests (new dependencies); Playwright (slow for this scope; in the rollout plan).
 - **Safety:** the API tests refuse any database whose name doesn't end in `_test`, because the
   seed deletes every row. That came from a near miss where setup pointed at the dev database.
 
-## D36. Notes can only land on the vehicle's own cases {#note-ownership}
+## D25. Notes can only land on the vehicle's own cases {#note-ownership}
 
 - **Decision:** Where to enforce that a saved note belongs to the vehicle the rep has open.
 - **Finding:** the save action posted whatever case ID the browser sent, and the API didn't check
@@ -431,7 +432,7 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
 - **Rollout note:** a new required field, so the API ships before the web app. In a real
   integration I'd accept it as optional first, then require it once every client sends it.
 
-## D37. Transcripts that aren't vehicle support calls {#junk-transcripts}
+## D26. Transcripts that aren't vehicle support calls {#junk-transcripts}
 
 - **Decision:** What the call summary does with a transcript that isn't a real support call.
 - **Finding:** with nothing to summarize, the model presented the vehicle record as the call (a
@@ -445,7 +446,7 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
   streamed draft against the same schema, so a draft one character over would silently vanish.
   The save action names the field that's too long instead.
 
-## D38. What the agent route accepts {#agent-request}
+## D27. What the agent route accepts {#agent-request}
 
 - **Decision:** How strictly the public agent route checks the conversation the browser sends.
 - **Finding:** it accepted any role, any part type (a 27KB file part got past the per-message
@@ -456,9 +457,9 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
   user messages, 2,000 characters per question, 80,000 across the last 10 messages, measured
   after trimming. Rejections return 400 or 413 before any model call.
 - **Limit to flag:** a caller can forge earlier assistant turns, but only in their own session;
-  the server drops earlier tool results (D41) and the tool reads only the vehicle the route names.
+  the server drops earlier tool results (D30) and the tool reads only the vehicle the route names.
 
-## D39. The customer's current state {#current-state}
+## D28. The customer's current state {#current-state}
 
 - **Decision:** What Meridian's console runs on today, which the proposal compares against.
 - **Options:** a client-rendered SPA served from one region; Next.js self-hosted on GKE behind
@@ -476,11 +477,11 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
   Gateway, connect to the systems that stay.
 - **Why no Redis today:** with a cache per pod, a saved note clears only the pod that handled the
   save, and every rolling deploy starts cold, so cases go uncached. A shared Runtime Cache with
-  `updateTag` on save (D24) is what makes caching cases safe.
-- **Honest limits:** functions still run in one region next to the data (D21), so the gain for
+  `updateTag` on save (D14) is what makes caching cases safe.
+- **Honest limits:** functions still run in one region next to the data (D11), so the gain for
   advisors abroad is the edge-served shell and streaming panels, not faster data.
 
-## D40. Error states in the UI {#error-states}
+## D29. Error states in the UI {#error-states}
 
 - **Decision:** How the UI handles each failure the testing turned up.
 - **Findings:** one failing panel replaced the whole vehicle page (an error inside `<Suspense>`
@@ -497,7 +498,7 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
 - **Options considered:** a client error boundary per panel (needs a class component or a
   dependency; server-side failures are the ones that happen here).
 
-## D41. Load the record before the agent runs {#agent-context}
+## D30. Load the record before the agent runs {#agent-context}
 
 - **Decision:** Whether the agent fetches the vehicle's data itself (a tool loop) or gets it up
   front, and how its prompt is built.
@@ -523,7 +524,7 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
   nothing, so the decision moved into code, and the tool stays for the one choice the model
   really makes.
 
-## D42. Case view {#case-view}
+## D31. Case view {#case-view}
 
 - **Decision:** How a rep reads and works one case, after a UX audit found that "1 open case" led
   nowhere, an open case showed only its first line, a neglected case looked like a current one,
@@ -537,13 +538,13 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
     vehicle and its cases.
   - **Case view:** status, an overdue banner, a quick rep note, Close case with a required
     resolution, the activity thread, and related faults.
-  - **API:** `POST /cases/:id/close` (same ownership check as D36; 409 if already closed, checked
+  - **API:** `POST /cases/:id/close` (same ownership check as D25; 409 if already closed, checked
     in the update itself so two closes can't both win).
   - **Overdue:** an open case with more than 5 business days since its newest note. Worked out in
     the web app: it's this desk's policy, not the customer's data.
   - **Related faults:** coded faults in the 7 days before the case opened. Cases have no link to
     telematics, so the page says it's a match by date.
-  - **Caching:** the case view reads from the cached case list (`cases:{vin}`, D24); saving or
+  - **Caching:** the case view reads from the cached case list (`cases:{vin}`, D14); saving or
     closing clears that tag. Both routes still build as Partial Prerender.
 - **Cut, and why:** escalation repeats what notes already say and the agent reads; case numbers
   need a migration and a change to the no-IDs rule; owner, priority, and waiting states need rep
@@ -551,7 +552,7 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
 - **Production path:** a per-case read and per-case cache tag once customers have hundreds of
   cases; a holiday calendar for overdue; a real case-to-fault link.
 
-## D43. Release versions {#release-versions}
+## D32. Release versions {#release-versions}
 
 - **Decision:** How releases are numbered.
 - **Options considered:** semantic versions, which signal compatibility to people who depend on a
@@ -565,7 +566,7 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
   the password rotated to a random value that isn't stored. Verified after release through the
   production WIF path: vehicle page, agent, call summary, Firewall 429s, API 400 on bad JSON.
 
-## D45. Cost per run {#cost-per-run}
+## D33. Cost per run {#cost-per-run}
 
 - **Decision:** How cost per answer is measured, and what bounds it.
 - **Options considered:** compute it from token counts and a price table kept in the repo (goes
@@ -590,17 +591,17 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
   costs 2–3× as much per answer as well as being slower, one more reason Gemini is primary.
 - **Found while measuring:** reporting tags have a Gateway fee of $0.000075 per request
   (`gatewayCost`), about 4% on a Gemini answer. Kept: it's what splits spend by feature.
-- **Bounded by:** one model step per typical answer and a cap of 3 (D41); input caps (D38, D26);
-  20 AI requests a minute per IP at the edge (D29); provider spend limits (D34).
+- **Bounded by:** one model step per typical answer and a cap of 3 (D30); input caps (D27, D16);
+  20 AI requests a minute per IP at the edge (D18); provider spend limits (D23).
 
-## D46. Concurrency and scaling {#concurrency}
+## D34. Concurrency and scaling {#concurrency}
 
 - **Decision:** How each layer scales under load, and where it stops.
 - **What exists now:**
   - **Vercel:** Fluid Compute, so one function instance serves many requests that are waiting on
-    a model or on GCP, billed for active CPU. Functions in `cle1` only (D21).
+    a model or on GCP, billed for active CPU. Functions in `cle1` only (D11).
   - **Cloud Run:** up to 3 instances per environment, 80 concurrent requests each (default).
-    Production keeps one warm; staging scales to zero (D48).
+    Production keeps one warm; staging scales to zero (D36).
   - **Cloud SQL:** one `db-f1-micro` instance for both environments, with a limit of about 25
     connections.
 - **Finding:** each API instance opened up to 5 connections, so both environments at full scale
@@ -615,20 +616,20 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
   Cloud Run. Beyond it: a larger instance or a connection pooler (PgBouncer, or Cloud SQL Managed
   Connection Pooling).
 
-## D47. Rollout and rollback {#rollout}
+## D35. Rollout and rollback {#rollout}
 
 - **Decision:** How a change reaches production and how it's undone.
-- **What exists now:** every branch gets a Preview Deployment against staging (D22); `develop`
+- **What exists now:** every branch gets a Preview Deployment against staging (D12); `develop`
   deploys the staging API; a `release/*` branch merged to `master` deploys the production API
-  and promotes the web app (D43). Web rollback is Vercel Instant Rollback (the previous
+  and promotes the web app (D32). Web rollback is Vercel Instant Rollback (the previous
   deployment is still live). API rollback is shifting traffic to the previous Cloud Run
-  revision; migrations are expand-then-contract (D23), so the old revision still works against
-  the new schema. When a change spans both, the API ships first (D36).
+  revision; migrations are expand-then-contract (D13), so the old revision still works against
+  the new schema. When a change spans both, the API ships first (D25).
 - **Out of scope:** Rolling Releases (canary a percentage of production traffic); in the rollout
   plan as the production step.
 - **Status:** documented; details in the submission's rollout plan.
 
-## D48. Keeping the production API warm {#warm-api}
+## D36. Keeping the production API warm {#warm-api}
 
 - **Decision:** Whether the vehicle API scales to zero. After an idle spell, the first request
   waits for Cloud Run to start a container and for the Cloud SQL connector's setup.
@@ -644,22 +645,22 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
   cold function, the token exchange, and an empty Runtime Cache after a deploy. Production's
   function was already warm when measured, so its fully cold first load is likely 2.5–3 s.
 - **Found while measuring:** three requests reaching a service at zero instances started three
-  instances at once, staging's maximum. D46's 3 × 4 connections is exactly what a cold burst
+  instances at once, staging's maximum. D34's 3 × 4 connections is exactly what a cold burst
   uses, so the limit holds.
 - **Options considered:** a Cloud Scheduler job pinging `/health` every ~10 minutes (nearly free,
   but Cloud Run may still stop an idle instance, it warms only one, and it needs its own invoker
   service account); `min_instance_count = 1` on production; neither, only trimming startup.
 - **Choice:** one minimum instance on production; staging still scales to zero. It's Cloud Run's
-  supported setting, needs no new service or IAM, and stays inside D46's connection math (max is
+  supported setting, needs no new service or IAM, and stays inside D34's connection math (max is
   still 3 instances × 4 connections).
 - **Cost:** an idle instance is billed at Cloud Run's reduced idle rate, roughly $10/month for
   1 vCPU and 512 MiB (estimate; confirm in the pricing calculator).
 - **Doesn't fix:** the Vercel side. The Runtime Cache starts empty after each deploy, and each new
   Fluid instance does one token exchange.
 
-## D49. Caching past telematics {#telematics-windows}
+## D37. Caching past telematics {#telematics-windows}
 
-- **Decision:** Whether any telematics can be cached, after D24 kept it all fresh.
+- **Decision:** Whether any telematics can be cached, after D14 kept it all fresh.
 - **Finding:** related faults read the 50 newest events and filtered them to the week before each
   case opened. On a real vehicle with thousands of events, an older case's week falls outside the
   newest 50 and its related faults come back empty.
@@ -686,3 +687,14 @@ Where a decision lands in code, a short `Decision (Dnn)` comment sits at that li
   Repeat counts on the live panel still come from the newest 20 events and undercount on a long
   history; the API returning per-code counts would fix that. Live updates during a call need the
   API to hand back a bookmark of what's been seen (phase 2).
+
+## Renumbering {#renumbering}
+
+On Nov 16, 2026 the entries were renumbered 1 to 37 to close the gaps left by entries that had been
+folded into others or cut. Commit messages before then use the old numbers; D1 to D3 are unchanged.
+
+D6 → D4 · D11 → D5 · D14 → D6 · D16 → D7 · D17 → D8 · D18 → D9 · D19 → D10 · D21 → D11 ·
+D22 → D12 · D23 → D13 · D24 → D14 · D25 → D15 · D26 → D16 · D28 → D17 · D29 → D18 · D30 → D19 ·
+D31 → D20 · D32 → D21 · D33 → D22 · D34 → D23 · D35 → D24 · D36 → D25 · D37 → D26 · D38 → D27 ·
+D39 → D28 · D40 → D29 · D41 → D30 · D42 → D31 · D43 → D32 · D45 → D33 · D46 → D34 · D47 → D35 ·
+D48 → D36 · D49 → D37

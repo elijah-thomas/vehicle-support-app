@@ -1,4 +1,4 @@
-# Decision (D19, D22): the customer's system of record: one instance, one database per environment.
+# Decision (D10, D12): the customer's system of record: one instance, one database per environment.
 # Cloud Run logs in with its service account identity (IAM database authentication), so no
 # database password exists. Trade-off: public IP with no authorized networks rather than private
 # IP; only the IAM-checked connector can connect. See docs/decisions.md#db-access

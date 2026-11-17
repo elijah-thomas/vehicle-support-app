@@ -54,7 +54,7 @@ casesRouter.post("/:id/notes", async (req, res) => {
   const { id } = caseParams.parse(req.params);
   const { vin, ...note } = createNoteBody.parse(req.body);
 
-  // Decision (D36): the caller names the vehicle it has open, and the system of record refuses a
+  // Decision (D25): the caller names the vehicle it has open, and the system of record refuses a
   // case that isn't that vehicle's, so every client gets the check. See docs/decisions.md#note-ownership
   const existing = await prisma.case.count({ where: { id, vin } });
   if (!existing) throw new NotFoundError(`No case with id ${id} for VIN ${vin}`);
