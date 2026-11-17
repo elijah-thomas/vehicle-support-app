@@ -334,6 +334,10 @@ decision is implemented, a `Decision (Dnn)` comment marks the line.
 - **Choice:** Prompt rules plus a `callType` field (`vehicle_issue`, `other` or
   `no_conversation`). Any type other than `vehicle_issue` shows a warning in the review form. The
   field isn't saved, but it gives the evals something exact to check.
+- **Borderline calls (Nov 17):** A wrong number can fairly be read as `other` or
+  `no_conversation`. Both show a warning, so the `no_conversation` wording ("Nothing to summarize
+  from this call") fits silence, noise and wrong numbers alike. The prompt is unchanged, because
+  prompt edits have cost eval regressions before (D40).
 - **Length limits:** The draft schema describes length limits to the model but doesn't reject a
   draft that exceeds them, so an over-long draft doesn't vanish in the browser. Instead, the save action names the field that's
   too long.

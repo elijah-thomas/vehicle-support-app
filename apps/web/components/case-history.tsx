@@ -35,9 +35,11 @@ export async function CaseHistory({ vin }: { vin: string }) {
     <Card id="cases" className="scroll-mt-18">
       <CardHeader>
         <CardTitle>Case history</CardTitle>
-        <CardDescription>
-          {cases.length === 0 ? "No cases" : `${open} open, ${cases.length - open} closed`}. Open first, then newest.
-        </CardDescription>
+        {cases.length > 0 && (
+          <CardDescription>
+            {open} open, {cases.length - open} closed · open first, then newest
+          </CardDescription>
+        )}
         <CardAction>
           <Link href={newCaseHref(vin)} className={buttonVariants({ variant: "outline", size: "sm" })}>
             <FilePlus aria-hidden />
@@ -47,7 +49,7 @@ export async function CaseHistory({ vin }: { vin: string }) {
       </CardHeader>
       <CardContent>
         {cases.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No previous cases for this vehicle.</p>
+          <p className="text-sm text-muted-foreground">No cases for this vehicle yet.</p>
         ) : (
           // Open cases always show; then the newest closed ones, and the rest on request.
           <ExpandableList
