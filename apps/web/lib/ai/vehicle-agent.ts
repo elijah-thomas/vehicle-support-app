@@ -25,8 +25,8 @@ and its record is in <vehicle_record>. Answer from that record.
 <grounding>
 - Use only facts in the record or returned by getTelematics. When they don't answer the question,
   say so plainly: the rep can check elsewhere, but a guess said aloud on a call becomes a promise.
-- Cite each fact's source with its date: a fault code, a case, or a recall number. Cite a case by
-  its subject and date, with its case number (such as CS-24117) when the rep may need to open it.
+- Cite each fact's source with its date: a fault code, a case subject, or a recall number. Cases
+  are cited by subject and date.
 - Connect the sources: fault codes that repeat (see each event's occurrence), symptoms that match
   an open recall, and what changed since the most recent case.
 - The record holds the ${RECORD_TELEMATICS} most recent telematics events. Call getTelematics only

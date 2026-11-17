@@ -1,4 +1,4 @@
-import { FilePlus, Mail, Phone, ShieldAlert } from "lucide-react";
+import { Mail, Phone, ShieldAlert } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PanelUnavailable } from "@/components/panel-unavailable";
@@ -8,7 +8,6 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { VehicleStatus } from "@/components/vehicle-status";
-import { newCaseHref } from "@/lib/cases";
 import { getVehicle } from "@/lib/customer/vehicles";
 import { loadPanel } from "@/lib/load-panel";
 
@@ -17,6 +16,7 @@ const contactButton = buttonVariants({ variant: "outline", size: "sm", className
 
 // The same header on every vehicle page: it lives in the [vin] layout, above whichever view the
 // left column shows. Open-recall banners sit here too, so the recall chips reach them from any page.
+// New case lives in the Cases panel, not here (D44).
 export async function VehicleHeader({ vin }: { vin: string }) {
   // Decision (D43): the header catches its own failure. Why: it renders in the layout, which the
   // [vin] error.tsx doesn't cover, so a throw here would replace the whole page with the root error.
@@ -61,15 +61,9 @@ export async function VehicleHeader({ vin }: { vin: string }) {
 
       <Card>
         <CardContent className="space-y-3">
-          <div className="flex flex-wrap items-start gap-3">
-            <div className="min-w-0 flex-1">
-              <h1 className="text-xl font-semibold tracking-tight">{name}</h1>
-              <p className="mt-0.5 font-mono text-xs whitespace-nowrap">{vehicle.vin}</p>
-            </div>
-            <Link href={newCaseHref(vin)} className={buttonVariants({ variant: "outline", size: "sm" })}>
-              <FilePlus aria-hidden />
-              New case
-            </Link>
+          <div>
+            <h1 className="text-xl font-semibold tracking-tight">{name}</h1>
+            <p className="mt-0.5 font-mono text-xs whitespace-nowrap">{vehicle.vin}</p>
           </div>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-md bg-muted px-3 py-2">
             <span className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Customer</span>

@@ -4,9 +4,12 @@ import { VehicleApiError } from "@/lib/customer/vehicle-api";
 const addCaseNote = vi.fn();
 const closeCase = vi.fn();
 const createCaseWithNote = vi.fn();
+const reopenCase = vi.fn();
+const removeNote = vi.fn();
+const restoreNote = vi.fn();
 const updateTag = vi.fn();
 const redirect = vi.fn();
-vi.mock("@/lib/customer/cases", () => ({ addCaseNote, closeCase, createCaseWithNote }));
+vi.mock("@/lib/customer/cases", () => ({ addCaseNote, closeCase, createCaseWithNote, reopenCase, removeNote, restoreNote }));
 vi.mock("next/cache", () => ({ updateTag }));
 vi.mock("next/navigation", () => ({ redirect }));
 vi.mock("@/lib/customer/vehicle-api", async () => {
@@ -18,10 +21,11 @@ vi.mock("@/lib/customer/vehicle-api", async () => {
   return { VehicleApiError };
 });
 
-const { addRepNoteAction, closeCaseAction, openCaseAction } = await import("./case-actions");
+const { addRepNoteAction, closeCaseAction, openCaseAction, removeNoteAction, reopenCaseAction, restoreNoteAction } =
+  await import("./case-actions");
 
 const VIN = "0MRAE4LR5RA100001";
-const note = { vin: VIN, caseId: "case-1", issue: "Status call", summary: "Dana called for an update.", nextSteps: ["Call back Friday"] };
+const note = { vin: VIN, caseId: "case-1", summary: "Dana called for an update." };
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -31,12 +35,12 @@ beforeEach(() => {
 
 test("saves a rep note to the case and refreshes the case list", async () => {
   expect(await addRepNoteAction(note)).toEqual({ ok: true });
-  expect(addCaseNote).toHaveBeenCalledWith("case-1", expect.objectContaining({ vin: VIN, source: "REP" }));
+  expect(addCaseNote).toHaveBeenCalledWith("case-1", { vin: VIN, source: "REP", summary: "Dana called for an update." });
   expect(updateTag).toHaveBeenCalledWith(`cases:${VIN}`);
 });
 
 test("names the field to fix before calling the case system", async () => {
-  expect(await addRepNoteAction({ ...note, nextSteps: [] })).toEqual({ ok: false, error: "Add at least one next step" });
+  expect(await addRepNoteAction({ ...note, summary: " " })).toEqual({ ok: false, error: "Note can't be empty" });
   expect(await closeCaseAction({ vin: VIN, caseId: "case-1", resolution: "  " })).toEqual({
     ok: false,
     error: "Resolution can't be empty",
@@ -64,6 +68,32 @@ test("a failed close leaves the cache alone", async () => {
     ok: false,
     error: "Couldn't reach the case system. Try again in a moment.",
   });
+  expect(updateTag).not.toHaveBeenCalled();
+});
+
+test("reopens the case with the rep's reason", async () => {
+  reopenCase.mockResolvedValue({ id: "case-1" });
+  expect(await reopenCaseAction({ vin: VIN, caseId: "case-1", reason: "Light came back." })).toEqual({ ok: true });
+  expect(reopenCase).toHaveBeenCalledWith("case-1", { vin: VIN, reason: "Light came back." });
+  expect(updateTag).toHaveBeenCalledWith(`cases:${VIN}`);
+  expect(await reopenCaseAction({ vin: VIN, caseId: "case-1", reason: "" })).toEqual({ ok: false, error: "Reason can't be empty" });
+});
+
+test("removes and restores a note, refreshing the case list each time", async () => {
+  removeNote.mockResolvedValue({ id: "note-1" });
+  restoreNote.mockResolvedValue({ id: "note-1" });
+  const target = { vin: VIN, caseId: "case-1", noteId: "note-1" };
+  expect(await removeNoteAction(target)).toEqual({ ok: true });
+  expect(removeNote).toHaveBeenCalledWith("case-1", "note-1", VIN);
+  expect(await restoreNoteAction(target)).toEqual({ ok: true });
+  expect(restoreNote).toHaveBeenCalledWith("case-1", "note-1", VIN);
+  expect(updateTag).toHaveBeenCalledTimes(2);
+});
+
+test("a failed removal reports the case system's error and leaves the cache alone", async () => {
+  removeNote.mockRejectedValue(new VehicleApiError(404, "not_found", "no note"));
+  const result = await removeNoteAction({ vin: VIN, caseId: "case-1", noteId: "note-1" });
+  expect(result).toEqual({ ok: false, error: "This case isn't on this vehicle in the case system. Reload the page." });
   expect(updateTag).not.toHaveBeenCalled();
 });
 

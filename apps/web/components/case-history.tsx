@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCaseSnapshot } from "@/lib/case-snapshot";
-import { caseHref, contactStatus, matchFaultsToCases, newCaseHref, sortCases } from "@/lib/cases";
+import { caseHref, lastContact, matchFaultsToCases, newCaseHref, sortCases } from "@/lib/cases";
 import type { Case } from "@/lib/customer/vehicles";
 import { formatCaseNumber, formatDate } from "@/lib/format";
 import { loadPanel } from "@/lib/load-panel";
@@ -24,7 +24,6 @@ export async function CaseHistory({ vin }: { vin: string }) {
   const loaded = await loadPanel("cases", () => getCaseSnapshot(vin));
   if (!loaded.ok) return <PanelUnavailable title="Case history" id="cases" />;
   if (!loaded.data) return null;
-  const { now } = loaded.data;
   const cases = sortCases(loaded.data.cases);
   const open = cases.filter((c) => c.status === "OPEN").length;
 
@@ -57,7 +56,6 @@ export async function CaseHistory({ vin }: { vin: string }) {
             noun={["older case", "older cases"]}
             items={cases.map((supportCase) => {
               const isOpen = supportCase.status === "OPEN";
-              const contact = contactStatus(supportCase, now);
               const notes = supportCase.notes.length;
               const code = faultForCase.get(supportCase.id)?.code;
               return {
@@ -73,7 +71,6 @@ export async function CaseHistory({ vin }: { vin: string }) {
                         <span className="font-mono text-[13px] whitespace-nowrap text-muted-foreground">
                           {formatCaseNumber(supportCase.number)}
                         </span>
-                        {contact.overdue && <Badge variant="warning">Overdue</Badge>}
                       </div>
                       <p className="font-medium">{supportCase.subject}</p>
                       <p className="text-xs text-muted-foreground">
@@ -87,7 +84,7 @@ export async function CaseHistory({ vin }: { vin: string }) {
                       </p>
                       {isOpen && (
                         <p className="text-xs text-muted-foreground">
-                          Last contact {formatDate(contact.lastContact)} · {notes === 1 ? "1 note" : `${notes} notes`}
+                          Last contact {formatDate(lastContact(supportCase))} · {notes === 1 ? "1 note" : `${notes} notes`}
                         </p>
                       )}
                     </div>

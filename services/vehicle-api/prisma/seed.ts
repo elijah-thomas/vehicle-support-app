@@ -199,8 +199,8 @@ async function seedCases() {
   const customer = (email: string) =>
     prisma.customer.findUniqueOrThrow({ where: { email } }).then((c) => c.id);
 
-  // Each visit leaves a note thread. The open case's last contact is 11 days ago, so it is always
-  // overdue (more than 5 business days); Marcus's case was contacted yesterday, so it is current.
+  // Each visit leaves a note thread. Dana's open case was last contacted 11 days ago and is waiting
+  // on the buyback review team; Marcus's case was contacted yesterday.
   const dana = await customer("dana.whitfield@example.com");
   await prisma.case.create({
     data: {

@@ -5,9 +5,9 @@ import { CurrentPageLink, PageAwareLink } from "@/components/page-aware-link";
 import { RecordLink } from "@/components/record-link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "cn";
-import { caseHref, contactStatus } from "@/lib/cases";
+import { caseHref } from "@/lib/cases";
 import { getCaseSnapshot } from "@/lib/case-snapshot";
-import { formatDateTime, formatRelative, ordinal } from "@/lib/format";
+import { formatCaseNumber, formatDate, formatDateTime, formatRelative, ordinal } from "@/lib/format";
 import { loadPanel } from "@/lib/load-panel";
 import { getTelematicsSnapshot, RECENT_WINDOW_DAYS, repeatKey, worstRecentEvent } from "@/lib/telematics";
 
@@ -108,7 +108,7 @@ async function CasesStatus({ vin, hasOpenRecalls }: { vin: string; hasOpenRecall
   const loaded = await loadPanel("cases status", () => getCaseSnapshot(vin));
   const snapshot = loaded.ok ? loaded.data : null;
   if (!snapshot) return null;
-  const { cases, now } = snapshot;
+  const { cases } = snapshot;
 
   const open = cases.filter((supportCase) => supportCase.status === "OPEN");
   if (open.length === 0) {
@@ -129,7 +129,6 @@ async function CasesStatus({ vin, hasOpenRecalls }: { vin: string; hasOpenRecall
 
   // One open case: the chip opens it.
   const [only] = open;
-  const overdue = contactStatus(only, now).overdue;
   return (
     <StatusItem
       className={ORDER.cases}
@@ -137,8 +136,8 @@ async function CasesStatus({ vin, hasOpenRecalls }: { vin: string; hasOpenRecall
       tone="info"
       Icon={FileText}
       label="Open case"
-      detail={only.subject}
-      caption={overdue ? <span className="text-warning">overdue</span> : undefined}
+      detail={<span className="font-mono whitespace-nowrap">{formatCaseNumber(only.number)}</span>}
+      caption={`opened ${formatDate(only.openedAt)}`}
     />
   );
 }

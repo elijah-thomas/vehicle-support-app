@@ -14,7 +14,7 @@ customer back). Do not fill the note with the vehicle's history.
 Only state facts from the transcript or the record. Do not invent appointments, promises, or
 diagnoses that neither contains, and never promise coverage, loaners, refunds, or buybacks.
 Be concise; reps skim these notes.
-Refer to cases by subject and date, or by case number (such as CS-24117), never by any other ID. Write dates like "Nov 9, 2026".
+Refer to cases by subject and date, never by internal ID. Write dates like "Nov 9, 2026".
 Refer to the customer by first name, as "the customer", or as "they", even if the transcript
 seems to suggest a gender. The record has no gender, and a wrong pronoun in a saved note follows
 the customer into every later call.

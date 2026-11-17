@@ -14,7 +14,8 @@ lands in code, a `Decision (Dnn)` comment marks the line.
 - **Rendering:** [D14](#vehicle-page-caching) Vehicle page caching · [D17](#vehicle-status)
   Status row · [D29](#error-states) Error states · [D31](#case-view) Case view ·
   [D21](#lookup-and-layout) Lookup · [D41](#vehicle-routes) Vehicle routes ·
-  [D42](#fault-case-links) Faults linked to cases · [D43](#layout-freshness) Layout freshness
+  [D42](#fault-case-links) Faults linked to cases · [D43](#layout-freshness) Layout freshness ·
+  [D44](#case-actions) Case view and actions
 - **AI:** [D5](#models) Models and failover · [D15](#agent) Agent · [D30](#agent-context) Record
   up front · [D16](#call-summary-generation) Call summary · [D26](#junk-transcripts) Non-support
   transcripts · [D33](#cost-per-run) Cost per run · [D19](#evals) Evals ·
@@ -488,11 +489,16 @@ lands in code, a `Decision (Dnn)` comment marks the line.
 - **Checks:** API tests for each write and refusal, a seeded removed note that no read returns,
   and an eval rule that no answer or draft mentions it.
 - **Rollout:** The API ships before the web app, which now expects `number` (D35).
-- **Results (Nov 17, 2026, 3 runs per case, after a reseed):** Gemini 30/30 and 21/21; Claude 29/30
+- **Results (Nov 16, 2026, 3 runs per case, after a reseed):** Gemini 30/30 and 21/21; Claude 29/30
   and 20/21. No answer or draft mentioned the removed note, and case numbers appeared without
   tripping the internal-ID check. Claude's two misses were intermittent and unrelated: one call
   summary named the injected request while leaving it out (3/3 on a rerun), and one tire-pressure
   answer called `getTelematics` for older history (6/6 with both the old and new prompt).
+- **Prompts unchanged (Nov 16):** A line in each prompt inviting case numbers ("or by case number,
+  such as CS-24117") made Claude slip on pronouns: the Marcus call summary failed 5 of 9 runs, and
+  two agent cases 4 of 18, against 6/6 and 12/12 with the original prompts. Both prompts went back
+  to their earlier wording, which forbids only internal IDs. The record still gives each case's
+  number, and answers cite them without being told to.
 
 ## D41. Vehicle routes {#vehicle-routes}
 
@@ -581,3 +587,30 @@ lands in code, a `Decision (Dnn)` comment marks the line.
   the server as props or slots, and the leaf is kept small: `AssistantPanel` is now a server
   component around the client tabs, and `PanelUnavailable` puts only its Retry button on the
   client.
+
+## D44. Case view and actions {#case-actions}
+
+- **Choice:** The case view carries every write an advisor needs to finish a call, each one call to
+  the case system (D40) followed by clearing the case list.
+  - **Header:** `CS-{number}`, status and subject; Category, Opened, Last contact and Notes; Close
+    case on an open case, Reopen case on a closed one, each as an inline form that requires a
+    resolution or a reason.
+  - **Activity,** newest first: notes, the opening, a close with its resolution, and "Reopened"
+    for the rep note the API writes when a case reopens.
+  - **Removing a note** has no confirmation dialog. The note is replaced at once by "Note removed",
+    with Undo for 8 seconds. If the request fails, the note comes back with the error.
+  - **Quick note:** a summary only. Transcripts go through Call summary.
+  - **Fault history** replaces related faults: every occurrence of the case's matched fault (D42),
+    newest first, with the case each one led to. The case in view is marked rather than linked. A
+    case with no matched fault shows none.
+- **Refines D31:** No overdue rule. It was this desk's policy, not the customer's data, and with no
+  advisor identity or escalation states it only labelled cases without changing what anyone
+  did. Escalation and overdue rules are a later phase. "New case" lives in the Cases panel only,
+  not the vehicle header.
+- **Options:** Keeping overdue as built; a confirmation dialog before removing a note.
+- **Why Undo, not a dialog:** Removing is rare and reversible, so a dialog would slow the common
+  case to guard the rare mistake. The note stays in the database, marked removed.
+- **Limit:** The "Note removed" marker lives in the page. After a reload the removed note simply
+  isn't there.
+- **Results (Nov 16, 3 runs per case):** agent 30/30 and call summaries 21/21 on both models, with
+  case numbers cited throughout and no mention of the removed note.
