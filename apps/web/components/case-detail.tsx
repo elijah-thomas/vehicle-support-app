@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getCaseSnapshot } from "@/lib/case-snapshot";
-import { isReopenNote, lastContact } from "@/lib/cases";
+import { isReopenNote, lastContact, newestFirst } from "@/lib/cases";
 import type { Case } from "@/lib/customer/vehicles";
 import { formatCaseNumber, formatDate } from "@/lib/format";
 import { loadPanel } from "@/lib/load-panel";
@@ -78,7 +78,7 @@ function activity(supportCase: Case): ActivityItem[] {
   );
   items.push({ kind: "opened", date: supportCase.openedAt, text: supportCase.description });
   if (supportCase.closedAt) items.push({ kind: "closed", date: supportCase.closedAt, text: supportCase.resolution ?? "" });
-  return items.sort((a, b) => Date.parse(b.date) - Date.parse(a.date));
+  return items.sort(newestFirst);
 }
 
 function Field({ label, value }: { label: string; value: string }) {

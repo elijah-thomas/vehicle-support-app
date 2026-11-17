@@ -16,6 +16,12 @@ export function isReopenNote(note: Case["notes"][number]) {
   return note.source === "REP" && note.issue === "Case reopened";
 }
 
+// Case activity, newest first. On a tie the opening goes last: a case's first note is written as
+// it opens.
+export function newestFirst(a: { kind: string; date: string }, b: { kind: string; date: string }) {
+  return Date.parse(b.date) - Date.parse(a.date) || Number(a.kind === "opened") - Number(b.kind === "opened");
+}
+
 // Open cases first, then newest opened.
 export function sortCases(cases: Case[]) {
   return [...cases].sort(

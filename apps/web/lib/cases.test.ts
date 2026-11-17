@@ -6,6 +6,7 @@ import {
   isReopenNote,
   lastContact,
   matchFaultsToCases,
+  newestFirst,
   relatedFaults,
   sortCases,
 } from "./cases";
@@ -29,6 +30,15 @@ test("a reopen is recognized by the note the API writes for it", () => {
   expect(isReopenNote({ ...note("2026-11-12"), issue: "Case reopened" })).toBe(true);
   expect(isReopenNote({ ...note("2026-11-12"), issue: "Case reopened", source: "AI_DRAFT_EDITED" })).toBe(false);
   expect(isReopenNote(note("2026-11-12"))).toBe(false);
+});
+
+test("activity is newest first, with the opening last when a note shares its time", () => {
+  const items = [
+    { kind: "opened", date: utc("2026-11-06") },
+    { kind: "note", date: utc("2026-11-06") },
+    { kind: "note", date: utc("2026-11-09") },
+  ];
+  expect(items.sort(newestFirst).map((i) => `${i.kind} ${i.date.slice(5, 10)}`)).toEqual(["note 11-09", "note 11-06", "opened 11-06"]);
 });
 
 test("lists open cases first, then newest", () => {

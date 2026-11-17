@@ -7,6 +7,7 @@ import { CaseNote } from "@/components/case-note";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import type { Case } from "@/lib/customer/vehicles";
+import { newestFirst } from "@/lib/cases";
 import { formatDate } from "@/lib/format";
 
 type Note = Case["notes"][number];
@@ -72,7 +73,7 @@ export function CaseActivity({ vin, caseId, items }: { vin: string; caseId: stri
     ...[...removed.values()]
       .filter(({ note }) => !shownIds.has(note.id))
       .map(({ note }) => ({ kind: "note" as const, date: note.createdAt, note })),
-  ].sort((a, b) => Date.parse(b.date) - Date.parse(a.date));
+  ].sort(newestFirst);
 
   return (
     <section className="space-y-3" aria-labelledby="activity-title">
