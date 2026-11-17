@@ -4,6 +4,7 @@ import { AssistantPanel } from "@/components/assistant-panel";
 import { CallSummary } from "@/components/call-summary";
 import { CallSummaryPanel } from "@/components/call-summary-panel";
 import { WithVin } from "@/components/with-vin";
+import { loadSuggestions } from "@/lib/assistant-suggestions";
 
 // Decision (D31): the assistant lives in the layout, so moving between the vehicle and its cases
 // keeps the chat thread and any unsaved draft. See docs/decisions.md#case-view
@@ -21,8 +22,10 @@ export default function VehicleLayout({ children, params }: LayoutProps<"/vehicl
         >
           <AssistantPanel
             ask={
-              <Suspense fallback={<AgentChat vin={null} />}>
-                <WithVin params={params}>{(vin) => <AgentChat vin={vin} />}</WithVin>
+              <Suspense fallback={<AgentChat vin={null} suggestions={null} />}>
+                {/* Decision (D39): suggestions start here, unawaited, and only their rows wait.
+                    See docs/decisions.md#assistant-suggestions */}
+                <WithVin params={params}>{(vin) => <AgentChat vin={vin} suggestions={loadSuggestions(vin)} />}</WithVin>
               </Suspense>
             }
             callSummary={
