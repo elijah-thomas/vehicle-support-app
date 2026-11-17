@@ -13,7 +13,8 @@ lands in code, a `Decision (Dnn)` comment marks the line.
   [D36](#warm-api) Warm API · [D37](#telematics-windows) Past telematics
 - **Rendering:** [D14](#vehicle-page-caching) Vehicle page caching · [D17](#vehicle-status)
   Status row · [D29](#error-states) Error states · [D31](#case-view) Case view ·
-  [D21](#lookup-and-layout) Lookup · [D41](#vehicle-routes) Vehicle routes
+  [D21](#lookup-and-layout) Lookup · [D41](#vehicle-routes) Vehicle routes ·
+  [D42](#fault-case-links) Faults linked to cases
 - **AI:** [D5](#models) Models and failover · [D15](#agent) Agent · [D30](#agent-context) Record
   up front · [D16](#call-summary-generation) Call summary · [D26](#junk-transcripts) Non-support
   transcripts · [D33](#cost-per-run) Cost per run · [D19](#evals) Evals ·
@@ -520,3 +521,21 @@ lands in code, a `Decision (Dnn)` comment marks the line.
   someone's route to it.
 - **Accepted:** A case number that doesn't exist shows the not-found view with a 200 status,
   because the static shell has already been sent. The vehicle page behaves the same way.
+
+## D42. Faults linked to cases {#fault-case-links}
+
+- **Choice:** One helper, `matchFaultsToCases` in `lib/cases.ts`, decides which fault led to which
+  case: a case's fault is the newest coded event in the 7 days before it opened, and a fault
+  links to the earliest case opened 0 to 7 days after it with that code. The telematics panel
+  links each fault row to its case ("CS-24117 opened 2 days later"), and each case row shows its
+  fault code. The case view's fault history uses the same helper.
+- **Refines D31:** The page no longer says the link is a match by date. The app reads like the
+  advisors' tool, so the rule lives in the helper's doc comment and here.
+- **Rendering:** Each panel now reads the other's data: telematics reads the cached cases, and
+  cases read the request's telematics snapshot (React `cache()`, so no extra call). If the other
+  source fails, the panel still shows, without links or codes. The cost is that the cases panel
+  waits for telematics before it streams in.
+- **Options:** Showing the rule on screen; a real case-to-fault link in the customer's API, which
+  is the production path.
+- **Limit:** Matching runs over the 20 newest events on the overview, so on a long history an old
+  case may show no code. The case view reads settled windows per case (D37).

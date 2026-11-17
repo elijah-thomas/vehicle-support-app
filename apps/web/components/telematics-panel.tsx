@@ -1,9 +1,13 @@
 import { Info, OctagonAlert, TriangleAlert } from "lucide-react";
+import Link from "next/link";
+import { ExpandableList } from "@/components/expandable-list";
 import { PanelUnavailable } from "@/components/panel-unavailable";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { getCaseSnapshot } from "@/lib/case-snapshot";
+import { caseHref, daysBetween, matchFaultsToCases } from "@/lib/cases";
 import type { TelematicsEvent } from "@/lib/customer/vehicles";
-import { formatDateTime, formatRelative, ordinal, telematicsReading } from "@/lib/format";
+import { formatCaseNumber, formatDateTime, formatRelative, ordinal, telematicsReading } from "@/lib/format";
 import { loadPanel } from "@/lib/load-panel";
 import { getTelematicsSnapshot, newestPerCode, occurrences } from "@/lib/telematics";
 
@@ -12,6 +16,13 @@ const severityDisplay = {
   WARN: { variant: "warning", Icon: TriangleAlert, label: "Warning" },
   INFO: { variant: "info", Icon: Info, label: "Info" },
 } as const satisfies Record<TelematicsEvent["severity"], object>;
+
+const NEWEST_SHOWN = 10;
+
+function laterLabel(days: number) {
+  if (days === 0) return "opened the same day";
+  return `opened ${days === 1 ? "1 day" : `${days} days`} later`;
+}
 
 export async function TelematicsPanel({ vin }: { vin: string }) {
   const loaded = await loadPanel("telematics", () => getTelematicsSnapshot(vin));
@@ -22,6 +33,9 @@ export async function TelematicsPanel({ vin }: { vin: string }) {
   const { events, fetchedAt: now } = snapshot;
   const occurrence = occurrences(events);
   const anchors = newestPerCode(events);
+  // Cases are only for linking a fault to the case it led to; without them the rows still show.
+  const cases = await loadPanel("telematics cases", () => getCaseSnapshot(vin));
+  const { caseForEvent } = matchFaultsToCases(cases.ok ? (cases.data?.cases ?? []) : [], events);
 
   return (
     <Card id="telematics" className="scroll-mt-18">
@@ -33,43 +47,64 @@ export async function TelematicsPanel({ vin }: { vin: string }) {
         {events.length === 0 ? (
           <p className="text-sm text-muted-foreground">No telematics received yet.</p>
         ) : (
-          <ul className="space-y-1">
-            {events.map((event) => {
+          <ExpandableList
+            className="space-y-1"
+            initial={NEWEST_SHOWN}
+            noun={["older event", "older events"]}
+            items={events.map((event) => {
               const { variant, Icon, label } = severityDisplay[event.severity];
               const count = occurrence.get(event.id) ?? 1;
               const reading = telematicsReading(event.message, event.value);
-              const meta = [
-                reading.value,
-                count > 1 && `${ordinal(count)} time`,
-              ].filter(Boolean);
-              return (
-                <li
-                  key={event.id}
-                  id={event.code && anchors.has(event.id) ? `dtc-${event.code}` : undefined}
-                  className="grid scroll-mt-18 grid-cols-[92px_minmax(0,1fr)_auto] items-start gap-x-3 rounded-md px-1 py-1.5 text-sm transition-colors"
-                >
-                  <Badge variant={variant} className="justify-self-start">
-                    <Icon data-icon="inline-start" aria-hidden />
-                    {label}
-                  </Badge>
-                  <div className="min-w-0">
-                    <p>
-                      {event.code && <span className="mr-1.5 font-mono font-medium">{event.code}</span>}
-                      {reading.label}
-                    </p>
-                    {meta.length > 0 && <p className="text-xs text-muted-foreground">{meta.join(" · ")}</p>}
-                  </div>
-                  <time
-                    dateTime={event.recordedAt}
-                    title={formatDateTime(event.recordedAt)}
-                    className="text-right text-xs whitespace-nowrap text-muted-foreground"
+              const ledTo = caseForEvent.get(event.id);
+              const meta = [reading.value, count > 1 && `${ordinal(count)} time`].filter(Boolean);
+              const anchor = event.code && anchors.has(event.id) ? `dtc-${event.code}` : undefined;
+              return {
+                key: event.id,
+                ids: anchor ? [anchor] : [],
+                node: (
+                  <div
+                    id={anchor}
+                    className="grid scroll-mt-18 grid-cols-[92px_minmax(0,1fr)_auto] items-start gap-x-3 rounded-md px-1 py-1.5 text-sm transition-colors"
                   >
-                    {formatRelative(event.recordedAt, now)}
-                  </time>
-                </li>
-              );
+                    <Badge variant={variant} className="justify-self-start">
+                      <Icon data-icon="inline-start" aria-hidden />
+                      {label}
+                    </Badge>
+                    <div className="min-w-0">
+                      <p>
+                        {event.code && <span className="mr-1.5 font-mono font-medium">{event.code}</span>}
+                        {reading.label}
+                      </p>
+                      {(meta.length > 0 || ledTo) && (
+                        <p className="text-xs text-muted-foreground">
+                          {meta.join(" · ")}
+                          {meta.length > 0 && ledTo && " · "}
+                          {ledTo && (
+                            <>
+                              <Link
+                                href={caseHref(vin, ledTo.number)}
+                                className="font-mono whitespace-nowrap text-primary underline-offset-4 hover:underline"
+                              >
+                                {formatCaseNumber(ledTo.number)}
+                              </Link>{" "}
+                              {laterLabel(daysBetween(event.recordedAt, ledTo.openedAt))}
+                            </>
+                          )}
+                        </p>
+                      )}
+                    </div>
+                    <time
+                      dateTime={event.recordedAt}
+                      title={formatDateTime(event.recordedAt)}
+                      className="text-right text-xs whitespace-nowrap text-muted-foreground"
+                    >
+                      {formatRelative(event.recordedAt, now)}
+                    </time>
+                  </div>
+                ),
+              };
             })}
-          </ul>
+          />
         )}
       </CardContent>
     </Card>
