@@ -47,10 +47,28 @@ docs/                  Proposal and decision log
 
 ## Run it locally
 
-The web app reaches the API only through Vercel's OIDC token, so running it locally needs access
-to the Vercel project (`vercel env pull`). Without it, the API runs on its own: `services/vehicle-api`
-has `db:up`, `db:migrate`, `db:seed` and `dev` scripts (Docker for Postgres), documented in
-[`.env.example`](services/vehicle-api/.env.example).
+The full stack (Next.js, the Express API and Postgres in Docker) runs offline with no Vercel or
+GCP access. Needs Node 22+, pnpm and Docker.
+
+```bash
+pnpm install
+cp services/vehicle-api/.env.example services/vehicle-api/.env
+pnpm db:reset    # start Postgres, apply migrations, load the synthetic data (wipes saved notes)
+pnpm dev:local   # web on :3000, API on :8080
+```
+
+`dev:local` sets `VEHICLE_API_AUTH=none`, so the web app calls the local API without a token
+(locally there is no Cloud Run IAM to check one). The env schema refuses that setting on any
+Vercel deployment.
+
+The only remote dependency is AI Gateway, for the assistant and call summary. Put an
+`AI_GATEWAY_API_KEY` in `apps/web/.env.development.local` (`vercel env pull` doesn't overwrite
+that file); the AI SDK uses it before falling back to a Vercel OIDC token. Without it, everything
+except the two AI features still works.
+
+`pnpm dev` instead runs the web app against the staging API through the real OIDC path, using
+`apps/web/.env.local` from `vercel env pull`. Variables for both modes are in
+[`apps/web/.env.example`](apps/web/.env.example).
 
 Checks: `pnpm typecheck`, `pnpm lint` and `pnpm test` (the API tests need the Docker Postgres).
 `pnpm eval` makes real model calls; see [`apps/web/evals/README.md`](apps/web/evals/README.md).
