@@ -20,6 +20,11 @@ export function formatDate(iso: string) {
   return dateFormat.format(new Date(iso));
 }
 
+// How reps write and say a case number.
+export function formatCaseNumber(number: number) {
+  return `CS-${number}`;
+}
+
 export function formatDateTime(iso: string) {
   return `${dateTimeFormat.format(new Date(iso))} UTC`;
 }
