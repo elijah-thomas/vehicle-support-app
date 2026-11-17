@@ -167,6 +167,8 @@ model CaseNote {
   createdAt DateTime   @default(now())
   /// Set when a rep removes the note; case reads leave it out. Cleared by restore (Undo).
   removedAt DateTime?
+  /// Set by the browser on an AI draft, so a retried save can't write the same note twice.
+  draftId   String?    @unique
   case      Case       @relation(fields: [caseId], references: [id])
 
   @@index([caseId, createdAt])
