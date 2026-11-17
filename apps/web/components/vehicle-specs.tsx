@@ -2,6 +2,7 @@ import { PeekButton } from "@/components/peek-button";
 import { Card, CardContent } from "@/components/ui/card";
 import { getVehicle, type Vehicle } from "@/lib/customer/vehicles";
 import { formatDate } from "@/lib/format";
+import { loadPanel } from "@/lib/load-panel";
 
 const powertrainLabel = { EV: "Electric", HYBRID: "Hybrid", GAS: "Gas" } as const;
 
@@ -39,9 +40,11 @@ function InstalledOptions({ options }: { options: string[] }) {
   );
 }
 
-// The vehicle's configuration, on the overview only. The header above it says not found.
+// The vehicle's configuration, on the overview only. It reads the same cached record as the header,
+// so the header above says not found or unavailable, and offers Retry.
 export async function VehicleSpecs({ vin }: { vin: string }) {
-  const vehicle = await getVehicle(vin);
+  const loaded = await loadPanel("vehicle specs", () => getVehicle(vin));
+  const vehicle = loaded.ok ? loaded.data : null;
   if (!vehicle) return null;
 
   return (

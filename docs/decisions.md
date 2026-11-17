@@ -14,7 +14,7 @@ lands in code, a `Decision (Dnn)` comment marks the line.
 - **Rendering:** [D14](#vehicle-page-caching) Vehicle page caching · [D17](#vehicle-status)
   Status row · [D29](#error-states) Error states · [D31](#case-view) Case view ·
   [D21](#lookup-and-layout) Lookup · [D41](#vehicle-routes) Vehicle routes ·
-  [D42](#fault-case-links) Faults linked to cases
+  [D42](#fault-case-links) Faults linked to cases · [D43](#layout-freshness) Layout freshness
 - **AI:** [D5](#models) Models and failover · [D15](#agent) Agent · [D30](#agent-context) Record
   up front · [D16](#call-summary-generation) Call summary · [D26](#junk-transcripts) Non-support
   transcripts · [D33](#cost-per-run) Cost per run · [D19](#evals) Evals ·
@@ -539,3 +539,45 @@ lands in code, a `Decision (Dnn)` comment marks the line.
   is the production path.
 - **Limit:** Matching runs over the 20 newest events on the overview, so on a long history an old
   case may show no code. The case view reads settled windows per case (D37).
+
+## D43. Layout freshness {#layout-freshness}
+
+- **Finding:** Moving the header and assistant into the `[vin]` layout (D41) left three claims
+  untrue. Next.js doesn't re-render a shared layout on client navigation
+  ([docs](https://nextjs.org/docs/app/getting-started/layouts-and-pages)), and an `error.tsx` doesn't
+  cover the layout beside it.
+  - The status row and the telematics panel shared one fetch (D17), but after overview → case →
+    overview only the panel is fetched again.
+  - Fault codes in answers became links only if their row was on the page when the answer
+    rendered (D17). The chat now outlives the page, and older rows sit in a collapsed list.
+  - A failed vehicle read in the header reached the root error page, which replaced the whole
+    screen with the lookup's message (D29).
+- **Choice:**
+  - **Accepted:** The layout's reads (header, status row, suggestions, the call summary's case
+    list) are as of entering the vehicle. A save, Retry, or a reload refreshes them. The page's
+    own panels are fresh on every navigation. Extends D39's limit to the whole header.
+  - **Fault links:** A fault code is always a link and finds its row when clicked. On the
+    overview it flashes the code's newest row, expanding the list if needed, or the telematics
+    panel if the code isn't among the newest events. Elsewhere it opens the overview first.
+    Recall codes keep the render-time check, because their banners are in the layout.
+  - **Header failure:** The header catches its own failure and shows a Retry card, as the panels
+    do (D29). The specs card reads the same record and leaves the explanation to the header.
+- **Options:** Refreshing the layout on every navigation, which costs a telematics call and a
+  token exchange per click; moving the status row into each page, which undoes D41; keeping
+  answer links in sync with the page by watching the DOM.
+- **Why:** The header and the panel disagree only if telematics arrives while the advisor is
+  moving within one vehicle, and the panel is the one they read. Resolving on click costs nothing
+  until the advisor clicks.
+- **Also corrected:**
+  - D14's "agent: not cached" means its answers. Its record reads use the cached fetchers (D30).
+  - Customer search is not cached because it runs only in a Server Action, so no email reaches a
+    URL; a `connection()` call there did nothing and is gone.
+  - No `generateStaticParams`: prerendering the seeded vehicles would put owner details in static
+    HTML, and the real fleet is unbounded. One shell serves every VIN.
+  - `partialPrefetching`: a link prefetches its route's shell once, shared by every link to that
+    route (one for all VINs), so a click shows the layout and skeletons at once while the data
+    streams ([docs](https://nextjs.org/docs/app/guides/prefetching#partial-prefetching)).
+- **Client components:** Only for browser state, the pathname or events. Data reaches them from
+  the server as props or slots, and the leaf is kept small: `AssistantPanel` is now a server
+  component around the client tabs, and `PanelUnavailable` puts only its Retry button on the
+  client.
