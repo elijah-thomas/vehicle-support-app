@@ -74,6 +74,14 @@ export function earlierCasesWithSameFault(supportCase: Case, cases: Case[], even
   );
 }
 
-export function caseHref(vin: string, caseId: string) {
-  return `/vehicles/${vin}/cases/${encodeURIComponent(caseId)}`;
+// Case URLs use the number reps read aloud, never the internal ID. See docs/decisions.md#case-numbers
+export function caseHref(vin: string, number: number) {
+  return `/vehicles/${vin}/cases/${number}`;
 }
+
+export function newCaseHref(vin: string) {
+  return `/vehicles/${vin}/cases/new`;
+}
+
+// The categories already in the customer's case system, offered as suggestions; any text is valid.
+export const CASE_CATEGORIES = ["Battery & Charging", "Charging", "Electrical", "Engine & Emissions"];

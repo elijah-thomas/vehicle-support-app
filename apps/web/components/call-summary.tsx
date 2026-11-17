@@ -16,9 +16,9 @@ import { type CallSummary as Draft, callSummarySchema, type CallType, MAX_TRANSC
 import { aiErrorCode, rateLimitAwareFetch, type AiErrorCode } from "@/lib/ai-request-error";
 import { flashWhenPresent } from "@/lib/flash-element";
 
-export type CaseOption = { id: string; label: string; open: boolean; subject: string };
+export type CaseOption = { id: string; number: number; label: string; open: boolean; subject: string };
 
-type Saved = { noteId: string; caseId: string; caseSubject: string };
+type Saved = { noteId: string; caseNumber: number; caseSubject: string };
 
 type Props = {
   // null while the page's params and cases load: the empty form renders disabled as the fallback.
@@ -122,7 +122,7 @@ export function CallSummary({ vin, cases, cannedTranscript }: Props) {
           <AlertDescription className="text-foreground">
             Added to &ldquo;{saved.caseSubject}&rdquo;.{" "}
             <Link
-              href={`${caseHref(vin, saved.caseId)}#note-${saved.noteId}`}
+              href={`${caseHref(vin, saved.caseNumber)}#note-${saved.noteId}`}
               className="font-medium underline underline-offset-2"
             >
               Open the case
@@ -166,8 +166,8 @@ function ReviewForm({
   onSaved: (saved: Saved) => void;
 }) {
   // The case the rep has open, else the most recent open case. See docs/decisions.md#case-view
-  const params = useParams<{ caseId?: string }>();
-  const defaultCase = cases.find((c) => c.id === params.caseId) ?? cases.find((c) => c.open);
+  const params = useParams<{ number?: string }>();
+  const defaultCase = cases.find((c) => String(c.number) === params.number) ?? cases.find((c) => c.open);
   const [caseId, setCaseId] = useState(defaultCase?.id ?? "new");
   const [issue, setIssue] = useState(draft.issue);
   const [summary, setSummary] = useState(draft.summary);
@@ -176,12 +176,6 @@ function ReviewForm({
   const [category, setCategory] = useState(draft.suggestedCase.category);
   const [error, setError] = useState<string | null>(null);
   const [saving, startSaving] = useTransition();
-
-  // A case created by an earlier, half-finished save may not be in the refreshed list yet.
-  const options =
-    caseId !== "new" && !cases.some((c) => c.id === caseId)
-      ? [...cases, { id: caseId, label: `New case · ${subject}`, open: true, subject }]
-      : cases;
 
   function save() {
     setError(null);
@@ -202,8 +196,13 @@ function ReviewForm({
         return;
       }
       if (result.ok) {
-        const caseSubject = caseId === "new" ? subject : (options.find((c) => c.id === caseId)?.subject ?? subject);
-        onSaved({ noteId: result.noteId, caseId: result.caseId, caseSubject });
+        const picked = cases.find((c) => c.id === caseId);
+        const caseNumber = result.caseNumber ?? picked?.number;
+        if (caseNumber === undefined) {
+          setError("Saved, but the case couldn't be found. Reload the page.");
+          return;
+        }
+        onSaved({ noteId: result.noteId, caseNumber, caseSubject: picked?.subject ?? subject });
         return;
       }
       setError(result.error);
@@ -243,7 +242,7 @@ function ReviewForm({
           onChange={(e) => setCaseId(e.target.value)}
           className="h-9 w-full rounded-md border bg-transparent px-3 text-sm"
         >
-          {options.map((c) => (
+          {cases.map((c) => (
             <option key={c.id} value={c.id}>
               {c.label}
             </option>

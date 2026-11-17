@@ -1,10 +1,12 @@
 "use server";
 
 import { updateTag } from "next/cache";
+import { redirect } from "next/navigation";
 import { z } from "zod";
 import { cacheTags } from "@/lib/customer/cache-tags";
-import { addCaseNote, closeCase } from "@/lib/customer/cases";
+import { addCaseNote, closeCase, createCaseWithNote } from "@/lib/customer/cases";
 import { VehicleApiError } from "@/lib/customer/vehicle-api";
+import { caseHref } from "@/lib/cases";
 import { VIN_PATTERN } from "@/lib/format";
 
 // Limits match the GCP API's validation, so the rep gets a clear error here rather than a 400 there.
@@ -27,6 +29,13 @@ const noteSchema = z.object({
 });
 
 const closeSchema = z.object({ ...target, resolution: text("Resolution", 1000) });
+
+const openCaseSchema = z.object({
+  vin: target.vin,
+  subject: text("Subject", 200),
+  category: text("Category", 100),
+  reported: text("What the customer reported", 4000),
+});
 
 export type CaseActionResult = { ok: true } | { ok: false; error: string };
 
@@ -69,4 +78,27 @@ export async function closeCaseAction(input: z.input<typeof closeSchema>): Promi
   }
   updateTag(cacheTags.cases(vin));
   return { ok: true };
+}
+
+// A case always starts with its first note: what the customer reported is the case's description
+// and its first rep note, written together in one call (D22). Then the rep lands on the new case.
+export async function openCaseAction(input: z.input<typeof openCaseSchema>): Promise<CaseActionResult> {
+  const parsed = openCaseSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid case" };
+  const { vin, subject, category, reported } = parsed.data;
+
+  let caseNumber: number;
+  try {
+    ({ caseNumber } = await createCaseWithNote({
+      vin,
+      subject,
+      category,
+      description: reported,
+      note: { source: "REP", summary: reported },
+    }));
+  } catch (error) {
+    return { ok: false, error: caseSystemError(error, "The case system refused the case.") };
+  }
+  updateTag(cacheTags.cases(vin));
+  redirect(caseHref(vin, caseNumber));
 }

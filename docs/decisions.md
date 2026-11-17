@@ -13,7 +13,7 @@ lands in code, a `Decision (Dnn)` comment marks the line.
   [D36](#warm-api) Warm API · [D37](#telematics-windows) Past telematics
 - **Rendering:** [D14](#vehicle-page-caching) Vehicle page caching · [D17](#vehicle-status)
   Status row · [D29](#error-states) Error states · [D31](#case-view) Case view ·
-  [D21](#lookup-and-layout) Lookup
+  [D21](#lookup-and-layout) Lookup · [D41](#vehicle-routes) Vehicle routes
 - **AI:** [D5](#models) Models and failover · [D15](#agent) Agent · [D30](#agent-context) Record
   up front · [D16](#call-summary-generation) Call summary · [D26](#junk-transcripts) Non-support
   transcripts · [D33](#cost-per-run) Cost per run · [D19](#evals) Evals ·
@@ -487,3 +487,36 @@ lands in code, a `Decision (Dnn)` comment marks the line.
 - **Checks:** API tests for each write and refusal, a seeded removed note that no read returns,
   and an eval rule that no answer or draft mentions it.
 - **Rollout:** The API ships before the web app, which now expects `number` (D35).
+- **Results (Nov 17, 2026, 3 runs per case, after a reseed):** Gemini 30/30 and 21/21; Claude 29/30
+  and 20/21. No answer or draft mentioned the removed note, and case numbers appeared without
+  tripping the internal-ID check. Claude's two misses were intermittent and unrelated: one call
+  summary named the injected request while leaving it out (3/3 on a rerun), and one tire-pressure
+  answer called `getTelematics` for older history (6/6 with both the old and new prompt).
+
+## D41. Vehicle routes {#vehicle-routes}
+
+- **Choice:** `vehicles/[vin]/layout.tsx` owns the header (title, VIN, New case, customer, status
+  row, open-recall banners) and the assistant. Each route replaces only the left column below it:
+  the overview, `cases/[number]` and `cases/new`. Refines D31: case URLs use the number advisors
+  say (`/cases/24117`), and `cases/[caseId]` is gone.
+  - **Caching:** The case page reads its case from the cached case list (`cases:{vin}`, D14),
+    which every write clears. Telematics stays uncached.
+  - **Chips:** The layout doesn't re-render on client navigation, so the chips that depend on the
+    page are small client components that read the pathname. The open-case chip marks itself
+    current on its own case; the fault chip scrolls to the fault's newest telematics row on the
+    overview and to its fault history on a case page.
+  - **Breadcrumb trail:** The path the advisor took within this vehicle, kept in the layout's
+    state rather than the URL. Back, or a crumb, returns to an earlier step; a new VIN starts a new
+    trail; a page opened directly shows the overview and the current page. At most three steps
+    show, with older ones behind "…".
+  - **New case:** A Server Action writes the case and its first rep note in one call (D22), clears
+    the case list and opens the new case.
+- **Options:** A per-case cached read with its own tag, using `GET /vehicles/:vin/cases/:number`;
+  keeping the trail in `sessionStorage` so it survives a reload.
+- **Why:** The header and assistant stay mounted, so the chat thread and an unsaved draft survive
+  every move. A per-case read buys nothing yet, because a case page needs the vehicle's whole case
+  list for its fault history; it becomes the path once a vehicle has hundreds of cases, and the
+  endpoint already exists. The trail stays out of the URL so a shared link opens the case, not
+  someone's route to it.
+- **Accepted:** A case number that doesn't exist shows the not-found view with a 200 status,
+  because the static shell has already been sent. The vehicle page behaves the same way.

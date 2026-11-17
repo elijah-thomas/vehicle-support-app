@@ -2,7 +2,7 @@
 
 import { CircleAlert } from "lucide-react";
 import { useState, useTransition } from "react";
-import { addRepNoteAction } from "@/app/vehicles/[vin]/cases/[caseId]/case-actions";
+import { addRepNoteAction } from "@/app/vehicles/[vin]/cases/case-actions";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

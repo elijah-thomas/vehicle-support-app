@@ -1,11 +1,14 @@
-import { beforeEach, expect, test, vi } from "vitest";
+import { beforeEach, describe, expect, test, vi } from "vitest";
 import { VehicleApiError } from "@/lib/customer/vehicle-api";
 
 const addCaseNote = vi.fn();
 const closeCase = vi.fn();
+const createCaseWithNote = vi.fn();
 const updateTag = vi.fn();
-vi.mock("@/lib/customer/cases", () => ({ addCaseNote, closeCase }));
+const redirect = vi.fn();
+vi.mock("@/lib/customer/cases", () => ({ addCaseNote, closeCase, createCaseWithNote }));
 vi.mock("next/cache", () => ({ updateTag }));
+vi.mock("next/navigation", () => ({ redirect }));
 vi.mock("@/lib/customer/vehicle-api", async () => {
   class VehicleApiError extends Error {
     constructor(public status: number, public code: string, message: string) {
@@ -15,7 +18,7 @@ vi.mock("@/lib/customer/vehicle-api", async () => {
   return { VehicleApiError };
 });
 
-const { addRepNoteAction, closeCaseAction } = await import("./case-actions");
+const { addRepNoteAction, closeCaseAction, openCaseAction } = await import("./case-actions");
 
 const VIN = "0MRAE4LR5RA100001";
 const note = { vin: VIN, caseId: "case-1", issue: "Status call", summary: "Dana called for an update.", nextSteps: ["Call back Friday"] };
@@ -62,4 +65,38 @@ test("a failed close leaves the cache alone", async () => {
     error: "Couldn't reach the case system. Try again in a moment.",
   });
   expect(updateTag).not.toHaveBeenCalled();
+});
+
+describe("openCaseAction", () => {
+  const newCase = { vin: VIN, subject: "Wipers stall", category: "Electrical", reported: "Wipers stop mid-sweep." };
+
+  test("opens the case with what the customer reported as its first rep note, then goes to it", async () => {
+    createCaseWithNote.mockResolvedValue({ caseId: "case-9", caseNumber: 24120, noteId: "note-9" });
+    await openCaseAction(newCase);
+    expect(createCaseWithNote).toHaveBeenCalledWith({
+      vin: VIN,
+      subject: "Wipers stall",
+      category: "Electrical",
+      description: "Wipers stop mid-sweep.",
+      note: { source: "REP", summary: "Wipers stop mid-sweep." },
+    });
+    expect(updateTag).toHaveBeenCalledWith(`cases:${VIN}`);
+    expect(redirect).toHaveBeenCalledWith(`/vehicles/${VIN}/cases/24120`);
+  });
+
+  test("names the empty field and writes nothing", async () => {
+    expect(await openCaseAction({ ...newCase, reported: "  " })).toEqual({
+      ok: false,
+      error: "What the customer reported can't be empty",
+    });
+    expect(createCaseWithNote).not.toHaveBeenCalled();
+  });
+
+  test("keeps the rep on the form when the case system fails", async () => {
+    createCaseWithNote.mockRejectedValue(new VehicleApiError(429, "rate_limited", "Slow down"));
+    const result = await openCaseAction(newCase);
+    expect(result).toMatchObject({ ok: false });
+    expect(redirect).not.toHaveBeenCalled();
+    expect(updateTag).not.toHaveBeenCalled();
+  });
 });

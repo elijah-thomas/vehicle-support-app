@@ -25,7 +25,8 @@ const saveSchema = z.object({
 });
 
 export type SaveNoteResult =
-  | { ok: true; noteId: string; caseId: string }
+  // caseNumber comes back for a new case; for an existing one the form already knows it.
+  | { ok: true; noteId: string; caseId: string; caseNumber?: number }
   | { ok: false; error: string };
 
 function saveError(error: unknown) {
