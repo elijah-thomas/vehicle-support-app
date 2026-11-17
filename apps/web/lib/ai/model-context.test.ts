@@ -11,12 +11,12 @@ const vehicle: Vehicle = {
   vin: "0MRKC15V8PA200002", color: "Granite Gray", purchasedAt: "2024-12-15T10:00:00Z", softwareVersion: "23.9.4",
   installedOptions: ["Bed Liner"],
   model: { year: 2023, make: "Meridian", model: "Kestrel 1500", trim: "Crew Cab", powertrain: "GAS", batteryKwh: null, rangeMiles: null, engine: "5.3L V8", towingLbs: 11000 },
-  customer: { firstName: "Marcus", lastName: "Bell", email: "marcus.bell@example.com", vehicles: [] },
+  customer: { firstName: "Marcus", lastName: "Bell", email: "marcus.bell@example.com", phone: "555-0102", vehicles: [] },
   recalls: [{ status: "OPEN", completedAt: null, recall: { campaignNumber: "MR-24-117", title: "Rear camera", description: "Goes black.", remedy: "Update." } }],
 };
 const cases: Case[] = [
   {
-    id: "cmwii451l000vj74yw7td0nev", status: "OPEN", category: "Electrical", subject: "Backup camera goes black",
+    id: "cmwii451l000vj74yw7td0nev", number: 24117, status: "OPEN", category: "Electrical", subject: "Backup camera goes black",
     description: "Goes black.", openedAt: "2026-11-10T23:30:00Z", closedAt: null, resolution: null,
     notes: [{ id: "cmwii451l000vj74yw7td0nex", source: "REP", issue: "Camera", summary: "Called.", nextSteps: ["Book"], createdAt: "2026-11-11T00:00:00Z" }],
   },
@@ -31,6 +31,19 @@ test("strips every internal ID, including those of nested notes", () => {
   const text = vehicleRecordForModel({ vehicle, cases, telematics }, asOf);
   expect(text).not.toMatch(CUID);
   expect(text).toContain("Backup camera goes black");
+});
+
+test("gives case numbers, which reps use, but never the owner's phone number", () => {
+  const text = vehicleRecordForModel({ vehicle, cases, telematics }, asOf);
+  expect(text).toContain('"caseNumber":"CS-24117"');
+  expect(text).not.toContain("555-0102");
+});
+
+test("leaves out the issue of a note that has none", () => {
+  const quickNote = { ...cases[0].notes[0], issue: null };
+  const text = vehicleRecordForModel({ vehicle, cases: [{ ...cases[0], notes: [quickNote] }], telematics }, asOf);
+  expect(text).not.toContain('"issue"');
+  expect(text).toContain('"summary":"Called."');
 });
 
 test("gives dates in the format answers use, in UTC", () => {

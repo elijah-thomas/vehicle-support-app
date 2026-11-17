@@ -19,7 +19,8 @@ lands in code, a `Decision (Dnn)` comment marks the line.
   transcripts · [D33](#cost-per-run) Cost per run · [D19](#evals) Evals ·
   [D39](#assistant-suggestions) Suggested questions
 - **Data integrity:** [D6](#data-model) Data model · [D25](#note-ownership) Note ownership ·
-  [D22](#save-feedback) Save failures · [D38](#seed-activity) Seeded case activity
+  [D22](#save-feedback) Save failures · [D38](#seed-activity) Seeded case activity ·
+  [D40](#case-numbers) Case numbers and case actions
 - **Release path:** [D9](#terraform) Terraform · [D12](#environments) Environments ·
   [D13](#pipeline) API pipeline · [D35](#rollout) Rollout · [D32](#release-versions) Versions ·
   [D24](#tests) Tests
@@ -458,3 +459,31 @@ lands in code, a `Decision (Dnn)` comment marks the line.
   read fails, the chat falls back to three general questions.
 - **Limit:** Layouts don't re-render on client navigation, so suggestions reflect the record as
   the advisor entered the vehicle, until a save refreshes the page.
+
+## D40. Case numbers and case actions {#case-numbers}
+
+- **Choice:** The API gains what an advisor needs to finish a call. Every change to the schema
+  only adds, so the running revision keeps working during a deploy (D13).
+  - **Case numbers:** An identity column, `number`, starting at 24101, shown as `CS-{number}`.
+    `GET /vehicles/:vin/cases/:number` reads one case. The model now sees case numbers and may
+    cite them; internal IDs stay hidden (narrows D15 and D30).
+  - **New writes**, in the existing pattern (`POST /cases/:id/...` with the VIN in the body, a 404
+    for another vehicle's case or note, as in D25): `reopen` with a reason, which clears the
+    resolution and keeps the reason and the old resolution as a rep note; and a note's `remove`
+    and `restore`. A note on another case, a second close, reopen or removal all get a 409.
+  - **Removing a note** sets `removedAt`. Case reads leave removed notes out, so the assistant
+    never reads them, and restore (Undo) brings a note back unchanged.
+  - **Rep notes** need only a summary; `issue` is nullable. AI-drafted notes still need all three
+    fields.
+  - **Vehicle read:** Adds the owner's phone for the contact buttons. The model never gets it.
+- **Options:** A number generated in the web app from the cuid; moving every case route under
+  `/vehicles/:vin/cases/:number`; deleting notes; placeholder text for a rep note's issue.
+- **Why:** Advisors read case numbers aloud, and the number belongs to the system of record, so
+  the React screens show the same one. Keeping the existing routes leaves the React app's calls
+  untouched (D7). A removed note stays for Undo and for audit.
+- **Why identity, not SERIAL:** Postgres lets anyone who can insert into the table use an identity
+  column's sequence. A SERIAL sequence needs its own grant, which `infra/sql/grants.sql` doesn't
+  give the API's user, so inserts would fail on staging and production.
+- **Checks:** API tests for each write and refusal, a seeded removed note that no read returns,
+  and an eval rule that no answer or draft mentions it.
+- **Rollout:** The API ships before the web app, which now expects `number` (D35).

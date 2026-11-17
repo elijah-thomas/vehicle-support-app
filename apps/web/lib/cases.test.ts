@@ -13,7 +13,7 @@ import {
 
 const utc = (date: string) => `${date}T15:00:00Z`;
 const supportCase = (id: string, opened: string, extra: Partial<Case> = {}): Case => ({
-  id, status: "CLOSED", category: "Battery & Charging", subject: id, description: "", openedAt: utc(opened),
+  id, number: 24101, status: "CLOSED", category: "Battery & Charging", subject: id, description: "", openedAt: utc(opened),
   closedAt: null, resolution: null, notes: [], ...extra,
 });
 const note = (date: string) => ({ id: date, source: "REP" as const, issue: "", summary: "", nextSteps: ["x"], createdAt: utc(date) });

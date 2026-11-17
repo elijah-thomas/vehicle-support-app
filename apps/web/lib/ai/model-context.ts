@@ -1,6 +1,6 @@
 import "server-only";
 import type { Case, TelematicsEvent, Vehicle } from "@/lib/customer/vehicles";
-import { formatDate } from "@/lib/format";
+import { formatCaseNumber, formatDate } from "@/lib/format";
 import { occurrences, repeatKey } from "@/lib/telematics";
 
 // A source that couldn't be loaded, so the model can say so rather than treat it as empty.
@@ -13,7 +13,9 @@ export type VehicleRecord = {
 };
 
 // What the models see of a vehicle. Shaped for the model, not passed through from the API:
-// - no internal IDs: they mean nothing to a rep, and a model that never sees one can't quote one
+// - no internal IDs: they mean nothing to a rep, and a model that never sees one can't quote one.
+//   Case numbers (CS-24117) are different: reps read and say them, so the model gets those.
+//   Decision (D40). See docs/decisions.md#case-numbers
 // - dates already in the format answers use, so the model never converts timestamps
 // - repeat counts computed here, so "this code keeps coming back" is a fact, not an inference
 // See docs/decisions.md#agent-context
@@ -75,6 +77,7 @@ export function telematicsForModel(events: TelematicsEvent[]) {
 
 function casesForModel(cases: Case[]) {
   return cases.map((c) => ({
+    caseNumber: formatCaseNumber(c.number),
     subject: c.subject,
     status: c.status,
     category: c.category,
@@ -85,7 +88,7 @@ function casesForModel(cases: Case[]) {
     notes: c.notes.map((n) => ({
       date: formatDate(n.createdAt),
       source: n.source,
-      issue: n.issue,
+      ...(n.issue && { issue: n.issue }),
       summary: n.summary,
       nextSteps: n.nextSteps,
     })),

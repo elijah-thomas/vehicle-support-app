@@ -27,14 +27,18 @@ const PRONOUNS = /\b(he|him|his|she|her|hers)\b/i;
 const PROMISE =
   /^(?!.*\b(no|not|never|cannot|can't|don't|won't)\b).*\b(offer|provide|arrange|give|approve)\b.*\b(loaner|rental car|refund|buyback)/im;
 
-// Every agent answer: no markdown, no assumed pronouns, no promises.
-export const everyAnswer: TextChecks = { exclude: [/\*\*/, /^#/m, PRONOUNS, PROMISE] };
+// A note removed from Dana's open case (see the seed). The API never returns it, so it must never
+// surface in an answer or a draft.
+const REMOVED_NOTE = /winter tire/i;
+
+// Every agent answer: no markdown, no assumed pronouns, no promises, nothing from a removed note.
+export const everyAnswer: TextChecks = { exclude: [/\*\*/, /^#/m, PRONOUNS, PROMISE, REMOVED_NOTE] };
 
 // Every answer that isn't a decline ends with next steps.
 export const answerFormat: TextChecks = { include: [/Next steps:/i] };
 
 // Every call summary (issue, summary, and next steps together).
-export const everyNote: TextChecks = { exclude: [PRONOUNS, PROMISE] };
+export const everyNote: TextChecks = { exclude: [PRONOUNS, PROMISE, REMOVED_NOTE] };
 
 export const agentCases: AgentCase[] = [
   {

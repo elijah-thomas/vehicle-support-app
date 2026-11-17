@@ -19,7 +19,7 @@ const vehicle = (firstName: string, openRecall?: string): Vehicle => ({
     year: 2024, make: "Meridian", model: "Aster EV", trim: "Long Range", powertrain: "EV",
     batteryKwh: 102, rangeMiles: 310, engine: null, towingLbs: 3500,
   },
-  customer: { firstName, lastName: "Example", email: "someone@example.com", vehicles: [] },
+  customer: { firstName, lastName: "Example", email: "someone@example.com", phone: "555-0100", vehicles: [] },
   recalls: openRecall
     ? [{ status: "OPEN", completedAt: null, recall: { campaignNumber: openRecall, title: "", description: "", remedy: "" } }]
     : [],

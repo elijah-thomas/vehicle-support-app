@@ -13,22 +13,26 @@ export function CaseNote({ note, id }: { note: Note; id?: string }) {
         Note · {formatDate(note.createdAt)}
         {note.source === "AI_DRAFT_EDITED" && <Badge variant="info">AI draft, reviewed by rep</Badge>}
       </div>
-      <div>
-        <p className={eyebrow}>Issue</p>
-        <p className="font-medium">{note.issue}</p>
-      </div>
+      {note.issue && (
+        <div>
+          <p className={eyebrow}>Issue</p>
+          <p className="font-medium">{note.issue}</p>
+        </div>
+      )}
       <div>
         <p className={eyebrow}>Summary</p>
         <p>{note.summary}</p>
       </div>
-      <div className="border-t border-foreground/10 pt-2">
-        <p className={eyebrow}>Next steps</p>
-        <ul className="list-disc pl-5">
-          {note.nextSteps.map((step) => (
-            <li key={step}>{step}</li>
-          ))}
-        </ul>
-      </div>
+      {note.nextSteps.length > 0 && (
+        <div className="border-t border-foreground/10 pt-2">
+          <p className={eyebrow}>Next steps</p>
+          <ul className="list-disc pl-5">
+            {note.nextSteps.map((step) => (
+              <li key={step}>{step}</li>
+            ))}
+          </ul>
+        </div>
+      )}
     </li>
   );
 }
