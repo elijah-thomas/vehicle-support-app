@@ -17,7 +17,7 @@ async function poolConfig(): Promise<PoolConfig> {
     ipType: IpAddressTypes.PUBLIC,
     authType: AuthTypes.IAM,
   });
-  // Decision (D46): 4 connections per instance, so both environments at max scale (2 × 3 instances
+  // Decision (D34): 4 connections per instance, so both environments at max scale (2 × 3 instances
   // × 4 = 24) fit db-f1-micro's ~25. Raising max instances means revisiting this.
   // See docs/decisions.md#concurrency
   return { ...connection, user: env.DB_IAM_USER, database: env.DB_NAME, max: 4 };

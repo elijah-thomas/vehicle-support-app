@@ -1,4 +1,4 @@
-# Decision (D23): deploys services/vehicle-api to Cloud Run. develop → staging, master → production.
+# Decision (D13): deploys services/vehicle-api to Cloud Run. develop → staging, master → production.
 # No GCP key is stored anywhere: GitHub's OIDC token is exchanged through Workload Identity
 # Federation for the environment's deployer service account. Order is build → migrate → deploy,
 # so a failed migration leaves the running revision untouched; migrations must stay backward

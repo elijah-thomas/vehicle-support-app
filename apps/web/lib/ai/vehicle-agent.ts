@@ -80,7 +80,7 @@ I can only help with this vehicle's support. Try asking "What changed since the 
 </example>
 </examples>`;
 
-// Decision (D25): the one tool takes no VIN; the route binds the vehicle the rep has open. Why: no
+// Decision (D15): the one tool takes no VIN; the route binds the vehicle the rep has open. Why: no
 // prompt can make the agent read another customer's vehicle. Trade-off: it can't compare a
 // customer's vehicles. The record itself is loaded by the caller (lib/ai/vehicle-record.ts).
 // See docs/decisions.md#agent

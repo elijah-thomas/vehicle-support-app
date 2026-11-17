@@ -31,7 +31,7 @@ Only these are agreed. Anything beyond this list is a decision point.
    Cloud Run via WIF.
 3. **Vehicle page:** search by email/VIN. Static shell, specs cached long, telematics fresh and
    streamed, cases cached and invalidated on note save.
-4. **Agent chat:** AI SDK, read-only tools per lookup, AI Gateway failover per D11, canned
+4. **Agent chat:** AI SDK, read-only tools per lookup, AI Gateway failover per D5, canned
    prompts, step cap.
 5. **Call summary:** paste transcript → structured draft (issue, summary, next steps) → rep
    edits → save to Postgres → invalidate cases. 2–3 canned transcripts.
@@ -101,7 +101,7 @@ Rules for collaborating:
   - `develop`: integration branch. All work branches start here and merge back here.
   - `feat/<short-name>`, `fix/<short-name>`, `docs/<short-name>`: one branch per piece of work,
     branched from `develop`.
-  - `release/YY.MM.DD.N` (date-based, D43; N counts releases that day, starting at 1): cut from
+  - `release/YY.MM.DD.N` (date-based, D32; N counts releases that day, starting at 1): cut from
     `develop`, merged into `master` and back into `develop`, then tagged `vYY.MM.DD.N`.
 - Merge with `--no-ff` so each branch stays visible in history. Never squash.
 - Propose a commit at each natural stopping point (message included); commit only after I
@@ -121,7 +121,7 @@ Postgres via Prisma (D2). See `docs/decisions.md`.
 
 Vercel OIDC → GCP Workload Identity Federation → Cloud Run IAM for boundary auth (D3).
 
-Model failover: Gemini on Vertex → Claude on Anthropic, both BYOK (D11).
+Model failover: Gemini on Vertex → Claude on Anthropic, both BYOK (D5).
 
 These APIs move fast. Before writing code against Next.js 16, AI SDK, AI Gateway, or Workflows,
 check current docs (nextjs.org/docs, ai-sdk.dev, vercel.com/docs) instead of relying on memory.
@@ -156,9 +156,9 @@ services/vehicle-api/     Express API → Cloud Run (GitHub Actions). Owns the P
   prisma/                 schema.prisma, migrations, seed.ts (synthetic data).
   src/                    Express server; src/generated/ is Prisma output (gitignored).
   docker-compose.yml      Local Postgres 17 on port 5440.
-infra/                    Terraform for GCP (D18). Never change GCP by hand; edit here and
+infra/                    Terraform for GCP (D9). Never change GCP by hand; edit here and
                           `terraform plan` first. sql/ holds Postgres GRANTs Terraform can't manage.
-.github/workflows/        deploy-api.yml: develop → staging, master → production (D22, D23).
+.github/workflows/        deploy-api.yml: develop → staging, master → production (D12, D13).
 docs/                     decisions.md, architecture, rollout plan, submission write-up.
 ```
 

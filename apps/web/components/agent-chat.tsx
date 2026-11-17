@@ -202,7 +202,7 @@ export function AgentChat({ vin }: { vin: string | null }) {
             </Button>
           )}
         </div>
-        {/* The assistant gets only this vehicle's record (D41), so the rep knows not to ask about
+        {/* The assistant gets only this vehicle's record (D30), so the rep knows not to ask about
             other vehicles or policy. Under the input, it applies to every answer. */}
         <p id="agent-scope" className="text-xs text-muted-foreground">
           Answers use only this vehicle&apos;s record.

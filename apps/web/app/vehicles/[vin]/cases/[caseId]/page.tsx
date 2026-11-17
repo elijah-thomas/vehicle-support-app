@@ -6,7 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { WithVin } from "@/components/with-vin";
 
 // Static shell like the vehicle page. The case comes from the cached case list; its related
-// faults read telematics windows (cached once settled, D49) behind their own boundary. The
+// faults read telematics windows (cached once settled, D37) behind their own boundary. The
 // assistant is in the [vin] layout.
 export default function CasePage({ params }: PageProps<"/vehicles/[vin]/cases/[caseId]">) {
   return (
