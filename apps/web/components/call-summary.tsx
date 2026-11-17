@@ -284,7 +284,7 @@ function ReviewForm({
 // See docs/decisions.md#junk-transcripts
 const callTypeWarning: Record<Exclude<CallType, "vehicle_issue">, string> = {
   other: "This call doesn't describe a vehicle issue",
-  no_conversation: "This transcript doesn't look like a conversation",
+  no_conversation: "Nothing to summarize from this call",
 };
 
 const draftErrorCopy: Record<AiErrorCode, string> = {
