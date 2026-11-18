@@ -2,7 +2,7 @@ import { expect, test, vi } from "vitest";
 import type { Case, TelematicsEvent, Vehicle } from "@/lib/customer/vehicles";
 
 vi.mock("@/lib/customer/vehicles", () => ({ getTelematics: vi.fn() }));
-const { UNAVAILABLE, vehicleRecordForModel } = await import("./model-context");
+const { UNAVAILABLE, earlierNextStepsForModel, vehicleRecordForModel } = await import("./model-context");
 
 // A model that never sees an internal ID can't quote one to a rep. See docs/decisions.md#agent-context
 const CUID = /\bc[a-z0-9]{24}\b/;
@@ -63,4 +63,21 @@ test("marks a source that couldn't load, so it isn't mistaken for an empty one",
   const text = vehicleRecordForModel({ vehicle, cases: UNAVAILABLE, telematics: [] }, asOf);
   expect(text).toContain("<cases>unavailable</cases>");
   expect(text).toContain("<telematics>[]</telematics>");
+});
+
+test("gives an open case's days since its last update, so the model doesn't do date math", () => {
+  const closed = { ...cases[0], status: "CLOSED" as const, closedAt: "2026-11-12T00:00:00Z" };
+  const record = { vehicle, cases: [cases[0], { ...closed, number: 24118 }], telematics };
+  const text = vehicleRecordForModel(record, asOf, { caseAge: true });
+  expect(text).toContain('"lastUpdate":"Nov 11, 2026","daysSinceUpdate":4');
+  expect(text.match(/daysSinceUpdate/g)).toHaveLength(1);
+  expect(vehicleRecordForModel(record, asOf)).not.toContain("daysSinceUpdate");
+});
+
+test("lists the next steps earlier answers gave, or none on the first answer", () => {
+  expect(earlierNextStepsForModel([])).toBe("<earlier_next_steps>none</earlier_next_steps>");
+  const answer = "Recurring fault.\n- P0C73 logged Nov 5.\nNext steps:\n- Confirm Dana is safe.\n- Ask the review team.";
+  expect(earlierNextStepsForModel([answer, "Status only.\n- No change."])).toBe(
+    "<earlier_next_steps>\n- Confirm Dana is safe.\n- Ask the review team.\n</earlier_next_steps>",
+  );
 });

@@ -11,14 +11,14 @@ export const MAX_TEXT_LENGTH = 2000;
 export const MAX_REQUEST_CHARS = 80_000;
 
 const part = z.looseObject({ type: z.string() });
-const message = z.discriminatedUnion("role", [
+export const agentMessageSchema = z.discriminatedUnion("role", [
   z.looseObject({ role: z.literal("user"), parts: z.array(z.looseObject({ type: z.literal("text"), text: z.string() })) }),
   z.looseObject({ role: z.literal("assistant"), parts: z.array(part) }),
 ]);
 
 const requestSchema = z.object({
   vin: z.string().toUpperCase().regex(VIN_PATTERN),
-  messages: z.array(message).min(1),
+  messages: z.array(agentMessageSchema).min(1),
 });
 
 type Messages = z.infer<typeof requestSchema>["messages"];
@@ -54,4 +54,12 @@ export function parseAgentRequest(body: unknown): AgentRequest {
 function withoutOldToolResults(message: Messages[number]): Messages[number] {
   if (message.role !== "assistant") return message;
   return { ...message, parts: message.parts.filter((part) => part.type === "text" || part.type === "reasoning") };
+}
+
+// The text of each earlier answer, for the next steps it already gave (D47). Forged text can only
+// hide a step from the next answer. See docs/decisions.md#answer-shape
+export function earlierAnswers(messages: Messages): string[] {
+  return messages.slice(0, -1).flatMap((m) =>
+    m.role === "assistant" ? [m.parts.flatMap((p) => (p.type === "text" && typeof p.text === "string" ? [p.text] : [])).join("")] : [],
+  );
 }

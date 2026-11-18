@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { MAX_MESSAGES, parseAgentRequest } from "./agent-request";
+import { earlierAnswers, MAX_MESSAGES, parseAgentRequest } from "./agent-request";
 
 const VIN = "0MRKC15V8PA200002";
 const user = (text: string) => ({ id: "u", role: "user", parts: [{ type: "text", text }] });
@@ -47,4 +47,9 @@ describe("rejects what it doesn't send", () => {
     const huge = { id: "a", role: "assistant", parts: [{ type: "text", text: "x".repeat(90_000) }] };
     expect(parseAgentRequest({ vin: VIN, messages: [huge, user("hi")] })).toMatchObject({ code: "too_long", status: 413 });
   });
+});
+
+test("reads each earlier answer's text, so its next steps aren't repeated", () => {
+  const parsed = parseAgentRequest({ vin: VIN, messages: [user("Status?"), assistant, user("And the recall?")] });
+  expect(parsed.ok && earlierAnswers(parsed.messages)).toEqual(["Open recall."]);
 });
