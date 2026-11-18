@@ -1,7 +1,7 @@
 import { beforeEach, expect, test, vi } from "vitest";
 
 const getVehicle = vi.fn();
-vi.mock("@/lib/customer/vehicles", () => ({
+vi.mock("@/lib/customer/cached-reads", () => ({
   getVehicle: (vin: string) => getVehicle(vin),
   getCases: async () => [],
   getTelematics: async () => [],

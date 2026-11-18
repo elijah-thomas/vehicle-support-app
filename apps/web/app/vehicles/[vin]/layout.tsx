@@ -1,13 +1,13 @@
 import { Suspense } from "react";
-import { AgentChat } from "@/components/agent-chat";
-import { AssistantPanel } from "@/components/assistant-panel";
-import { CallSummary } from "@/components/call-summary";
-import { CallSummaryPanel } from "@/components/call-summary-panel";
-import { VehicleHeader } from "@/components/vehicle-header";
-import { VehicleHeaderSkeleton } from "@/components/vehicle-header-skeleton";
-import { VehicleTrail } from "@/components/vehicle-trail";
-import { WithVin } from "@/components/with-vin";
-import { loadSuggestions } from "@/lib/assistant-suggestions";
+import { AgentChat } from "@/components/assistant/agent-chat";
+import { AssistantPanel } from "@/components/assistant/assistant-panel";
+import { CallSummaryForm } from "@/components/assistant/call-summary-form";
+import { CallSummaryPanel } from "@/components/assistant/call-summary-panel";
+import { VehicleHeader } from "@/components/vehicle/vehicle-header";
+import { VehicleHeaderSkeleton } from "@/components/vehicle/vehicle-header-skeleton";
+import { VehicleTrail } from "@/components/vehicle/vehicle-trail";
+import { WithVin } from "./with-vin";
+import { loadSuggestions } from "@/lib/assistant/assistant-suggestions";
 
 // Decision (D41): the layout owns the header and the assistant, and each route (the overview, a
 // case, a new case) replaces only the left column below the header. Moving between them keeps the
@@ -45,7 +45,7 @@ export default function VehicleLayout({ children, params }: LayoutProps<"/vehicl
               </Suspense>
             }
             callSummary={
-              <Suspense fallback={<CallSummary vin={null} cases={[]} />}>
+              <Suspense fallback={<CallSummaryForm vin={null} cases={[]} />}>
                 <WithVin params={params}>{(vin) => <CallSummaryPanel vin={vin} />}</WithVin>
               </Suspense>
             }

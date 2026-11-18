@@ -3,7 +3,7 @@
 import { updateTag } from "next/cache";
 import { z } from "zod";
 import { cacheTags } from "@/lib/customer/cache-tags";
-import { addCaseNote, createCaseWithNote } from "@/lib/customer/cases";
+import { addCaseNote, createCaseWithNote } from "@/lib/customer/writes";
 import { VehicleApiError } from "@/lib/customer/vehicle-api";
 import { VIN_PATTERN } from "@/lib/format";
 

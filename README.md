@@ -65,8 +65,10 @@ both models before each release.
 
 ```
 apps/web/              Next.js app on Vercel
+  components/          UI, one folder per feature
   lib/customer/        The only code that talks to Meridian's systems
-  lib/ai/              The assistant and call summary
+  lib/ai/              Model calls for the assistant and call summary
+  lib/assistant/       The assistant panel's own logic
   evals/               Checks that AI answers stay grounded, on each model
 services/vehicle-api/  Express API on Cloud Run, Postgres on Cloud SQL (Prisma)
 infra/                 Terraform for Google Cloud and Vercel

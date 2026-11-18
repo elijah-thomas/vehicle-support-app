@@ -3,7 +3,7 @@ import { afterAll, describe, expect, test } from "vitest";
 import { evalModels } from "@/lib/ai/models";
 import { summarizeUsage } from "@/lib/ai/usage";
 import { createVehicleAgent } from "@/lib/ai/vehicle-agent";
-import { loadVehicleRecord } from "@/lib/ai/vehicle-record";
+import { loadVehicleRecord } from "@/lib/ai/load-vehicle-record";
 import { agentCases, everyAnswer, nextStepsFormat } from "./cases";
 import { checkText, checkTools } from "./checks";
 import { loaders } from "./loaders";

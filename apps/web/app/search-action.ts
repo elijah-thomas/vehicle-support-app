@@ -2,7 +2,7 @@
 
 import { redirect, unstable_rethrow } from "next/navigation";
 import { z } from "zod";
-import { findCustomerByEmail } from "@/lib/customer/customers";
+import { findCustomerByEmail } from "@/lib/customer/reads";
 import { VIN_PATTERN } from "@/lib/format";
 
 export type SearchState = {

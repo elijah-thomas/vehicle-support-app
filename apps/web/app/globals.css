@@ -127,7 +127,7 @@
   }
 }
 
-/* Flash for the row an assistant reference points at (components/agent-reference.tsx).
+/* Flash for the row an assistant reference points at (components/assistant/agent-reference.tsx).
    Unlayered so it wins over the target's own background utility. */
 [data-highlight] {
   background-color: var(--color-accent);

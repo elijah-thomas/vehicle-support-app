@@ -1,10 +1,10 @@
 import { createTextStreamResponse, streamText, toTextStream } from "ai";
 import { z } from "zod";
-import { callSummaryRequest } from "@/lib/ai/call-summary";
+import { callSummaryRequest } from "@/lib/ai/call-summary-request";
 import { cachedLoaders } from "@/lib/ai/vehicle-agent";
 import { logUsage } from "@/lib/ai/usage";
-import { loadVehicleRecord } from "@/lib/ai/vehicle-record";
-import { MAX_TRANSCRIPT_LENGTH } from "@/lib/call-summary-schema";
+import { loadVehicleRecord } from "@/lib/ai/load-vehicle-record";
+import { MAX_TRANSCRIPT_LENGTH } from "@/lib/ai/call-summary-schema";
 import { VIN_PATTERN } from "@/lib/format";
 
 const requestSchema = z.object({
@@ -28,7 +28,7 @@ export async function POST(request: Request) {
   return createTextStreamResponse({ stream: toTextStream({ stream: result.stream }) });
 }
 
-// Same shape as the agent route, so the UI maps both the same way (lib/ai-request-error.ts).
+// Same shape as the agent route, so the UI maps both the same way (lib/assistant/ai-request-error.ts).
 function errorResponse(code: "invalid_request" | "not_found", status: number) {
   return Response.json({ error: { code } }, { status });
 }

@@ -2,7 +2,7 @@ import { createAgentUIStream, createUIMessageStream, createUIMessageStreamRespon
 import { earlierAnswers, parseAgentRequest } from "@/lib/ai/agent-request";
 import { cachedLoaders, createVehicleAgent, type VehicleAgentMessage } from "@/lib/ai/vehicle-agent";
 import { logUsage } from "@/lib/ai/usage";
-import { loadVehicleRecord } from "@/lib/ai/vehicle-record";
+import { loadVehicleRecord } from "@/lib/ai/load-vehicle-record";
 
 // Decision (D18, D27): a public endpoint, so Vercel Firewall rate-limits it at the edge and every
 // request is checked before the model runs (lib/ai/agent-request.ts). Why: a blocked request

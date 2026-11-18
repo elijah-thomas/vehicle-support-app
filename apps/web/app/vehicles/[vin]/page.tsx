@@ -1,14 +1,14 @@
 import { Suspense } from "react";
-import { CaseHistory } from "@/components/case-history";
-import { PanelSkeleton } from "@/components/panel-skeleton";
-import { TelematicsPanel } from "@/components/telematics-panel";
-import { VehicleSpecs } from "@/components/vehicle-specs";
-import { VehicleSpecsSkeleton } from "@/components/vehicle-specs-skeleton";
-import { WithVin } from "@/components/with-vin";
+import { CaseHistory } from "@/components/cases/case-history";
+import { PanelSkeleton } from "@/components/shared/panel-skeleton";
+import { TelematicsPanel } from "@/components/vehicle/telematics-panel";
+import { VehicleSpecs } from "@/components/vehicle/vehicle-specs";
+import { VehicleSpecsSkeleton } from "@/components/vehicle/vehicle-specs-skeleton";
+import { WithVin } from "./with-vin";
 
 // The overview: the left column under the shared header (layout.tsx). A static shell of headings
 // and skeletons; each panel streams in on its own, so slow telematics never blocks the rest.
-//   specs        → cached (hours)                                     see lib/customer/vehicles.ts
+//   specs        → cached (hours)                                     see lib/customer/cached-reads.ts
 //   cases        → cached (minutes), cleared by every case write
 //   telematics   → always fresh
 export default function VehicleOverviewPage({ params }: PageProps<"/vehicles/[vin]">) {

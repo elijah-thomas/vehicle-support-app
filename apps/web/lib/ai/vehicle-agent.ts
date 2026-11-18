@@ -1,10 +1,10 @@
 import "server-only";
 import { isStepCount, ToolLoopAgent, tool, type InferAgentUIMessage, type StepResult, type ToolSet, type UIMessage } from "ai";
 import { z } from "zod";
-import { getCases, getTelematics, getVehicle } from "@/lib/customer/vehicles";
+import { getCases, getTelematics, getVehicle } from "@/lib/customer/cached-reads";
 import { earlierNextStepsForModel, telematicsForModel, type VehicleRecord, vehicleRecordForModel } from "./model-context";
 import { defaultModel, gatewayOptionsFor, type ModelChoice } from "./models";
-import { RECORD_TELEMATICS } from "./vehicle-record";
+import { RECORD_TELEMATICS } from "./load-vehicle-record";
 
 export type VehicleLoaders = {
   getVehicle: typeof getVehicle;
@@ -112,7 +112,7 @@ I can only help with this vehicle's support. Try asking "What changed since the 
 
 // Decision (D15): the one tool takes no VIN; the route binds the vehicle the rep has open. Why: no
 // prompt can make the agent read another customer's vehicle. Trade-off: it can't compare a
-// customer's vehicles. The record itself is loaded by the caller (lib/ai/vehicle-record.ts).
+// customer's vehicles. The record itself is loaded by the caller (lib/ai/load-vehicle-record.ts).
 // See docs/decisions.md#agent
 export function createVehicleAgent(
   record: VehicleRecord,
