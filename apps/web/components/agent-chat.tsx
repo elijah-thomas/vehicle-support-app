@@ -4,13 +4,14 @@ import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { ArrowUp, Car, CircleAlert, FileText, MessageSquare, ShieldAlert, Square, TriangleAlert, type LucideIcon } from "lucide-react";
 import { cn } from "cn";
-import { Suspense, use, useEffect, useRef, useState } from "react";
+import { Suspense, use, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { AgentAnswer } from "@/components/agent-answer";
 import { AgentToolStep } from "@/components/agent-tool-step";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { loadAgentChat, storeAgentChat } from "@/lib/agent-chat-history";
 import { aiErrorCode } from "@/lib/ai-request-error";
 import type { VehicleAgentMessage } from "@/lib/ai/vehicle-agent";
 import type { Suggestion, SuggestionKind } from "@/lib/assistant-suggestions";
@@ -139,12 +140,29 @@ function FollowUps({
 // vin and suggestions are null while the page's params resolve: the same empty state renders
 // disabled, so it can be the Suspense fallback and prerender in the static shell.
 // See docs/decisions.md#vehicle-page-caching
-export function AgentChat({ vin, suggestions }: { vin: string | null; suggestions: Promise<Suggestion[]> | null }) {
+type Props = { vin: string | null; suggestions: Promise<Suggestion[]> | null };
+
+const subscribeNever = () => () => {};
+
+// Browser storage isn't readable during the server render, so the chat mounts again once
+// hydrated, starting from this vehicle's thread (D48). Until then it shows the disabled state.
+export function AgentChat(props: Props) {
+  const hydrated = useSyncExternalStore(subscribeNever, () => true, () => false);
+  const vin = hydrated ? props.vin : null;
+  return <AgentChatPanel key={vin ?? "pending"} vin={vin} suggestions={vin ? props.suggestions : null} />;
+}
+
+function AgentChatPanel({ vin, suggestions }: Props) {
   const loading = vin === null;
   const [input, setInput] = useState("");
+  const [restored] = useState(() => (vin === null ? null : loadAgentChat(vin)));
   const { messages, sendMessage, regenerate, status, error, stop } = useChat<VehicleAgentMessage>({
+    messages: restored?.messages,
     transport: new DefaultChatTransport({ api: "/api/agent", body: { vin } }),
   });
+  // A reload during an answer left the question unanswered, so ask it again once.
+  const reask = restored?.pending === true && restored.messages.at(-1)?.role === "user";
+  const reasked = useRef(false);
   const busy = status === "submitted" || status === "streaming";
   const started = messages.length > 0;
   const rootRef = useRef<HTMLDivElement>(null);
@@ -153,6 +171,22 @@ export function AgentChat({ vin, suggestions }: { vin: string | null; suggestion
   // The question box moves from the top to the bottom on the first question, which remounts it.
   // Focus follows only if it was already in the chat; on page load the lookup owns focus (`/`).
   const refocus = useRef(false);
+
+  useEffect(() => {
+    if (!reask || reasked.current) return;
+    // Deferred so React's dev double-mount, which stops the chat on unmount, doesn't cancel it.
+    const timer = setTimeout(() => {
+      reasked.current = true;
+      void regenerate();
+    });
+    return () => clearTimeout(timer);
+  }, [reask, regenerate]);
+
+  // Written when a question is sent and when its answer ends, not on every streamed token.
+  useEffect(() => {
+    if (vin === null || status === "streaming") return;
+    storeAgentChat(vin, { messages, pending: status === "submitted" || (reask && !reasked.current) });
+  }, [vin, messages, status, reask]);
 
   useEffect(() => {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
