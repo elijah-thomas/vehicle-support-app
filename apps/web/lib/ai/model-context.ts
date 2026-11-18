@@ -1,5 +1,6 @@
 import "server-only";
 import type { Case, TelematicsEvent, Vehicle } from "@/lib/customer/vehicles";
+import { toBlocks } from "@/lib/agent-answer-blocks";
 import { formatCaseNumber, formatDate } from "@/lib/format";
 import { occurrences, repeatKey } from "@/lib/telematics";
 
@@ -17,15 +18,18 @@ export type VehicleRecord = {
 //   Case numbers (CS-24117) are different: reps read and say them, so the model gets those.
 //   Decision (D40). See docs/decisions.md#case-numbers
 // - dates already in the format answers use, so the model never converts timestamps
-// - repeat counts computed here, so "this code keeps coming back" is a fact, not an inference
+// - repeat counts and an open case's days since its last update computed here, so "this code keeps
+//   coming back" and "waiting 12 days" are facts, not inferences the model has to reason toward
 // See docs/decisions.md#agent-context
-export function vehicleRecordForModel(record: VehicleRecord, asOf: Date) {
+// caseAge: the agent answers "how long has it waited?"; the call summary doesn't, so its input stays
+// as it was.
+export function vehicleRecordForModel(record: VehicleRecord, asOf: Date, { caseAge = false } = {}) {
   const { vehicle, cases, telematics } = record;
   return [
     `<vehicle_record as_of="${formatDate(asOf.toISOString())}">`,
     tag("vehicle", vehicleForModel(vehicle)),
     tag("telematics", telematics === UNAVAILABLE ? UNAVAILABLE : telematicsForModel(telematics ?? [])),
-    tag("cases", cases === UNAVAILABLE ? UNAVAILABLE : casesForModel(cases ?? [])),
+    tag("cases", cases === UNAVAILABLE ? UNAVAILABLE : casesForModel(cases ?? [], caseAge ? asOf : null)),
     "</vehicle_record>",
   ].join("\n");
 }
@@ -75,7 +79,9 @@ export function telematicsForModel(events: TelematicsEvent[]) {
   });
 }
 
-function casesForModel(cases: Case[]) {
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function casesForModel(cases: Case[], asOf: Date | null) {
   return cases.map((c) => ({
     caseNumber: formatCaseNumber(c.number),
     subject: c.subject,
@@ -83,6 +89,7 @@ function casesForModel(cases: Case[]) {
     category: c.category,
     opened: formatDate(c.openedAt),
     closed: c.closedAt && formatDate(c.closedAt),
+    ...(asOf && c.status === "OPEN" && sinceLastUpdate(c, asOf)),
     description: c.description,
     resolution: c.resolution,
     notes: c.notes.map((n) => ({
@@ -93,4 +100,21 @@ function casesForModel(cases: Case[]) {
       nextSteps: n.nextSteps,
     })),
   }));
+}
+
+// The newest note, or the opening if there are none. Whole days, counted from asOf.
+function sinceLastUpdate(c: Case, asOf: Date) {
+  const last = Math.max(Date.parse(c.openedAt), ...c.notes.map((n) => Date.parse(n.createdAt)));
+  return {
+    lastUpdate: formatDate(new Date(last).toISOString()),
+    daysSinceUpdate: Math.max(0, Math.floor((asOf.getTime() - last) / DAY_MS)),
+  };
+}
+
+// Next steps the earlier answers in this conversation already gave, read with the panel's parser,
+// so the model checks a list instead of rereading the history. See docs/decisions.md#answer-shape
+export function earlierNextStepsForModel(answers: string[]) {
+  const steps = answers.flatMap((text) => toBlocks(text).flatMap((b) => (b.kind === "next-steps" ? b.items : [])));
+  const list = steps.length > 0 ? `\n${steps.map((s) => `- ${s}`).join("\n")}\n` : "none";
+  return `<earlier_next_steps>${list}</earlier_next_steps>`;
 }

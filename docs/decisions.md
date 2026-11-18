@@ -19,7 +19,8 @@ decision is implemented, a `Decision (Dnn)` comment marks the line.
 - **AI:** [D5](#models) Models and failover · [D15](#agent) Agent · [D30](#agent-context) Record
   up front · [D16](#call-summary-generation) Call summary · [D26](#junk-transcripts) Non-support
   transcripts · [D33](#cost-per-run) Cost per run · [D19](#evals) Evals ·
-  [D39](#assistant-suggestions) Suggested questions · [D48](#chat-reload) Chat after a reload
+  [D39](#assistant-suggestions) Suggested questions · [D47](#answer-shape) Answer shape ·
+  [D48](#chat-reload) Chat after a reload
 - **Data integrity:** [D6](#data-model) Data model · [D25](#note-ownership) Note ownership ·
   [D22](#save-feedback) Save failures · [D38](#seed-activity) Seeded case activity ·
   [D40](#case-numbers) Case numbers and case actions · [D46](#repeat-safe-save) Repeat-safe save
@@ -211,6 +212,7 @@ decision is implemented, a `Decision (Dnn)` comment marks the line.
 - **No output cap:** Gemini's hidden reasoning counts toward the cap, and at 1,000 tokens answers
   were cut off. Cost is bounded in other ways (D33).
 - **Later change:** How data is loaded and how the prompt is built were redesigned in D30.
+  Next steps became conditional and the answer shape follows the question in D47.
   D48 keeps the conversation across a reload.
 
 ## D16. Call summary {#call-summary-generation}
@@ -759,6 +761,78 @@ decision is implemented, a `Decision (Dnn)` comment marks the line.
     way, and would take the same `draftId` field if needed.
 - **Production path:** Server-side drafts once advisors sign in, and an idempotency key on every
   write as Meridian's API grows.
+
+## D47. Answer shape {#answer-shape}
+
+- **Finding:** In a multi-turn call about Dana, all three answers ended with the same "confirm
+  Dana is safe" and "check on the buyback" next steps. Three causes:
+  - The prompt required "Next steps:" on every answer, and the evals failed any answer without it
+    (D15, D19).
+  - The safety rule fired on every answer while the CRITICAL event was in the record.
+  - Every example was a first question, so nothing showed what a follow-up looks like.
+
+  "What should I tell Dana?" got citations for the rep, with the words to say left as next steps.
+- **Choice:** The answer's shape follows the question, and next steps appear only when they're
+  new. The parser and panel are unchanged.
+  - **Next steps:** The route reads the next steps of earlier answers with the panel's parser
+    (`toBlocks`) and sends them as `<earlier_next_steps>`. The model leaves out any step already
+    on that list, and leaves out "Next steps:" when none are left. The safety step is the first
+    next step whenever a CRITICAL event affects driving, so the list is what stops it repeating.
+  - **"What should I tell the customer?":** Lines the rep can read aloud, ending with a "Don't
+    promise" line naming what the record can't back up.
+  - **Email or written message:** Only the body: two to four sentences signed "[Your name]", with
+    no next steps after it.
+  - **Case age:** Each open case carries `lastUpdate` and `daysSinceUpdate`, computed in
+    `lib/ai/model-context.ts`, so summaries can say how long it has waited. Only the agent gets
+    them. With them, Claude's call summaries slipped a pronoun in 3 of 16 runs, against 0 of 16
+    without, so the call summary's input is unchanged.
+- **Prompt tuning:** The first version of this prompt had the model check the conversation for
+  steps it had already given, and decide when to repeat the safety step. On Gemini 3.8 Flash, that
+  made it think before 20 of 24 answers (median 834 thinking tokens), against 5 of 24 before.
+  - **Wait for the first word:** a median of 10.2 s, against 1.8 s.
+  - **Thinking setting:** It couldn't be turned down. `low` is the lowest level the AI Gateway
+    catalog lists for this model, and the Gateway maps every other AI SDK `reasoning` value to
+    `high` on Gemini 3
+    ([docs](https://vercel.com/docs/ai-gateway/models-and-providers/reasoning/google)).
+  - **Cause:** Rewording the rule alone didn't help. Thinking came from the two rules combined,
+    the "already given" check and the "first answer" safety condition.
+  - **Fix:** Compute the list in code, the same move D30 made with repeat counts. Rules became
+    one-line triggers, and the examples carry each answer's shape, as Google's and Anthropic's
+    prompting guides recommend.
+  - **Measured against the old prompt** (same time window, 4 questions × 6 runs): a median first
+    word of 4.3 s for both, with thinking on 6 of 24 answers against 4 of 24.
+- **Options:**
+  - New answer block kinds ("Say", "Avoid", "Email") with their own panel styling: clearer to scan,
+    but adds parser, UI and eval surface.
+  - Hiding repeated next steps in the panel: leaves the answers themselves wrong.
+  - Keeping the "already given" check in the prompt: slow on Gemini.
+  - Next steps on every answer: fast, but the repetition stays.
+- **Accepted:** The earlier answers come from the browser (D27), so a forged one can hide a step
+  from the next answer. It can't add facts or tools, and the caller only affects their own session.
+- **Evals:**
+  - `nextSteps: true` marks the four cases that must end with next steps; elsewhere they're
+    optional.
+  - Cases can list earlier questions in `history`. Their answers go back as text, and their next
+    steps as the list, as the route sends them.
+  - Three new cases on Dana: no repeated safety step, lines to say with "Don't promise", and an
+    email with no bullets, next steps, subject or promises.
+  - The report shows average thinking tokens per case, so a prompt change that makes a model think
+    shows up in the normal run.
+  - **Checks that rejected correct answers:**
+    - The promise check now needs the verb within three words of the item, so "provide an update on
+      the buyback" passes.
+    - Priya's and Marcus's checks accept "no reported faults" and "dealer update".
+- **Results (Nov 17, 3 runs per case):**
+  - **Agent:** 39/39 on both models (13 cases, up from 10). Medians were 3.2 s on Gemini and 3.3 s
+    on Claude. Average thinking was 57 tokens on Gemini and 0 on Claude, and cost per answer was
+    $0.0023 on Gemini and $0.0053 on Claude.
+  - **Call summaries:** 41/42. Claude once named "buyback" when it noted the injected line in Sam's
+    transcript (D26), as it did before this change.
+  - **Browser:** checked with Playwright on Dana's call, through the route. Next steps showed only
+    on the first answer, the second didn't repeat them, and the email rendered as plain
+    paragraphs.
+- **Out of scope:** Sending email, saving drafts to the case, templates, and per-region language
+  or tone. Sending and storing email cross into Meridian's systems, so they're phase 2.
 
 ## D48. Chat after a reload {#chat-reload}
 
