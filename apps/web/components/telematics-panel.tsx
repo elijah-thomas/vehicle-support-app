@@ -3,11 +3,11 @@ import { ExpandableList } from "@/components/expandable-list";
 import { PanelUnavailable } from "@/components/panel-unavailable";
 import { SeverityBadge } from "@/components/severity-badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { getCaseSnapshot } from "@/lib/case-snapshot";
+import { getCaseSnapshot, getTelematicsSnapshot } from "@/lib/customer/snapshots";
 import { caseHref, daysBetween, matchFaultsToCases } from "@/lib/cases";
 import { formatCaseNumber, formatDateTime, formatRelative, ordinal, telematicsReading } from "@/lib/format";
 import { loadPanel } from "@/lib/load-panel";
-import { getTelematicsSnapshot, newestPerCode, occurrences } from "@/lib/telematics";
+import { newestPerCode, occurrences } from "@/lib/telematics";
 
 const NEWEST_SHOWN = 10;
 

@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge";
-import type { Case } from "@/lib/customer/vehicles";
+import type { Case } from "@/lib/customer/reads";
 import { formatDate } from "@/lib/format";
 
 type Note = Case["notes"][number];

@@ -1,7 +1,8 @@
 import "server-only";
-import { getCaseSnapshot } from "@/lib/case-snapshot";
-import { getVehicle, type Case, type TelematicsEvent, type Vehicle } from "@/lib/customer/vehicles";
-import { getTelematicsSnapshot, repeatKey, worstRecentEvent } from "@/lib/telematics";
+import { getCaseSnapshot, getTelematicsSnapshot } from "@/lib/customer/snapshots";
+import { getVehicle } from "@/lib/customer/cached-reads";
+import type { Case, TelematicsEvent, Vehicle } from "@/lib/customer/reads";
+import { repeatKey, worstRecentEvent } from "@/lib/telematics";
 
 export type SuggestionKind = "critical" | "warning" | "case" | "recall" | "customer" | "summary";
 // `code` marks the fault code inside `text`, so the button can set it in mono.

@@ -1,9 +1,9 @@
 import { expect, test, vi } from "vitest";
-import type { Case, TelematicsEvent, Vehicle } from "@/lib/customer/vehicles";
+import type { Case, TelematicsEvent, Vehicle } from "@/lib/customer/reads";
 
 // Only the pure rules are under test; the data layer needs env and the network.
-vi.mock("@/lib/customer/vehicles", () => ({ getVehicle: vi.fn(), getTelematics: vi.fn() }));
-vi.mock("@/lib/case-snapshot", () => ({ getCaseSnapshot: vi.fn() }));
+vi.mock("@/lib/customer/cached-reads", () => ({ getVehicle: vi.fn() }));
+vi.mock("@/lib/customer/snapshots", () => ({ getCaseSnapshot: vi.fn(), getTelematicsSnapshot: vi.fn() }));
 const { suggestionsFor } = await import("./assistant-suggestions");
 
 const now = Date.parse("2026-11-15T00:00:00Z");
@@ -111,7 +111,7 @@ test("never more than 5", () => {
 });
 
 test("a record that can't be read falls back to the general questions", async () => {
-  const { getVehicle } = await import("@/lib/customer/vehicles");
+  const { getVehicle } = await import("@/lib/customer/cached-reads");
   vi.mocked(getVehicle).mockRejectedValueOnce(new Error("vehicle API down"));
   vi.spyOn(console, "error").mockImplementation(() => {});
   const { loadSuggestions, FALLBACK_SUGGESTIONS } = await import("./assistant-suggestions");

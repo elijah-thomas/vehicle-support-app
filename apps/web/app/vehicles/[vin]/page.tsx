@@ -8,7 +8,7 @@ import { WithVin } from "@/components/with-vin";
 
 // The overview: the left column under the shared header (layout.tsx). A static shell of headings
 // and skeletons; each panel streams in on its own, so slow telematics never blocks the rest.
-//   specs        → cached (hours)                                     see lib/customer/vehicles.ts
+//   specs        → cached (hours)                                     see lib/customer/cached-reads.ts
 //   cases        → cached (minutes), cleared by every case write
 //   telematics   → always fresh
 export default function VehicleOverviewPage({ params }: PageProps<"/vehicles/[vin]">) {

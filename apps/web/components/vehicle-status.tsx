@@ -6,10 +6,10 @@ import { RecordLink } from "@/components/record-link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "cn";
 import { caseHref } from "@/lib/cases";
-import { getCaseSnapshot } from "@/lib/case-snapshot";
+import { getCaseSnapshot, getTelematicsSnapshot } from "@/lib/customer/snapshots";
 import { formatCaseNumber, formatDate, formatDateTime, formatRelative, ordinal } from "@/lib/format";
 import { loadPanel } from "@/lib/load-panel";
-import { getTelematicsSnapshot, RECENT_WINDOW_DAYS, repeatKey, worstRecentEvent } from "@/lib/telematics";
+import { RECENT_WINDOW_DAYS, repeatKey, worstRecentEvent } from "@/lib/telematics";
 
 // Worst first: critical event, open recalls, warning event, open cases. Telematics and cases stream
 // in on their own, so flex `order` keeps that sequence whichever arrives first.

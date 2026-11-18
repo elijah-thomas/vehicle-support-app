@@ -6,7 +6,7 @@ import { removeNoteAction, restoreNoteAction } from "@/app/vehicles/[vin]/cases/
 import { CaseNote } from "@/components/case-note";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import type { Case } from "@/lib/customer/vehicles";
+import type { Case } from "@/lib/customer/reads";
 import { newestFirst } from "@/lib/cases";
 import { formatDate } from "@/lib/format";
 

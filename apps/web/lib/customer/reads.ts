@@ -78,14 +78,29 @@ const caseSchema = z.object({
   ),
 });
 
+const customerSchema = z.object({
+  id: z.string(),
+  email: z.string(),
+  firstName: z.string(),
+  lastName: z.string(),
+  vehicles: z.array(
+    z.object({
+      vin: z.string(),
+      color: z.string(),
+      model: z.object({ year: z.number(), make: z.string(), model: z.string(), trim: z.string() }),
+    }),
+  ),
+});
+
 export type Vehicle = z.infer<typeof vehicleSchema>;
 export type TelematicsEvent = z.infer<typeof telematicsEventSchema>;
 export type Case = z.infer<typeof caseSchema>;
+export type Customer = z.infer<typeof customerSchema>;
 
 const vinPath = (vin: string) => `/vehicles/${encodeURIComponent(vin)}`;
 
 // Straight reads from the vehicle API. Pages and the agent go through the cached wrappers in
-// vehicles.ts; evals call these directly, outside a Next.js request.
+// cached-reads.ts; evals call these directly, outside a Next.js request.
 export function fetchVehicle(vin: string): Promise<Vehicle | null> {
   return vehicleApiOrNull(vinPath(vin), vehicleSchema);
 }
@@ -103,4 +118,10 @@ export function fetchTelematics(vin: string, limit = 50): Promise<TelematicsEven
 export function fetchFaultsInWindow(vin: string, from: string, to: string): Promise<TelematicsEvent[] | null> {
   const query = new URLSearchParams({ from, to, codedOnly: "true", limit: "200" });
   return vehicleApiOrNull(`${vinPath(vin)}/telematics?${query}`, z.array(telematicsEventSchema));
+}
+
+// Not cached, and only called from the search Server Action, so the email never appears in a URL.
+// See docs/decisions.md#vehicle-page-caching
+export async function findCustomerByEmail(email: string): Promise<Customer | null> {
+  return vehicleApiOrNull(`/customers?email=${encodeURIComponent(email)}`, customerSchema);
 }

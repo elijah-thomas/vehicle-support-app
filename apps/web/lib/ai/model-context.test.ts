@@ -1,8 +1,6 @@
-import { expect, test, vi } from "vitest";
-import type { Case, TelematicsEvent, Vehicle } from "@/lib/customer/vehicles";
-
-vi.mock("@/lib/customer/vehicles", () => ({ getTelematics: vi.fn() }));
-const { UNAVAILABLE, earlierNextStepsForModel, vehicleRecordForModel } = await import("./model-context");
+import { expect, test } from "vitest";
+import type { Case, TelematicsEvent, Vehicle } from "@/lib/customer/reads";
+import { UNAVAILABLE, earlierNextStepsForModel, vehicleRecordForModel } from "./model-context";
 
 // A model that never sees an internal ID can't quote one to a rep. See docs/decisions.md#agent-context
 const CUID = /\bc[a-z0-9]{24}\b/;

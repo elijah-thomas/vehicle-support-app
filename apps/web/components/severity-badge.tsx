@@ -1,6 +1,6 @@
 import { Info, OctagonAlert, TriangleAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import type { TelematicsEvent } from "@/lib/customer/vehicles";
+import type { TelematicsEvent } from "@/lib/customer/reads";
 
 const severityDisplay = {
   CRITICAL: { variant: "destructive", Icon: OctagonAlert, label: "Critical" },

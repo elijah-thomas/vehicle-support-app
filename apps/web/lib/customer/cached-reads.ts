@@ -10,9 +10,7 @@ import {
   fetchVehicle,
   type TelematicsEvent,
   type Vehicle,
-} from "./vehicle-records";
-
-export type { Case, TelematicsEvent, Vehicle };
+} from "./reads";
 
 // Decision (D14): cached for hours in Vercel's shared Runtime Cache ("use cache: remote").
 // Why: specs never change and recall status rarely does; a shared cache lets updateTag reach

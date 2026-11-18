@@ -5,12 +5,11 @@ import { PanelUnavailable } from "@/components/panel-unavailable";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { getCaseSnapshot } from "@/lib/case-snapshot";
+import { getCaseSnapshot, getTelematicsSnapshot } from "@/lib/customer/snapshots";
 import { caseHref, lastContact, matchFaultsToCases, newCaseHref, sortCases } from "@/lib/cases";
-import type { Case } from "@/lib/customer/vehicles";
+import type { Case } from "@/lib/customer/reads";
 import { formatCaseNumber, formatDate } from "@/lib/format";
 import { loadPanel } from "@/lib/load-panel";
-import { getTelematicsSnapshot } from "@/lib/telematics";
 
 const NEWEST_CLOSED_SHOWN = 3;
 

@@ -1,7 +1,7 @@
 import "server-only";
 import { isStepCount, ToolLoopAgent, tool, type InferAgentUIMessage, type StepResult, type ToolSet, type UIMessage } from "ai";
 import { z } from "zod";
-import { getCases, getTelematics, getVehicle } from "@/lib/customer/vehicles";
+import { getCases, getTelematics, getVehicle } from "@/lib/customer/cached-reads";
 import { earlierNextStepsForModel, telematicsForModel, type VehicleRecord, vehicleRecordForModel } from "./model-context";
 import { defaultModel, gatewayOptionsFor, type ModelChoice } from "./models";
 import { RECORD_TELEMATICS } from "./vehicle-record";

@@ -1,4 +1,4 @@
-import type { Case, TelematicsEvent } from "@/lib/customer/vehicle-records";
+import type { Case, TelematicsEvent } from "@/lib/customer/reads";
 
 const DAY = 24 * 60 * 60 * 1000;
 

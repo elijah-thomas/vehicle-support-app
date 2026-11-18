@@ -3,10 +3,11 @@ import { ExpandableList } from "@/components/expandable-list";
 import { SeverityBadge } from "@/components/severity-badge";
 import { Badge } from "@/components/ui/badge";
 import { caseHref, faultWindow, matchFaultsToCases } from "@/lib/cases";
-import { type Case, getFaultsInWindow, type TelematicsEvent } from "@/lib/customer/vehicles";
+import { getTelematicsSnapshot } from "@/lib/customer/snapshots";
+import { getFaultsInWindow } from "@/lib/customer/cached-reads";
+import type { Case, TelematicsEvent } from "@/lib/customer/reads";
 import { formatCaseNumber, formatDate, ordinal } from "@/lib/format";
 import { loadPanel } from "@/lib/load-panel";
-import { getTelematicsSnapshot } from "@/lib/telematics";
 
 const NEWEST_SHOWN = 3;
 

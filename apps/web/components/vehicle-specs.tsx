@@ -1,6 +1,7 @@
 import { PeekButton } from "@/components/peek-button";
 import { Card, CardContent } from "@/components/ui/card";
-import { getVehicle, type Vehicle } from "@/lib/customer/vehicles";
+import { getVehicle } from "@/lib/customer/cached-reads";
+import type { Vehicle } from "@/lib/customer/reads";
 import { formatDate } from "@/lib/format";
 import { loadPanel } from "@/lib/load-panel";
 

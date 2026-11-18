@@ -8,7 +8,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { VehicleStatus } from "@/components/vehicle-status";
-import { getVehicle } from "@/lib/customer/vehicles";
+import { getVehicle } from "@/lib/customer/cached-reads";
 import { loadPanel } from "@/lib/load-panel";
 
 // Phone and email look the same: one outlined button each, icon plus value.

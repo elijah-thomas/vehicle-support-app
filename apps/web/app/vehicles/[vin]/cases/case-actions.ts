@@ -11,7 +11,7 @@ import {
   removeNote,
   reopenCase,
   restoreNote,
-} from "@/lib/customer/cases";
+} from "@/lib/customer/writes";
 import { VehicleApiError } from "@/lib/customer/vehicle-api";
 import { caseHref } from "@/lib/cases";
 import { VIN_PATTERN } from "@/lib/format";

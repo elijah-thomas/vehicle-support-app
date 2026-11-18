@@ -4,7 +4,7 @@ import { VehicleApiError } from "@/lib/customer/vehicle-api";
 const createCaseWithNote = vi.fn();
 const addCaseNote = vi.fn();
 const updateTag = vi.fn();
-vi.mock("@/lib/customer/cases", () => ({ createCaseWithNote, addCaseNote }));
+vi.mock("@/lib/customer/writes", () => ({ createCaseWithNote, addCaseNote }));
 vi.mock("next/cache", () => ({ updateTag }));
 vi.mock("@/lib/customer/vehicle-api", async () => {
   class VehicleApiError extends Error {
