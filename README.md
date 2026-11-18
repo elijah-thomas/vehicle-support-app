@@ -1,12 +1,13 @@
 # Vehicle Support
 
-Meridian Motors' service advisors support customers' vehicles across North America, Europe and
-the Middle East. When a customer calls about an issue, the advisor uses this app to diagnose the
-problem, recommend next steps and manage the support case.
+Meridian Motors built its Vehicle Support app for the service advisors who support customers'
+vehicles across North America, Europe and the Middle East. When a customer calls about an issue,
+the advisor uses the app to diagnose the problem, recommend solutions and manage the support case.
 
-The app is a React single-page app. As Meridian grows, it has become slow for advisors far from
-its servers, slow to change, and hard to extend securely with AI. Meridian has decided to move
-to Next.js and is now deciding whether to host it on Vercel.
+Meridian built it as a React single-page app. As the company grows, the app has become slow for
+advisors far from its servers and slow to change, and it's hard to add AI securely to make
+advisors more efficient. Meridian has decided to move to Next.js and is now deciding whether to
+host it on Vercel.
 
 This repo makes the case for Vercel. It rebuilds the vehicle screen, the one every call starts on,
 in Next.js on Vercel, with an AI assistant for advisors. Customer data stays in Meridian's Google
@@ -17,11 +18,21 @@ Cloud.
 
 ## Why Vercel
 
+Meridian could run Next.js on Cloud Run, but its team would then set up and maintain the CDN,
+caching, previews and rollbacks. On Vercel, these come with every deployment.
+
 - **Performance:** the page shell loads from the nearest location, and pages render next to
   Meridian's APIs and stream in, so advisors far from Iowa still get a fast screen.
 - **Development speed:** every change gets its own preview, so product reviews happen the same day.
-- **Secure AI:** the assistant runs on the server, so customer data never passes through the
-  browser to a model.
+- **AI that scales with use:** an assistant answer spends most of its time waiting on the model.
+  Fluid compute serves many answers on one instance and bills CPU only while code runs, so cost
+  scales with how much advisors use the assistant, not with how long the model takes to answer.
+- **Reliable, visible AI:** AI Gateway switches from Gemini to Claude if Gemini fails, and shows
+  spend by feature for the assistant and call summaries.
+
+Customer data, Meridian's APIs and the database stay in Google Cloud. Vercel connects with
+short-lived identity tokens, so no keys are stored, and access is as tightly controlled as it
+would be inside Google Cloud.
 
 The targets are a usable screen within 2.5 s in every region, calls 10% shorter, and weekly
 releases.
@@ -47,8 +58,8 @@ appeared three times, two dealer visits haven't fixed it, and Dana wants a buyba
 
 Next.js 16 (App Router, AI SDK) runs on Vercel and calls Meridian's existing API on Cloud Run,
 which reads Postgres on Cloud SQL. The prototype uses these Vercel features: Cache Components,
-Runtime Cache, AI Gateway (Gemini on Vertex AI, with Claude as fallback), OIDC federation to
-Google Cloud, preview deployments and Instant Rollback. Page 4 of the
+Runtime Cache, Fluid compute, AI Gateway (Gemini on Vertex AI, with Claude as fallback), OIDC
+federation to Google Cloud, preview deployments and Instant Rollback. Page 4 of the
 [proposal](docs/vehicle-support-proposal.pdf) explains each choice. Evals check the assistant on
 both models before each release.
 
