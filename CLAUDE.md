@@ -34,7 +34,8 @@ beyond both is a decision point.
 3. **Vehicle page:** search by email/VIN. Static shell, specs cached long, telematics fresh and
    streamed, cases cached and invalidated on note save.
 4. **Agent chat:** AI SDK, reads only the open vehicle (D16), AI Gateway failover per D15, canned
-   prompts, step cap.
+   prompts, step cap. An Eve version of the same assistant, picked by a switch in the panel
+   (D28).
 5. **Call summary:** paste transcript → structured draft (issue, summary, next steps) → rep
    edits → save to Postgres → invalidate cases. 2–3 canned transcripts.
 6. **Protection:** Vercel Firewall rate limit on AI routes, transcript size cap.
