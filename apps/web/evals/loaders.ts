@@ -1,5 +1,5 @@
 import type { VehicleLoaders } from "@/lib/ai/vehicle-agent";
-import { fetchCases, fetchTelematics, fetchVehicle } from "@/lib/customer/vehicle-records";
+import { fetchCases, fetchTelematics, fetchVehicle } from "@/lib/customer/reads";
 
 // Same staging API and OIDC → WIF path as the app, minus the Next.js cache. Each record is
 // fetched once per run: the data doesn't change mid-run, and dozens of parallel cases would

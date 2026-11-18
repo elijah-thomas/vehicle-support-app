@@ -4,7 +4,7 @@ const findCustomerByEmail = vi.fn();
 const redirect = vi.fn((url: string) => {
   throw Object.assign(new Error("NEXT_REDIRECT"), { url });
 });
-vi.mock("@/lib/customer/customers", () => ({ findCustomerByEmail }));
+vi.mock("@/lib/customer/reads", () => ({ findCustomerByEmail }));
 vi.mock("next/navigation", () => ({ redirect, unstable_rethrow: () => {} }));
 
 const { searchAction } = await import("./search-action");

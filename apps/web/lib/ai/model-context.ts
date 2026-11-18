@@ -1,6 +1,6 @@
 import "server-only";
-import type { Case, TelematicsEvent, Vehicle } from "@/lib/customer/vehicles";
-import { toBlocks } from "@/lib/agent-answer-blocks";
+import type { Case, TelematicsEvent, Vehicle } from "@/lib/customer/reads";
+import { toBlocks } from "@/lib/assistant/agent-answer-blocks";
 import { formatCaseNumber, formatDate } from "@/lib/format";
 import { occurrences, repeatKey } from "@/lib/telematics";
 
@@ -16,11 +16,10 @@ export type VehicleRecord = {
 // What the models see of a vehicle. Shaped for the model, not passed through from the API:
 // - no internal IDs: they mean nothing to a rep, and a model that never sees one can't quote one.
 //   Case numbers (CS-24117) are different: reps read and say them, so the model gets those.
-//   Decision (D40). See docs/decisions.md#case-numbers
 // - dates already in the format answers use, so the model never converts timestamps
 // - repeat counts and an open case's days since its last update computed here, so "this code keeps
 //   coming back" and "waiting 12 days" are facts, not inferences the model has to reason toward
-// See docs/decisions.md#agent-context
+// See docs/decisions.md#agent
 // caseAge: the agent answers "how long has it waited?"; the call summary doesn't, so its input stays
 // as it was.
 export function vehicleRecordForModel(record: VehicleRecord, asOf: Date, { caseAge = false } = {}) {

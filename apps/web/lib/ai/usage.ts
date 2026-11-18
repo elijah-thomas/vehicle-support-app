@@ -30,9 +30,9 @@ export type AnswerUsage = {
   gatewayCostUsd: number;
 };
 
-// Decision (D33): cost comes from AI Gateway's per-response metadata, summed over an answer's steps.
+// Decision (D22): cost comes from AI Gateway's per-response metadata, summed over an answer's steps.
 // Why: it's priced by the Gateway, so no price table to keep current. Trade-off: with our own keys,
-// marketCost is list price; the real bill is the provider's invoice. See docs/decisions.md#cost-per-run
+// marketCost is list price; the real bill is the provider's invoice. See docs/decisions.md#cost-per-answer
 export function summarizeUsage(steps: readonly StepLike[]): AnswerUsage {
   const usage: AnswerUsage = {
     model: null,

@@ -179,7 +179,7 @@ describe("rep notes", () => {
   });
 });
 
-describe("a draft is saved once (D46)", () => {
+describe("a draft is saved once (D14)", () => {
   const notesOn = async (vin: string, caseId: string) =>
     ((await call(`/vehicles/${vin}/cases`)).body as { id: string; notes: unknown[] }[]).find((c) => c.id === caseId)!.notes.length;
   const caseCount = async (vin: string) => (await call(`/vehicles/${vin}/cases`)).body.length as number;

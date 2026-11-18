@@ -1,10 +1,10 @@
 import { z } from "zod";
 import { VIN_PATTERN } from "@/lib/format";
 
-// Decision (D27): the browser sends the whole conversation, so everything in it is untrusted. Only
+// Decision (D16): the browser sends the whole conversation, so everything in it is untrusted. Only
 // what the chat UI produces is accepted: text-only user messages, user or assistant roles, and a
 // bounded total size. Trade-off: a caller can still forge assistant turns, in their own session.
-// See docs/decisions.md#agent-request
+// See docs/decisions.md#agent
 export const MAX_MESSAGES = 10;
 export const MAX_TEXT_LENGTH = 2000;
 // Sized for real follow-ups, whose assistant turns carry full tool results, not just demo data.
@@ -50,13 +50,13 @@ export function parseAgentRequest(body: unknown): AgentRequest {
 
 // Earlier turns' tool results come from the browser, so they could be forged, and the server
 // reloads the record on every request anyway. Text and reasoning stay: Gemini needs its reasoning
-// (with its signatures) sent back as it was. See docs/decisions.md#agent-context
+// (with its signatures) sent back as it was. See docs/decisions.md#agent
 function withoutOldToolResults(message: Messages[number]): Messages[number] {
   if (message.role !== "assistant") return message;
   return { ...message, parts: message.parts.filter((part) => part.type === "text" || part.type === "reasoning") };
 }
 
-// The text of each earlier answer, for the next steps it already gave (D47). Forged text can only
+// The text of each earlier answer, for the next steps it already gave (D17). Forged text can only
 // hide a step from the next answer. See docs/decisions.md#answer-shape
 export function earlierAnswers(messages: Messages): string[] {
   return messages.slice(0, -1).flatMap((m) =>

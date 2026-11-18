@@ -1,17 +1,17 @@
 import { Suspense } from "react";
-import { AgentChat } from "@/components/agent-chat";
-import { AssistantPanel } from "@/components/assistant-panel";
-import { CallSummary } from "@/components/call-summary";
-import { CallSummaryPanel } from "@/components/call-summary-panel";
-import { VehicleHeader } from "@/components/vehicle-header";
-import { VehicleHeaderSkeleton } from "@/components/vehicle-header-skeleton";
-import { VehicleTrail } from "@/components/vehicle-trail";
-import { WithVin } from "@/components/with-vin";
-import { loadSuggestions } from "@/lib/assistant-suggestions";
+import { AgentChat } from "@/components/assistant/agent-chat";
+import { AssistantPanel } from "@/components/assistant/assistant-panel";
+import { CallSummaryForm } from "@/components/assistant/call-summary-form";
+import { CallSummaryPanel } from "@/components/assistant/call-summary-panel";
+import { VehicleHeader } from "@/components/vehicle/vehicle-header";
+import { VehicleHeaderSkeleton } from "@/components/vehicle/vehicle-header-skeleton";
+import { VehicleTrail } from "@/components/vehicle/vehicle-trail";
+import { WithVin } from "./with-vin";
+import { loadSuggestions } from "@/lib/assistant/assistant-suggestions";
 
-// Decision (D41): the layout owns the header and the assistant, and each route (the overview, a
+// Decision (D8): the layout owns the header and the assistant, and each route (the overview, a
 // case, a new case) replaces only the left column below the header. Moving between them keeps the
-// chat thread, any unsaved draft and the breadcrumb trail. See docs/decisions.md#vehicle-routes
+// chat thread, any unsaved draft and the breadcrumb trail. See docs/decisions.md#vehicle-layout
 export default function VehicleLayout({ children, params }: LayoutProps<"/vehicles/[vin]">) {
   return (
     <main className="mx-auto w-full max-w-content px-4 py-6 xl:px-6">
@@ -39,13 +39,13 @@ export default function VehicleLayout({ children, params }: LayoutProps<"/vehicl
           <AssistantPanel
             ask={
               <Suspense fallback={<AgentChat vin={null} suggestions={null} />}>
-                {/* Decision (D39): suggestions start here, unawaited, and only their rows wait.
+                {/* Decision (D19): suggestions start here, unawaited, and only their rows wait.
                     See docs/decisions.md#assistant-suggestions */}
                 <WithVin params={params}>{(vin) => <AgentChat vin={vin} suggestions={loadSuggestions(vin)} />}</WithVin>
               </Suspense>
             }
             callSummary={
-              <Suspense fallback={<CallSummary vin={null} cases={[]} />}>
+              <Suspense fallback={<CallSummaryForm vin={null} cases={[]} />}>
                 <WithVin params={params}>{(vin) => <CallSummaryPanel vin={vin} />}</WithVin>
               </Suspense>
             }

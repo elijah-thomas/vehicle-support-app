@@ -6,7 +6,7 @@ the code and the commit history, and in the interview they will ask me to explai
 change it live. Every rule below follows from that: **a human must be able to read and navigate
 this repo in minutes, and I must have made and understood every architectural decision in it.**
 
-## Scenario (settled — see docs/decisions.md D1 and D28)
+## Scenario (settled — see docs/decisions.md D1)
 
 - **Customer:** Meridian Motors, a fictional mid-market automaker (all data synthetic). About 80
   service advisors in North America, Europe and the Middle East.
@@ -15,14 +15,15 @@ this repo in minutes, and I must have made and understood every architectural de
 - **Vercel role:** the console is rebuilt in Next.js on Vercel, screen by screen. The vehicle
   workspace moves first and gains an AI assistant. Vercel sits in front of both apps and falls
   back to the React app for screens not yet rebuilt; each new screen goes to a pilot group, then
-  to every advisor (D35).
+  to every advisor (D27).
 - **What stays on GCP:** the API and the database of customers, vehicles, telematics and cases.
 - **Demo:** look up a vehicle, see its status, ask the assistant about its history, and turn a
   call transcript into a saved case note.
 
 ## In scope
 
-Only these are agreed. Anything beyond this list is a decision point.
+The scope agreed at the start. What was built, and why, is in `docs/decisions.md`. Anything
+beyond both is a decision point.
 
 1. **GCP backend:** Express on Cloud Run + Cloud SQL Postgres, seeded with ~5 synthetic
    customers/vehicles with built-in stories (recurring fault code, open recall). Endpoints:
@@ -32,16 +33,16 @@ Only these are agreed. Anything beyond this list is a decision point.
    Cloud Run via WIF.
 3. **Vehicle page:** search by email/VIN. Static shell, specs cached long, telematics fresh and
    streamed, cases cached and invalidated on note save.
-4. **Agent chat:** AI SDK, read-only tools per lookup, AI Gateway failover per D5, canned
+4. **Agent chat:** AI SDK, reads only the open vehicle (D16), AI Gateway failover per D15, canned
    prompts, step cap.
 5. **Call summary:** paste transcript → structured draft (issue, summary, next steps) → rep
    edits → save to Postgres → invalidate cases. 2–3 canned transcripts.
-6. **Protection:** Vercel Firewall rate limit on AI routes, transcript size and output caps.
-7. **Evals:** ~8 cases (expected tools + required facts), run on both models.
+6. **Protection:** Vercel Firewall rate limit on AI routes, transcript size cap.
+7. **Evals:** graded by fixed rules, run on each model alone (D21).
 8. **Docs:** the 8 submission sections, including a Preview Deployments rollout plan.
 
-**Out of scope (documented only):** Workflows (phase 2), Secure Compute / private networking,
-rep login, Rolling Releases.
+**Out of scope (documented only):** Secure Compute / private networking, rep login, Rolling
+Releases.
 
 **Build order** (each step ends with a proposed commit): monorepo scaffold → DB schema + seed
 (data shapes are a decision point) → Express API locally → Cloud Run deploy + WIF spike from a
@@ -87,8 +88,11 @@ Rules for collaborating:
 - Prefer the simplest version that proves the point. The whole build targets 4–6 hours.
 - Keep it teachable: briefly explain Vercel/Next.js/GCP concepts I may not know yet, with links
   to the docs you used.
-- After I decide, add an entry to `docs/decisions.md`: the decision, options considered, what I
-  chose, and why. This is my interview study guide and the record reviewers see.
+- After I decide, record it in `docs/decisions.md`, my interview study guide and the record
+  reviewers see. Keep it short and plain, with the labels Decision, Why, Instead of, Trade-off
+  and Later. A new topic gets the next number, in its area, with an `<a id="…">` anchor above
+  its heading (GitHub ignores `{#…}`). A change to an existing topic edits that entry in place
+  and adds a **Changed** line: the date, what changed, and why.
 - After each piece of work, give me a short walkthrough: files changed, what each does, and any
   choices you made on your own.
 
@@ -100,9 +104,9 @@ Rules for collaborating:
   - `master`: production. Vercel's production branch. Only receives merges from `release/*`
     (and hotfix `fix/*` branches when needed).
   - `develop`: integration branch. All work branches start here and merge back here.
-  - `feat/<short-name>`, `fix/<short-name>`, `docs/<short-name>`: one branch per piece of work,
+  - `feat/`, `fix/`, `refactor/`, `docs/` + `<short-name>`: one branch per piece of work,
     branched from `develop`.
-  - `release/YY.MM.DD.N` (date-based, D32; N counts releases that day, starting at 1): cut from
+  - `release/YY.MM.DD.N` (date-based, D27; N counts releases that day, starting at 1): cut from
     `develop`, merged into `master` and back into `develop`, then tagged `vYY.MM.DD.N`.
 - Merge with `--no-ff` so each branch stays visible in history. Never squash.
 - Propose a commit at each natural stopping point (message included); commit only after I
@@ -122,7 +126,7 @@ Postgres via Prisma (D2). See `docs/decisions.md`.
 
 Vercel OIDC → GCP Workload Identity Federation → Cloud Run IAM for boundary auth (D3).
 
-Model failover: Gemini on Vertex → Claude on Anthropic, both BYOK (D5).
+Model failover: Claude on Anthropic → Gemini on Vertex, both BYOK (D15).
 
 These APIs move fast. Before writing code against Next.js 16, AI SDK, AI Gateway, or Workflows,
 check current docs (nextjs.org/docs, ai-sdk.dev, vercel.com/docs) instead of relying on memory.
@@ -131,7 +135,10 @@ Avoid deprecated patterns: `middleware.ts` (now `proxy.ts`), sync `params`/`sear
 
 ## Next.js practices
 
-- Server Components by default; `"use client"` only on the smallest leaf that needs it.
+- Server Components by default; `"use client"` only on the smallest leaf that needs it: for
+  browser state, the pathname or events. Data reaches client components from the server as props
+  or slots (`AssistantPanel` is a server component around the client tabs; `PanelUnavailable`
+  puts only its Retry button on the client).
 - Every route should make it obvious what is static, what is cached, and what streams behind
   `<Suspense>`. The specific caching choices are decision points.
 - Fetch data in Server Components or `lib/`, not `useEffect`. Mutations via Server Actions;
@@ -145,26 +152,31 @@ pnpm-workspace monorepo. Each app deploys independently.
 
 ```
 apps/web/                 Next.js app → Vercel (Git integration, root directory apps/web)
-  app/                    Routes only. Thin: compose components, call lib/. No business logic.
-  components/             Shared UI. One component per file, kebab-case filenames (shadcn style).
-    ui/                   shadcn components. Add with `pnpm dlx shadcn@latest add <name>`.
+  app/                    Routes, Server Actions, AI route handlers. Thin: no business logic.
+  components/             One component per file, kebab-case.
+    ui/                   shadcn only (`pnpm dlx shadcn@latest add <name>`).
+    shared/               Generic pieces with no feature knowledge.
+    search/ vehicle/ cases/ assistant/   One folder per feature.
   lib/
-    customer/             THE BOUNDARY: clients for the systems that stay on GCP. Everything
-                          that talks to them lives here and only here.
+    customer/             THE BOUNDARY: the only code that talks to GCP. cached-reads → reads/writes
+                          → vehicle-api → auth.
+    ai/                   Server code that calls models.
+    assistant/            The assistant panel's own logic (not model calls).
     env.ts                Zod-validated env vars; the only place process.env is read.
   evals/                  Canned prompts + expected behavior for validating the AI.
 services/vehicle-api/     Express API → Cloud Run (GitHub Actions). Owns the Postgres schema.
   prisma/                 schema.prisma, migrations, seed.ts (synthetic data).
   src/                    Express server; src/generated/ is Prisma output (gitignored).
   docker-compose.yml      Local Postgres 17 on port 5440.
-infra/                    Terraform for GCP (D9). Never change GCP by hand; edit here and
+infra/                    Terraform for GCP (D25). Never change GCP by hand; edit here and
                           `terraform plan` first. sql/ holds Postgres GRANTs Terraform can't manage.
-.github/workflows/        deploy-api.yml: develop → staging, master → production (D12, D13).
+.github/workflows/        deploy-api.yml: develop → staging, master → production (D26).
 docs/                     decisions.md, architecture, rollout plan, submission write-up.
 ```
 
-- Create other folders (e.g. `lib/ai/`) only once the related decision is made. No barrel
-  `index.ts` files. Name things in the domain (`getVehicleByVin`), not `utils`.
+- Name files after what they export. Keep filenames unique across folders.
+- *Assistant* is the panel; *agent* is its Ask tab; *call summary* is the other tab.
+- No barrel `index.ts` files. Name things in the domain, not `utils`.
 - The web app never talks to Postgres directly; only through `services/vehicle-api`.
 
 ## Comments

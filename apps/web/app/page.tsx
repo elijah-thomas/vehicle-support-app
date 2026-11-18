@@ -1,5 +1,5 @@
-import { TopBar } from "@/components/top-bar";
-import { VehicleSearch } from "@/components/vehicle-search";
+import { TopBar } from "@/components/shared/top-bar";
+import { VehicleSearch } from "@/components/search/vehicle-search";
 
 export default function Home() {
   return (

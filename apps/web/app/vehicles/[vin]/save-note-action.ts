@@ -3,7 +3,7 @@
 import { updateTag } from "next/cache";
 import { z } from "zod";
 import { cacheTags } from "@/lib/customer/cache-tags";
-import { addCaseNote, createCaseWithNote } from "@/lib/customer/cases";
+import { addCaseNote, createCaseWithNote } from "@/lib/customer/writes";
 import { VehicleApiError } from "@/lib/customer/vehicle-api";
 import { VIN_PATTERN } from "@/lib/format";
 
@@ -45,7 +45,7 @@ export async function saveNoteAction(input: z.input<typeof saveSchema>): Promise
   const { vin, draftId, caseId, newCase, issue, summary, nextSteps } = parsed.data;
 
   // A retry sends the same draftId, so the case system answers with the first save instead of
-  // writing it again (D46). See docs/decisions.md#repeat-safe-save
+  // writing it again (D14). See docs/decisions.md#saving-notes
   const note = { source: "AI_DRAFT_EDITED" as const, draftId, issue, summary, nextSteps };
   if (caseId === "new" && !newCase) return { ok: false, error: "A new case needs a subject and category" };
 
@@ -54,8 +54,8 @@ export async function saveNoteAction(input: z.input<typeof saveSchema>): Promise
       caseId === "new"
         ? await createCaseWithNote({ vin, ...newCase!, description: summary, note })
         : { caseId, noteId: (await addCaseNote(caseId, { vin, ...note })).id };
-    // Decision (D14): updateTag gives read-your-own-writes: the next render waits for fresh cases
-    // instead of serving the cached list. See docs/decisions.md#vehicle-page-caching
+    // Decision (D7): updateTag gives read-your-own-writes: the next render waits for fresh cases
+    // instead of serving the cached list. See docs/decisions.md#caching
     updateTag(cacheTags.cases(vin));
     return { ok: true, ...saved };
   } catch (error) {

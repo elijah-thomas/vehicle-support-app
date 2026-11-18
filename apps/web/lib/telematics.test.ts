@@ -1,9 +1,6 @@
-import { describe, expect, test, vi } from "vitest";
-import type { TelematicsEvent } from "@/lib/customer/vehicles";
-
-// Only the pure helpers are under test; the data layer needs env and the network.
-vi.mock("@/lib/customer/vehicles", () => ({ getTelematics: vi.fn() }));
-const { newestPerCode, occurrences, worstRecentEvent } = await import("./telematics");
+import { describe, expect, test } from "vitest";
+import type { TelematicsEvent } from "@/lib/customer/reads";
+import { newestPerCode, occurrences, worstRecentEvent } from "./telematics";
 
 const now = Date.parse("2026-11-15T00:00:00Z");
 const daysAgo = (days: number) => new Date(now - days * 86_400_000).toISOString();

@@ -4,7 +4,7 @@ import { VehicleApiError } from "@/lib/customer/vehicle-api";
 const createCaseWithNote = vi.fn();
 const addCaseNote = vi.fn();
 const updateTag = vi.fn();
-vi.mock("@/lib/customer/cases", () => ({ createCaseWithNote, addCaseNote }));
+vi.mock("@/lib/customer/writes", () => ({ createCaseWithNote, addCaseNote }));
 vi.mock("next/cache", () => ({ updateTag }));
 vi.mock("@/lib/customer/vehicle-api", async () => {
   class VehicleApiError extends Error {
@@ -78,7 +78,7 @@ describe("explains case-system failures", () => {
   });
 });
 
-test("a draft already saved to another case says so and refreshes Case history (D46)", async () => {
+test("a draft already saved to another case says so and refreshes Case history (D14)", async () => {
   addCaseNote.mockRejectedValue(new VehicleApiError(409, "conflict", "already saved"));
   expect(await saveNoteAction(note)).toEqual({ ok: false, error: expect.stringContaining("already saved to another case") });
   expect(updateTag).toHaveBeenCalledWith(`cases:${VIN}`);

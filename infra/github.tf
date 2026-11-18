@@ -1,7 +1,7 @@
 # GitHub Actions deploys the API with no stored GCP key: GitHub's OIDC token is exchanged via
 # WIF. Only this repository is trusted (matched by immutable ID, so a renamed or recreated repo
 # with the same name can't impersonate it), and each branch can only act as its environment's
-# deployer: develop → staging, master → production. See docs/decisions.md#pipeline
+# deployer: develop → staging, master → production. See docs/decisions.md#environments
 
 resource "google_iam_workload_identity_pool" "github" {
   workload_identity_pool_id = "github"

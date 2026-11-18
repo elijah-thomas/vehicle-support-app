@@ -1,9 +1,9 @@
 import { generateText } from "ai";
 import { afterAll, describe, expect, test } from "vitest";
-import { callSummaryRequest } from "@/lib/ai/call-summary";
+import { callSummaryRequest } from "@/lib/ai/call-summary-request";
 import { evalModels } from "@/lib/ai/models";
 import { summarizeUsage } from "@/lib/ai/usage";
-import { loadVehicleRecord } from "@/lib/ai/vehicle-record";
+import { loadVehicleRecord } from "@/lib/ai/load-vehicle-record";
 import { everyNote, summaryCases } from "./cases";
 import { checkText } from "./checks";
 import { loaders } from "./loaders";

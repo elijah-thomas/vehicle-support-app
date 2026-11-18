@@ -1,10 +1,10 @@
 import "server-only";
 import { isStepCount, ToolLoopAgent, tool, type InferAgentUIMessage, type StepResult, type ToolSet, type UIMessage } from "ai";
 import { z } from "zod";
-import { getCases, getTelematics, getVehicle } from "@/lib/customer/vehicles";
+import { getCases, getTelematics, getVehicle } from "@/lib/customer/cached-reads";
 import { earlierNextStepsForModel, telematicsForModel, type VehicleRecord, vehicleRecordForModel } from "./model-context";
 import { defaultModel, gatewayOptionsFor, type ModelChoice } from "./models";
-import { RECORD_TELEMATICS } from "./vehicle-record";
+import { RECORD_TELEMATICS } from "./load-vehicle-record";
 
 export type VehicleLoaders = {
   getVehicle: typeof getVehicle;
@@ -18,8 +18,8 @@ export const cachedLoaders: VehicleLoaders = { getVehicle, getTelematics, getCas
 // system message. Rules carry their reasons, which models follow more reliably than bare rules.
 // Rules are one-line triggers, facts the model would have to work out are computed in code, and
 // the examples carry each answer's shape: conditional rules made Gemini think before most answers.
-// See docs/decisions.md#agent-context
-// Decision (D47): the answer's shape follows the question, and next steps appear only when new.
+// See docs/decisions.md#agent
+// Decision (D17): the answer's shape follows the question, and next steps appear only when new.
 // Why: identical steps on every answer get skipped. Trade-off: the format is harder to check.
 // See docs/decisions.md#answer-shape
 const instructions = `<role>
@@ -110,9 +110,9 @@ I can only help with this vehicle's support. Try asking "What changed since the 
 </example>
 </examples>`;
 
-// Decision (D15): the one tool takes no VIN; the route binds the vehicle the rep has open. Why: no
+// Decision (D16): the one tool takes no VIN; the route binds the vehicle the rep has open. Why: no
 // prompt can make the agent read another customer's vehicle. Trade-off: it can't compare a
-// customer's vehicles. The record itself is loaded by the caller (lib/ai/vehicle-record.ts).
+// customer's vehicles. The record itself is loaded by the caller (lib/ai/load-vehicle-record.ts).
 // See docs/decisions.md#agent
 export function createVehicleAgent(
   record: VehicleRecord,
@@ -136,7 +136,7 @@ export function createVehicleAgent(
     instructions: [
       { role: "system", content: instructions },
       { role: "system", content: vehicleRecordForModel(record, asOf, { caseAge: true }) },
-      // Decision (D47): next steps already given are read from earlier answers here, in code.
+      // Decision (D17): next steps already given are read from earlier answers here, in code.
       // Why: asking the model to check the history made Gemini think before most answers.
       // Trade-off: the browser sends those answers, so a forged one can only hide a step.
       // See docs/decisions.md#answer-shape

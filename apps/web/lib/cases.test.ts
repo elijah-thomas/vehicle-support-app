@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import type { Case, TelematicsEvent } from "@/lib/customer/vehicle-records";
+import type { Case, TelematicsEvent } from "@/lib/customer/reads";
 import {
   daysBetween,
   faultWindow,

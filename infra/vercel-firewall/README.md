@@ -1,7 +1,7 @@
 # Vercel Firewall rules
 
 Rate limits enforced at Vercel's edge, before any function runs, so a blocked request costs no
-compute and no model tokens. See `docs/decisions.md` (D18).
+compute and no model tokens. See `docs/decisions.md` (D23).
 
 | File | Matches | Limit |
 |---|---|---|
@@ -18,6 +18,6 @@ vercel firewall publish   # make live (prints a digest; non-interactive runs pas
 ```
 
 Rules apply to every deployment of the project, previews included. Counters are per Vercel
-region; with functions pinned to `cle1` (D11), that is effectively one counter. Per-IP limits
+region; with functions pinned to `cle1` (D4), that is effectively one counter. Per-IP limits
 don't bound total spend across many IPs: that backstop is the provider-side spend limits on the
-BYOK keys, since AI Gateway budgets don't cap BYOK spend (D23).
+BYOK keys, since AI Gateway budgets don't cap BYOK spend (D24).

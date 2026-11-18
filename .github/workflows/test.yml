@@ -1,5 +1,5 @@
 # Typecheck, lint, and tests on every PR and on the deploy branches. No secrets and no model
-# calls: the evals stay on demand (apps/web/evals). See docs/decisions.md#tests
+# calls: the evals stay on demand (apps/web/evals). See docs/decisions.md#tests-and-evals
 name: Test
 
 on:
