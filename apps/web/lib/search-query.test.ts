@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { checkVin, lookupInPastedText, normalizeQuery, queryKind } from "./lookup";
+import { checkVin, lookupInPastedText, normalizeQuery, queryKind } from "./search-query";
 
 describe("queryKind", () => {
   test.each([

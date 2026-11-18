@@ -12,10 +12,10 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { loadAgentChat, storeAgentChat } from "@/lib/agent-chat-history";
-import { aiErrorCode } from "@/lib/ai-request-error";
+import { loadAgentChat, storeAgentChat } from "@/lib/assistant/agent-chat-history";
+import { aiErrorCode } from "@/lib/assistant/ai-request-error";
 import type { VehicleAgentMessage } from "@/lib/ai/vehicle-agent";
-import type { Suggestion, SuggestionKind } from "@/lib/assistant-suggestions";
+import type { Suggestion, SuggestionKind } from "@/lib/assistant/assistant-suggestions";
 
 const suggestionIcons: Record<SuggestionKind, { Icon: LucideIcon; className: string }> = {
   critical: { Icon: TriangleAlert, className: "text-destructive" },
@@ -211,7 +211,7 @@ function AgentChatPanel({ vin, suggestions }: Props) {
   }, [started]);
 
   // Starts a new conversation, such as for a new call. Emptying the thread also removes its saved
-  // copy (lib/agent-chat-history.ts), so a reload doesn't bring it back.
+  // copy (lib/assistant/agent-chat-history.ts), so a reload doesn't bring it back.
   function clearChat() {
     reasked.current = true;
     setMessages([]);

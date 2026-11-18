@@ -1,5 +1,5 @@
 import { CallSummary } from "@/components/call-summary";
-import { cannedTranscripts } from "@/lib/canned-transcripts";
+import { cannedTranscripts } from "@/lib/assistant/canned-transcripts";
 import { getCases } from "@/lib/customer/cached-reads";
 import { formatCaseNumber, formatDate } from "@/lib/format";
 import { loadPanel } from "@/lib/load-panel";

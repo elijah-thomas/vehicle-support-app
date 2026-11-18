@@ -8,7 +8,7 @@ import { startTransition, useActionState, useEffect, useRef, useState, useSyncEx
 import { searchAction, type SearchState } from "@/app/search-action";
 import { ComboboxContent, ComboboxGroup, ComboboxItem, ComboboxLabel, ComboboxList } from "@/components/ui/combobox";
 import { formatRelative } from "@/lib/format";
-import { checkVin, lookupInPastedText, suggestedVehicles, matchRange, normalizeQuery, queryKind } from "@/lib/lookup";
+import { checkVin, lookupInPastedText, suggestedVehicles, matchRange, normalizeQuery, queryKind } from "@/lib/search-query";
 import {
   clearRecentVehicles,
   getRecentVehicles,

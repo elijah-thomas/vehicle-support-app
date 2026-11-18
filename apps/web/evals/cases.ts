@@ -1,5 +1,5 @@
-import type { CallType } from "@/lib/call-summary-schema";
-import { cannedTranscripts } from "@/lib/canned-transcripts";
+import type { CallType } from "@/lib/ai/call-summary-schema";
+import { cannedTranscripts } from "@/lib/assistant/canned-transcripts";
 import type { TextChecks } from "./checks";
 
 // Built on the seeded stories in services/vehicle-api/prisma/seed.ts.

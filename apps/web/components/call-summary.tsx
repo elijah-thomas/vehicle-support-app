@@ -13,10 +13,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { caseHref } from "@/lib/cases";
 import { formatCaseNumber } from "@/lib/format";
-import { type CallSummary as Draft, callSummarySchema, type CallType, MAX_TRANSCRIPT_LENGTH } from "@/lib/call-summary-schema";
-import { aiErrorCode, rateLimitAwareFetch, type AiErrorCode } from "@/lib/ai-request-error";
+import { type CallSummary as Draft, callSummarySchema, type CallType, MAX_TRANSCRIPT_LENGTH } from "@/lib/ai/call-summary-schema";
+import { aiErrorCode, rateLimitAwareFetch, type AiErrorCode } from "@/lib/assistant/ai-request-error";
 import { flashWhenPresent } from "@/lib/flash-element";
-import { type ActiveDraft, clearCallSummary, type DraftEdits, loadCallSummary, newDraft, storeCallSummary } from "@/lib/call-summary-draft";
+import { type ActiveDraft, clearCallSummary, type DraftEdits, loadCallSummary, newDraft, storeCallSummary } from "@/lib/assistant/call-summary-draft";
 
 // An open case the note can be saved to (D45), newest first.
 export type CaseOption = { id: string; number: number; label: string; subject: string };

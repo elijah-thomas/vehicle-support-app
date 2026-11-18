@@ -7,7 +7,7 @@ import { VehicleHeader } from "@/components/vehicle-header";
 import { VehicleHeaderSkeleton } from "@/components/vehicle-header-skeleton";
 import { VehicleTrail } from "@/components/vehicle-trail";
 import { WithVin } from "@/components/with-vin";
-import { loadSuggestions } from "@/lib/assistant-suggestions";
+import { loadSuggestions } from "@/lib/assistant/assistant-suggestions";
 
 // Decision (D41): the layout owns the header and the assistant, and each route (the overview, a
 // case, a new case) replaces only the left column below the header. Moving between them keeps the

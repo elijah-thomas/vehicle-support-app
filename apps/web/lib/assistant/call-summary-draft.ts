@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { callSummarySchema, MAX_TRANSCRIPT_LENGTH } from "./call-summary-schema";
+import { callSummarySchema, MAX_TRANSCRIPT_LENGTH } from "@/lib/ai/call-summary-schema";
 
 // What the rep has changed in the review form. caseId is null until the rep picks a case, so the
 // form keeps choosing its default (D45) from the cases it has now.

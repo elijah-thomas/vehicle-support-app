@@ -1,5 +1,5 @@
 import { FaultReference, RecallReference } from "@/components/agent-reference";
-import { toBlocks } from "@/lib/agent-answer-blocks";
+import { toBlocks } from "@/lib/assistant/agent-answer-blocks";
 
 // Fault codes (P0C73) and recall campaigns (MR-24-117) become links to their rows. Matched by
 // pattern on the client, so no extra data reaches the panel. Cases are cited by subject and date, so

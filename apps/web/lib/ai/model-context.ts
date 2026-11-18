@@ -1,6 +1,6 @@
 import "server-only";
 import type { Case, TelematicsEvent, Vehicle } from "@/lib/customer/reads";
-import { toBlocks } from "@/lib/agent-answer-blocks";
+import { toBlocks } from "@/lib/assistant/agent-answer-blocks";
 import { formatCaseNumber, formatDate } from "@/lib/format";
 import { occurrences, repeatKey } from "@/lib/telematics";
 

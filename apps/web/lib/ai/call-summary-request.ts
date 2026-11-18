@@ -1,6 +1,6 @@
 import "server-only";
 import { Output } from "ai";
-import { callSummarySchema } from "@/lib/call-summary-schema";
+import { callSummarySchema } from "@/lib/ai/call-summary-schema";
 import { type VehicleRecord, vehicleRecordForModel } from "./model-context";
 import { defaultModel, gatewayOptionsFor, type ModelChoice } from "./models";
 
