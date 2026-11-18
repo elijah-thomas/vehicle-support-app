@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "eve build && next start",
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
     "eval": "vitest run --config evals/vitest.config.mts",
