@@ -6,7 +6,7 @@ const tabClass =
   "h-7 flex-none px-2.5 text-xs text-muted-foreground data-active:bg-card data-active:text-foreground data-active:shadow-sm focus-visible:border-transparent focus-visible:ring-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
 
 // Both tabs stay mounted, so switching never loses the chat thread or an unsaved draft.
-// See docs/decisions.md#lookup-and-layout
+// See docs/decisions.md#vehicle-routes
 export function AssistantPanel({ ask, callSummary }: { ask: React.ReactNode; callSummary: React.ReactNode }) {
   return (
     <Card className="h-full gap-0 py-0">

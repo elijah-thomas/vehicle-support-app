@@ -88,7 +88,11 @@ Rules for collaborating:
 - Keep it teachable: briefly explain Vercel/Next.js/GCP concepts I may not know yet, with links
   to the docs you used.
 - After I decide, add an entry to `docs/decisions.md`: the decision, options considered, what I
-  chose, and why. This is my interview study guide and the record reviewers see.
+  chose, and why. This is my interview study guide and the record reviewers see. Follow the
+  labels in its "How to read this" section, and put an `<a id="…">` anchor above the heading
+  (GitHub ignores `{#…}`). In the same edit, update every earlier entry the decision changes:
+  rewrite it to today's state, set its status to "Current, amended by Dnn" (or "Superseded by
+  Dnn"), and add a History line. Measurements go in `docs/evidence.md`.
 - After each piece of work, give me a short walkthrough: files changed, what each does, and any
   choices you made on your own.
 
@@ -122,7 +126,7 @@ Postgres via Prisma (D2). See `docs/decisions.md`.
 
 Vercel OIDC → GCP Workload Identity Federation → Cloud Run IAM for boundary auth (D3).
 
-Model failover: Gemini on Vertex → Claude on Anthropic, both BYOK (D5).
+Model failover: Claude on Anthropic → Gemini on Vertex, both BYOK (D5, D49).
 
 These APIs move fast. Before writing code against Next.js 16, AI SDK, AI Gateway, or Workflows,
 check current docs (nextjs.org/docs, ai-sdk.dev, vercel.com/docs) instead of relying on memory.
@@ -131,7 +135,10 @@ Avoid deprecated patterns: `middleware.ts` (now `proxy.ts`), sync `params`/`sear
 
 ## Next.js practices
 
-- Server Components by default; `"use client"` only on the smallest leaf that needs it.
+- Server Components by default; `"use client"` only on the smallest leaf that needs it: for
+  browser state, the pathname or events. Data reaches client components from the server as props
+  or slots (`AssistantPanel` is a server component around the client tabs; `PanelUnavailable`
+  puts only its Retry button on the client).
 - Every route should make it obvious what is static, what is cached, and what streams behind
   `<Suspense>`. The specific caching choices are decision points.
 - Fetch data in Server Components or `lib/`, not `useEffect`. Mutations via Server Actions;
