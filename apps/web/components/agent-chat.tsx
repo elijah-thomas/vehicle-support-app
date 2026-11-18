@@ -7,6 +7,7 @@ import { cn } from "cn";
 import { Suspense, use, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { AgentAnswer } from "@/components/agent-answer";
 import { AgentToolStep } from "@/components/agent-tool-step";
+import { TypingIndicator } from "@/components/typing-indicator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -155,10 +156,15 @@ export function AgentChat(props: Props) {
 function AgentChatPanel({ vin, suggestions }: Props) {
   const loading = vin === null;
   const [input, setInput] = useState("");
+  // Set when the route says the record is loaded and the model is working (app/api/agent/route.ts).
+  const [answering, setAnswering] = useState(false);
   const [restored] = useState(() => (vin === null ? null : loadAgentChat(vin)));
   const { messages, sendMessage, regenerate, status, error, stop } = useChat<VehicleAgentMessage>({
     messages: restored?.messages,
     transport: new DefaultChatTransport({ api: "/api/agent", body: { vin } }),
+    onData: (part) => {
+      if (part.type === "data-status") setAnswering(true);
+    },
   });
   // A reload during an answer left the question unanswered, so ask it again once.
   const reask = restored?.pending === true && restored.messages.at(-1)?.role === "user";
@@ -190,7 +196,11 @@ function AgentChatPanel({ vin, suggestions }: Props) {
 
   useEffect(() => {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
-  }, [messages, status]);
+  }, [messages, status, answering]);
+
+  useEffect(() => {
+    if (status === "submitted") return () => setAnswering(false);
+  }, [status]);
 
   useEffect(() => {
     if (started && refocus.current) {
@@ -211,6 +221,14 @@ function AgentChatPanel({ vin, suggestions }: Props) {
     messages.flatMap((m) => (m.role === "user" ? m.parts.flatMap((p) => (p.type === "text" ? [p.text] : [])) : [])),
   );
   const showFollowUps = status === "ready" && messages.at(-1)?.role === "assistant";
+  // The record is read and the model is working, but no words have arrived. The bubble goes in the
+  // answer once the stream has opened one, and on its own before that, so "Assistant" shows once.
+  const last = messages.at(-1);
+  const answerStarted = last?.role === "assistant";
+  const waitingForWords =
+    busy &&
+    (answering || status === "streaming") &&
+    !(answerStarted && last.parts.some((part) => part.type === "text" && part.text.trim()));
 
   const questionBox = (
     <form
@@ -303,6 +321,7 @@ function AgentChatPanel({ vin, suggestions }: Props) {
                 </div>
               )}
               {vin && message.parts.map((part, i) => (part.type === "text" ? <AgentAnswer key={i} vin={vin} text={part.text} /> : null))}
+              {message === last && waitingForWords && <TypingIndicator />}
               {message === messages.at(-1) && showFollowUps && suggestions && (
                 <Suspense fallback={null}>
                   <FollowUps suggestions={suggestions} asked={asked} onAsk={ask} />
@@ -312,11 +331,18 @@ function AgentChatPanel({ vin, suggestions }: Props) {
           ),
         )}
 
-        {status === "submitted" && (
+        {status === "submitted" && !answering && (
           <p className="flex items-center gap-2 text-xs text-muted-foreground">
             <span className="size-2 animate-pulse rounded-full bg-primary motion-reduce:animate-none" aria-hidden />
             Reading the record…
           </p>
+        )}
+
+        {waitingForWords && !answerStarted && (
+          <div className="flex flex-col gap-2">
+            <span className="text-xs font-semibold text-muted-foreground">Assistant</span>
+            <TypingIndicator />
+          </div>
         )}
 
         {failure && (

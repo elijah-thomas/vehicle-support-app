@@ -1,6 +1,6 @@
-import { createAgentUIStreamResponse } from "ai";
+import { createAgentUIStream, createUIMessageStream, createUIMessageStreamResponse } from "ai";
 import { earlierAnswers, parseAgentRequest } from "@/lib/ai/agent-request";
-import { cachedLoaders, createVehicleAgent } from "@/lib/ai/vehicle-agent";
+import { cachedLoaders, createVehicleAgent, type VehicleAgentMessage } from "@/lib/ai/vehicle-agent";
 import { logUsage } from "@/lib/ai/usage";
 import { loadVehicleRecord } from "@/lib/ai/vehicle-record";
 
@@ -16,18 +16,25 @@ export async function POST(request: Request) {
     const record = await loadVehicleRecord(parsed.vin, cachedLoaders);
     if (!record) return errorResponse("not_found", 404);
 
-    return await createAgentUIStreamResponse({
-      agent: createVehicleAgent(record, {
-        earlierAnswers: earlierAnswers(parsed.messages),
-        onUsage: (steps) => logUsage("agent", steps),
-      }),
-      uiMessages: parsed.messages,
+    const agent = createVehicleAgent(record, {
+      earlierAnswers: earlierAnswers(parsed.messages),
+      onUsage: (steps) => logUsage("agent", steps),
+    });
+    const stream = createUIMessageStream<VehicleAgentMessage>({
+      execute: async ({ writer }) => {
+        // Sent as soon as the record is loaded, before the model's first word, so the panel can
+        // tell reading the record from the model working on the answer. Transient: not saved in
+        // the message, so it never returns in the history.
+        writer.write({ type: "data-status", data: "answering", transient: true });
+        writer.merge(await createAgentUIStream({ agent, uiMessages: parsed.messages }));
+      },
       // Failures after streaming starts reach the client as this text, so it parses like a 500.
       onError: (error) => {
         console.error("agent stream failed", error);
         return JSON.stringify({ error: { code: "agent_failed" } });
       },
     });
+    return createUIMessageStreamResponse({ stream });
   } catch (error) {
     console.error("agent failed", error);
     return errorResponse("agent_failed", 500);

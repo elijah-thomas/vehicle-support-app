@@ -1,5 +1,5 @@
 import "server-only";
-import { isStepCount, ToolLoopAgent, tool, type InferAgentUIMessage, type StepResult, type ToolSet } from "ai";
+import { isStepCount, ToolLoopAgent, tool, type InferAgentUIMessage, type StepResult, type ToolSet, type UIMessage } from "ai";
 import { z } from "zod";
 import { getCases, getTelematics, getVehicle } from "@/lib/customer/vehicles";
 import { earlierNextStepsForModel, telematicsForModel, type VehicleRecord, vehicleRecordForModel } from "./model-context";
@@ -170,4 +170,7 @@ export function createVehicleAgent(
   });
 }
 
-export type VehicleAgentMessage = InferAgentUIMessage<ReturnType<typeof createVehicleAgent>>;
+type AgentTools = InferAgentUIMessage<ReturnType<typeof createVehicleAgent>> extends UIMessage<unknown, never, infer T> ? T : never;
+// status: sent by the route, never stored in the message, once the record is loaded and the model
+// is working, so the panel can show that before the first word arrives.
+export type VehicleAgentMessage = UIMessage<unknown, { status: "answering" }, AgentTools>;
