@@ -7,7 +7,8 @@ import { getCaseSnapshot } from "@/lib/case-snapshot";
 import { caseHref, daysBetween, matchFaultsToCases } from "@/lib/cases";
 import { formatCaseNumber, formatDateTime, formatRelative, ordinal, telematicsReading } from "@/lib/format";
 import { loadPanel } from "@/lib/load-panel";
-import { getTelematicsSnapshot, newestPerCode, occurrences } from "@/lib/telematics";
+import { getTelematicsSnapshot } from "@/lib/telematics-snapshot";
+import { newestPerCode, occurrences } from "@/lib/telematics";
 
 const NEWEST_SHOWN = 10;
 

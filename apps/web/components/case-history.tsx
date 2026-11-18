@@ -10,7 +10,7 @@ import { caseHref, lastContact, matchFaultsToCases, newCaseHref, sortCases } fro
 import type { Case } from "@/lib/customer/vehicles";
 import { formatCaseNumber, formatDate } from "@/lib/format";
 import { loadPanel } from "@/lib/load-panel";
-import { getTelematicsSnapshot } from "@/lib/telematics";
+import { getTelematicsSnapshot } from "@/lib/telematics-snapshot";
 
 const NEWEST_CLOSED_SHOWN = 3;
 

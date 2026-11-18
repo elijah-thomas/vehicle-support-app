@@ -6,7 +6,7 @@ import { caseHref, faultWindow, matchFaultsToCases } from "@/lib/cases";
 import { type Case, getFaultsInWindow, type TelematicsEvent } from "@/lib/customer/vehicles";
 import { formatCaseNumber, formatDate, ordinal } from "@/lib/format";
 import { loadPanel } from "@/lib/load-panel";
-import { getTelematicsSnapshot } from "@/lib/telematics";
+import { getTelematicsSnapshot } from "@/lib/telematics-snapshot";
 
 const NEWEST_SHOWN = 3;
 
