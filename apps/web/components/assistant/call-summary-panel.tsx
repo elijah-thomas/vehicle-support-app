@@ -11,9 +11,9 @@ export async function CallSummaryPanel({ vin }: { vin: string }) {
   const loaded = await loadPanel("call summary cases", () => getCases(vin));
   const cases = (loaded.ok ? loaded.data : null) ?? [];
 
-  // Decision (D45): only open cases can be picked. Why: a note on a closed case reaches no open-case
+  // Decision (D20): only open cases can be picked. Why: a note on a closed case reaches no open-case
   // view, so nobody follows it up; reopening on the case view records why it came back. Trade-off:
-  // a call about a closed case needs that reopen first. See docs/decisions.md#call-summary-target
+  // a call about a closed case needs that reopen first. See docs/decisions.md#call-summary
   const open = cases
     .filter((c) => c.status === "OPEN")
     .sort((a, b) => Date.parse(b.openedAt) - Date.parse(a.openedAt));

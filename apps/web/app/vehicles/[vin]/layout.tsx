@@ -9,9 +9,9 @@ import { VehicleTrail } from "@/components/vehicle/vehicle-trail";
 import { WithVin } from "./with-vin";
 import { loadSuggestions } from "@/lib/assistant/assistant-suggestions";
 
-// Decision (D41): the layout owns the header and the assistant, and each route (the overview, a
+// Decision (D8): the layout owns the header and the assistant, and each route (the overview, a
 // case, a new case) replaces only the left column below the header. Moving between them keeps the
-// chat thread, any unsaved draft and the breadcrumb trail. See docs/decisions.md#vehicle-routes
+// chat thread, any unsaved draft and the breadcrumb trail. See docs/decisions.md#vehicle-layout
 export default function VehicleLayout({ children, params }: LayoutProps<"/vehicles/[vin]">) {
   return (
     <main className="mx-auto w-full max-w-content px-4 py-6 xl:px-6">
@@ -39,7 +39,7 @@ export default function VehicleLayout({ children, params }: LayoutProps<"/vehicl
           <AssistantPanel
             ask={
               <Suspense fallback={<AgentChat vin={null} suggestions={null} />}>
-                {/* Decision (D39): suggestions start here, unawaited, and only their rows wait.
+                {/* Decision (D19): suggestions start here, unawaited, and only their rows wait.
                     See docs/decisions.md#assistant-suggestions */}
                 <WithVin params={params}>{(vin) => <AgentChat vin={vin} suggestions={loadSuggestions(vin)} />}</WithVin>
               </Suspense>

@@ -121,7 +121,7 @@ export function fetchFaultsInWindow(vin: string, from: string, to: string): Prom
 }
 
 // Not cached, and only called from the search Server Action, so the email never appears in a URL.
-// See docs/decisions.md#vehicle-page-caching
+// See docs/decisions.md#caching
 export async function findCustomerByEmail(email: string): Promise<Customer | null> {
   return vehicleApiOrNull(`/customers?email=${encodeURIComponent(email)}`, customerSchema);
 }

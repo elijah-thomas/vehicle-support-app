@@ -11,7 +11,7 @@ import { loadPanel } from "@/lib/load-panel";
 
 const NEWEST_SHOWN = 3;
 
-// Every time the fault this case is matched to (D42) was logged, newest first, with the case each
+// Every time the fault this case is matched to (D11) was logged, newest first, with the case each
 // occurrence led to. Renders nothing when the case has no matched fault, or telematics is down.
 export async function FaultHistory({ vin, supportCase, cases }: { vin: string; supportCase: Case; cases: Case[] }) {
   const loaded = await loadPanel("fault history", () => loadFaults(vin, cases));
@@ -97,7 +97,7 @@ function LedToCase({ vin, supportCase, current }: { vin: string; supportCase: Ca
   );
 }
 
-// Each case's week before it opened (cached once settled, D37), plus the live feed for faults that
+// Each case's week before it opened (cached once settled, D7), plus the live feed for faults that
 // haven't led to a case yet. Windows overlap when cases open close together, so events are
 // de-duplicated by ID.
 async function loadFaults(vin: string, cases: Case[]) {

@@ -25,7 +25,7 @@ const target = {
   caseId: z.string().min(1),
 };
 
-// A quick note is only its summary (D40). Transcripts go through Call summary instead.
+// A quick note is only its summary (D12). Transcripts go through Call summary instead.
 const noteSchema = z.object({ ...target, summary: text("Note", 4000) });
 const closeSchema = z.object({ ...target, resolution: text("Resolution", 1000) });
 const reopenSchema = z.object({ ...target, reason: text("Reason", 1000) });
@@ -50,7 +50,7 @@ function caseSystemError(error: unknown, conflict: string) {
 }
 
 // Every write clears the vehicle's cached case list, so the case view, the overview and the
-// assistant read the change on the next render. See docs/decisions.md#vehicle-routes
+// assistant read the change on the next render. See docs/decisions.md#vehicle-layout
 async function write(vin: string, call: () => Promise<unknown>, conflict: string): Promise<CaseActionResult> {
   try {
     await call();
@@ -103,7 +103,7 @@ export async function restoreNoteAction(input: z.input<typeof noteTarget>): Prom
 }
 
 // A case always starts with its first note: what the customer reported is the case's description
-// and its first rep note, written together in one call (D22). Then the rep lands on the new case.
+// and its first rep note, written together in one call (D14). Then the rep lands on the new case.
 export async function openCaseAction(input: z.input<typeof openCaseSchema>): Promise<CaseActionResult> {
   const parsed = openCaseSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid case" };

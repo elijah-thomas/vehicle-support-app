@@ -2,7 +2,7 @@ import { expect, test } from "vitest";
 import type { Case, TelematicsEvent, Vehicle } from "@/lib/customer/reads";
 import { UNAVAILABLE, earlierNextStepsForModel, vehicleRecordForModel } from "./model-context";
 
-// A model that never sees an internal ID can't quote one to a rep. See docs/decisions.md#agent-context
+// A model that never sees an internal ID can't quote one to a rep. See docs/decisions.md#agent
 const CUID = /\bc[a-z0-9]{24}\b/;
 
 const vehicle: Vehicle = {

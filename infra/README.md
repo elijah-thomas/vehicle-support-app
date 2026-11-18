@@ -2,7 +2,7 @@
 
 Terraform for everything on the GCP side: the customer's existing systems (Cloud Run API,
 Cloud SQL) and the trust that lets the Vercel app reach them (Workload Identity Federation).
-Why it's shaped this way: `docs/decisions.md` (D3, D9, D10, D23).
+Why it's shaped this way: `docs/decisions.md` (D3, D25, D5, D24).
 
 | File | What it defines |
 |---|---|

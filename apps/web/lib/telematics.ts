@@ -1,7 +1,7 @@
 import type { TelematicsEvent } from "@/lib/customer/reads";
 
 // Telematics has no active/cleared state, so "recent" stands in for "active".
-// See docs/decisions.md#vehicle-status
+// See docs/decisions.md#faults
 export const RECENT_WINDOW_DAYS = 30;
 
 const severityRank = { INFO: 0, WARN: 1, CRITICAL: 2 } as const;

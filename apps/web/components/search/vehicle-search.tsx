@@ -23,7 +23,7 @@ type Option =
 type OptionGroup = { label: string; items: Option[] };
 
 // Suggestions are recent vehicles from this browser and a fixed list, never a search of customer data.
-// See docs/decisions.md#lookup-and-layout
+// See docs/decisions.md#lookup
 function suggestionGroups(
   query: string,
   recents: ReturnType<typeof getRecentVehicles>,

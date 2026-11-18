@@ -12,7 +12,7 @@ export type Row = {
   seconds: number;
   steps?: number;
   tokens?: number;
-  // Hidden thinking, billed as output. A prompt change that raises it slows the first word (D47).
+  // Hidden thinking, billed as output. A prompt change that raises it slows the first word (D17).
   reasoningTokens?: number;
   costUsd?: number;
   failures: string[];

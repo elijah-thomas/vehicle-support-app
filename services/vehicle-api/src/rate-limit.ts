@@ -2,10 +2,10 @@ import type { Request } from "express";
 import { ipKeyGenerator, rateLimit } from "express-rate-limit";
 import { env } from "./env.js";
 
-// Decision (D20): one budget per calling system (the ID token's service account), not per IP.
+// Decision (D23): one budget per calling system (the ID token's service account), not per IP.
 // Why: every rep's traffic arrives from Vercel's shared outbound IPs; limiting each person happens
 // at the edge. Trade-off: counters are per instance, so the real ceiling is up to 3×.
-// See docs/decisions.md#api-rate-limit-keying
+// See docs/decisions.md#rate-limits
 export const rateLimitPerCaller = rateLimit({
   windowMs: 60_000,
   limit: env.RATE_LIMIT_PER_MINUTE,

@@ -56,7 +56,7 @@ export const VIN_PATTERN = /^[A-HJ-NPR-Z0-9]{17}$/;
 const unitSuffix: Record<string, string> = { miles: " mi", "%": "%" };
 
 // The telematics API sends units only inside message text ("Odometer reading (miles)"), so the
-// unit is read from there. See docs/decisions.md#vehicle-status
+// unit is read from there. See docs/decisions.md#faults
 export function telematicsReading(message: string, value: number | null) {
   const match = message.match(/^(.*?)\s*\(([^)]+)\)$/);
   const label = match ? match[1] : message;

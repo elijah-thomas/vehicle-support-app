@@ -23,10 +23,10 @@ export function RecallReference({ label, targetId }: { label: string; targetId: 
   );
 }
 
-// Decision (D43): a fault code finds its row when clicked, not when the answer renders. Why: the
+// Decision (D8): a fault code finds its row when clicked, not when the answer renders. Why: the
 // chat stays mounted while the left column changes, and older rows sit in a collapsed list, so a
 // check at render time goes stale. Trade-off: a code with no row lands on the telematics panel.
-// See docs/decisions.md#layout-freshness
+// See docs/decisions.md#vehicle-layout
 export function FaultReference({ vin, code }: { vin: string; code: string }) {
   const router = useRouter();
   const onOverview = vehicleView(usePathname(), vin).kind === "overview";

@@ -3,7 +3,7 @@ import { unstable_rethrow } from "next/navigation";
 
 export type Loaded<T> = { ok: true; data: T } | { ok: false };
 
-// Decision (D29): one panel's data failing (telematics down, say) costs that panel, not the page.
+// Decision (D9): one panel's data failing (telematics down, say) costs that panel, not the page.
 // unstable_rethrow lets Next's own control-flow errors through: connection() postpones
 // prerendering by throwing, and swallowing that would break the static shell.
 // See docs/decisions.md#error-states

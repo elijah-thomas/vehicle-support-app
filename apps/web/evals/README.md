@@ -1,7 +1,7 @@
 # Evals
 
 Checks that the agent and call summaries stay grounded, on each model alone. See
-`docs/decisions.md#evals` (D19). Past results, by date and model, are in `docs/evidence.md`.
+`docs/decisions.md#tests-and-evals` (D21).
 
 ```bash
 gh workflow run deploy-api.yml --ref develop -f reseed=true   # reset staging to the seed data

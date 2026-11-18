@@ -2,7 +2,7 @@ import { z } from "zod";
 import { callSummarySchema, MAX_TRANSCRIPT_LENGTH } from "@/lib/ai/call-summary-schema";
 
 // What the rep has changed in the review form. caseId is null until the rep picks a case, so the
-// form keeps choosing its default (D45) from the cases it has now.
+// form keeps choosing its default (D20) from the cases it has now.
 const editsSchema = z.object({
   caseId: z.string().nullable(),
   issue: z.string(),
@@ -22,10 +22,10 @@ export type DraftEdits = z.infer<typeof editsSchema>;
 export type StoredCallSummary = z.infer<typeof storedSchema>;
 export type ActiveDraft = NonNullable<StoredCallSummary["draft"]>;
 
-// Decision (D46): the unsaved transcript and draft live in sessionStorage, one entry per vehicle.
+// Decision (D14): the unsaved transcript and draft live in sessionStorage, one entry per vehicle.
 // Why: a reload keeps them, and closing the tab removes them, so transcripts don't stay on shared
 // advisor machines. Trade-off: a browser crash or a second tab starts empty.
-// See docs/decisions.md#repeat-safe-save
+// See docs/decisions.md#saving-notes
 const key = (vin: string) => `vs:call-summary:${vin}`;
 
 export function loadCallSummary(vin: string): StoredCallSummary | null {

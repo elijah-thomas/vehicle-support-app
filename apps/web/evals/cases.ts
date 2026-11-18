@@ -13,11 +13,11 @@ const VIN = {
 };
 
 // The record is loaded before the model runs, so no case should need a tool; getTelematics exists
-// only for history older than the record's 20 events. See docs/decisions.md#agent-context
+// only for history older than the record's 20 events. See docs/decisions.md#agent
 type ToolName = "getTelematics";
 
 // history: earlier questions in the same call, asked first; the checks apply to the last answer.
-// nextSteps: the answer must end with next steps. Otherwise they're optional (D47): the agent
+// nextSteps: the answer must end with next steps. Otherwise they're optional (D17): the agent
 // adds them only when there's an action the rep hasn't already been given.
 // declines: the instructions ask for a one-line refusal.
 export type AgentCase = {
@@ -174,7 +174,7 @@ export type SummaryCase = {
 };
 
 // Dana's record is the richest, so it's the most tempting to pass off as the reason for a call
-// that never described one. See docs/decisions.md#junk-transcripts
+// that never described one. See docs/decisions.md#call-summary
 const RECORD_FAULT = /P0C73|coolant|propulsion|reduced power|battery/i;
 
 const INJECTED = `

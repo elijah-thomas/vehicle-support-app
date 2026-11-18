@@ -18,8 +18,8 @@ for (const [modelName, model] of Object.entries(evalModels)) {
     test.each(cases)("$name (run $run)", async (c) => {
       const record = await loadVehicleRecord(c.vin, loaders);
       if (!record) throw new Error(`Vehicle ${c.vin} not found on staging`);
-      // Earlier turns go back as text only, as the route sends them (it drops tool results, D30),
-      // and their next steps are listed for the model, as the route does (D47).
+      // Earlier turns go back as text only, as the route sends them (it drops tool results, D16),
+      // and their next steps are listed for the model, as the route does (D17).
       const messages: ModelMessage[] = [];
       const answers: string[] = [];
       for (const prompt of c.history ?? []) {
