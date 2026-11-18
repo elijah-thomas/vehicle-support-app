@@ -27,7 +27,7 @@ caching, previews and rollbacks. On Vercel, these come with every deployment.
 - **AI that scales with use:** an assistant answer spends most of its time waiting on the model.
   Fluid compute serves many answers on one instance and bills CPU only while code runs, so cost
   scales with how much advisors use the assistant, not with how long the model takes to answer.
-- **Reliable, visible AI:** AI Gateway switches from Gemini to Claude if Gemini fails, and shows
+- **Reliable, visible AI:** AI Gateway switches from Claude to Gemini if Claude fails, and shows
   spend by feature for the assistant and call summaries.
 
 Customer data, Meridian's APIs and the database stay in Google Cloud. Vercel connects with
@@ -58,7 +58,7 @@ appeared three times, two dealer visits haven't fixed it, and Dana wants a buyba
 
 Next.js 16 (App Router, AI SDK) runs on Vercel and calls Meridian's existing API on Cloud Run,
 which reads Postgres on Cloud SQL. The prototype uses these Vercel features: Cache Components,
-Runtime Cache, Fluid compute, AI Gateway (Gemini on Vertex AI, with Claude as fallback), OIDC
+Runtime Cache, Fluid compute, AI Gateway (Claude on Anthropic, with Gemini on Vertex AI as fallback), OIDC
 federation to Google Cloud, preview deployments and Instant Rollback. Page 4 of the
 [proposal](docs/vehicle-support-proposal.pdf) explains each choice. Evals check the assistant on
 both models before each release.
