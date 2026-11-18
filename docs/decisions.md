@@ -236,10 +236,10 @@ is also an eval case.
 - **Why:** Fluid compute because agent requests spend most of their time waiting on the model.
   One instance serves many of them, and billing counts only active CPU ([D34](#concurrency)).
 - **Out of scope:**
-  - Workflows. Every AI request is short, changes nothing until the advisor saves, and is cheap
-    to retry. Workflows earns its place once summaries need a supervisor's approval.
-  - Eve, Vercel's agent framework. Its benefits need advisor sign-in or durable runs, both
-    phase 2 ([D48](#chat-reload)).
+  - Workflows. Each AI request finishes in seconds within one request, changes nothing until the
+    advisor saves, and is cheap to retry, so no step is worth checkpointing.
+  - Eve, Vercel's agent framework, which runs each conversation as a durable session on
+    Workflows. Vercel recommends an AI SDK agent like ours for this case ([D48](#chat-reload)).
 
 <a id="models"></a>
 ## D5. Two models on two clouds, each on Meridian's own keys
@@ -1247,10 +1247,12 @@ history ([D44](#case-actions)).
   - Server-side threads with resumable streams: they would survive a crash or a switch of
     device, but they need advisor sign-in to know whose thread is whose, a new store, and they
     keep customer details on the server.
-  - Eve, Vercel's agent framework: it would replace the agent ([D15](#agent),
-    [D30](#agent-context)) and its request checks ([D27](#agent-request)), need its own storage,
-    and need the evals rerun. Its benefits need advisor sign-in or durable runs, both phase 2
-    alongside Workflows.
+  - Eve, Vercel's agent framework, which runs each conversation as a durable session on
+    Workflows: it would replace the agent ([D15](#agent), [D30](#agent-context)), its request
+    checks ([D27](#agent-request)) and this storage. Vercel recommends an AI SDK agent instead for
+    a single AI feature in an existing app, for work that finishes within one request, and when
+    the agent loop needs tuning, as [D30](#agent-context) and [D47](#answer-shape) do
+    ([guide](https://vercel.com/kb/guide/eve-vs-ai-sdk-agents-vs-workflowagent)).
 - **Trade-offs:**
   - A reload mid-answer loses the half-written answer and asks again, costing one more answer:
     about a cent on Claude in a multi-turn call ([D33](#cost-per-run)).
@@ -1258,7 +1260,7 @@ history ([D44](#case-actions)).
   - On a first visit, suggestions appear a moment later than when they were in the server HTML
     ([D39](#assistant-suggestions)).
 - **In production:** Server-side threads per advisor with resumable streams once advisors sign
-  in, or Eve if the agent moves to durable sessions in phase 2.
+  in.
 - **Evidence:** Checked with Playwright against the production build (Nov 17, 2026): thread
   restored after a reload with no request and no suggestion flash, a follow-up answered after the
   restore, a mid-answer reload re-asked exactly once (also in dev, where React mounts twice),
