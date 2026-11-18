@@ -19,7 +19,7 @@ decision is implemented, a `Decision (Dnn)` comment marks the line.
 - **AI:** [D5](#models) Models and failover · [D15](#agent) Agent · [D30](#agent-context) Record
   up front · [D16](#call-summary-generation) Call summary · [D26](#junk-transcripts) Non-support
   transcripts · [D33](#cost-per-run) Cost per run · [D19](#evals) Evals ·
-  [D39](#assistant-suggestions) Suggested questions
+  [D39](#assistant-suggestions) Suggested questions · [D48](#chat-reload) Chat after a reload
 - **Data integrity:** [D6](#data-model) Data model · [D25](#note-ownership) Note ownership ·
   [D22](#save-feedback) Save failures · [D38](#seed-activity) Seeded case activity ·
   [D40](#case-numbers) Case numbers and case actions · [D46](#repeat-safe-save) Repeat-safe save
@@ -211,6 +211,7 @@ decision is implemented, a `Decision (Dnn)` comment marks the line.
 - **No output cap:** Gemini's hidden reasoning counts toward the cap, and at 1,000 tokens answers
   were cut off. Cost is bounded in other ways (D33).
 - **Later change:** How data is loaded and how the prompt is built were redesigned in D30.
+  D48 keeps the conversation across a reload.
 
 ## D16. Call summary {#call-summary-generation}
 
@@ -758,3 +759,43 @@ decision is implemented, a `Decision (Dnn)` comment marks the line.
     way, and would take the same `draftId` field if needed.
 - **Production path:** Server-side drafts once advisors sign in, and an idempotency key on every
   write as Meridian's API grows.
+
+## D48. Chat after a reload {#chat-reload}
+
+- **Finding:** Reviewer feedback: a soft refresh during a conversation lost it. The chat only
+  survived moving between pages, because it lives in the vehicle layout (D31). `useChat` keeps
+  messages in memory, so a reload started an empty chat and showed the suggestions again.
+- **Choice:** The thread lives in `sessionStorage`, one entry per VIN (`vs:agent-chat:{vin}`), in
+  `lib/agent-chat-history.ts`, the same pattern as the call summary draft (D46).
+  - **When it's written:** When a question is sent and when its answer ends, stops or fails. Not
+    on every streamed token.
+  - **Checked on read:** With the route's own message schema (D27), so a restored thread is one
+    the route accepts. Corrupt or blocked storage means an empty chat.
+  - **Reload mid-answer:** The entry is marked pending from the moment a question is sent until
+    its answer ends. A pending thread ending in a question asks it again once (`regenerate()`).
+    A question that failed (rate limit, error) or that the rep stopped isn't asked again.
+  - **No flash:** The chat reads storage only after hydration and shows the disabled state the
+    static shell already prerenders until then (D14), so suggestions never appear and then vanish.
+- **Options:**
+  - **Server-side threads with resumable streams:** AI SDK saves the thread when an answer ends
+    and a Redis-backed stream lets a reload reconnect to an answer still streaming. It survives a
+    crash or another device, but it needs advisor identity to know whose thread is whose (rep
+    login is out of scope), a new store, and keeps customer details on the server.
+  - **Eve:** Vercel's agent framework, with durable sessions and memory across sessions. It would
+    replace the D15/D30 agent and the D27 request checks, need its own storage (Blob, or Neon and
+    Redis in the chat template) and a rerun of the evals. Its benefits need rep login or durable
+    runs, both phase 2 next to Workflows.
+- **Why:** The feedback asks for a reload, and `sessionStorage` covers it with no new service.
+  The thread holds customer details, so it's gone when the tab closes, as in D46.
+- **Accepted:**
+  - A reload mid-answer loses the half-written answer and asks again, costing one more answer
+    (under a cent, D33).
+  - A second tab or a crash starts empty.
+  - Until hydration the panel shows its loading state, so suggestions now appear a moment later
+    on a first visit than when they were in the server HTML (D39).
+- **Checked (Nov 17):** Playwright against the production build: thread restored after a reload
+  with no request and no suggestion flash, a follow-up answered after the restore, a mid-answer
+  reload re-asked exactly once (also in dev, where React mounts twice), stopped and failed
+  questions not re-asked, each vehicle keeps its own thread, a new session starts empty.
+- **Production path:** Server-side threads per advisor with resumable streams once advisors sign
+  in, or Eve if the agent moves to durable sessions in phase 2.
