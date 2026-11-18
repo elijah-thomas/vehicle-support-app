@@ -11,50 +11,55 @@ carries out a decision, a `Decision (Dnn)` comment marks the line.
   - **Current, amended by Dnn:** still the home for its topic. Later decisions changed parts of
     it, and the text is rewritten to today's state. **History** lists each change.
   - **Superseded by Dnn:** replaced. Only a pointer is left.
-  - **Context:** background, not a decision.
+  - **Context:** background the decisions build on, not a decision.
 - **Every entry uses the same labels, in this order:** Problem, Decision, Why, Rejected,
-  Trade-offs, Out of scope, In production, History, Evidence and Code. Labels with nothing to
-  say are left out.
+  Trade-offs, Out of scope, In production, Open question, History, Evidence and Code. Labels
+  with nothing to say are left out. *(Reason not yet recorded)* marks a rejected option whose
+  reason was never written down.
 - **Measurements and eval scores** live in [evidence.md](evidence.md). Entries keep only the
   headline number.
 - **To get the whole system quickly,** read the [reading path](#reading-path).
 
 ## Needs a decision from Meridian
 
-The prototype makes these choices so it can run. A real deployment needs Meridian to accept or
-change each one.
+The prototype runs with these choices and workarounds. A real deployment needs Meridian to
+accept or change each one.
 
 1. **Personal data in the cache.** Owner details are cached for up to a day, and case text for
    up to an hour ([D14](#vehicle-page-caching)).
-2. **Customer data sent to model providers.** Every AI request sends the vehicle record, and for
-   call summaries the transcript, to Anthropic first and to Google on fallback. Production
-   needs Zero Data Retention routing and a privacy review ([D5](#models), [D16](#call-summary-generation),
-   [D49](#assistant-model)).
-3. **Model spend.** Claude first costs about 3× Gemini first and is billed to Meridian's
-   Anthropic org rather than its GCP commitment. At list price, about $46 a day against $13 at
-   4,000 answers ([D49](#assistant-model)).
+2. **Customer data sent to model providers.** Every AI request sends the vehicle record to
+   Anthropic, or to Google if Anthropic fails. Call summaries also send the call transcript.
+   Production needs Zero Data Retention routing and a privacy review ([D5](#models),
+   [D16](#call-summary-generation), [D49](#assistant-model)).
+3. **Model spend.** Claude costs about three times as much per answer as Gemini, and the bill
+   goes to Meridian's Anthropic account instead of its Google Cloud commitment. For the
+   assistant alone, at list price and 4,000 answers a day, that's about $46 a day instead of $13
+   ([D49](#assistant-model)).
 4. **Sign-in at the edge.** Per-advisor rate limits and pilot groups need Entra ID at the edge
    ([D18](#rate-limits), [D35](#rollout)).
-5. **API additions owned by Meridian's API team.** A telematics "cleared" flag
-   ([D17](#vehicle-status)), a `unit` field ([D17](#vehicle-status)), a recorded case-to-fault
-   link ([D42](#fault-case-links)) and CRM change events ([D14](#vehicle-page-caching)).
-6. **Private networking.** Vercel Secure Compute and a private database IP (Enterprise)
-   ([D3](#boundary-auth), [D10](#db-access)).
+5. **API additions owned by Meridian's API team.** A telematics "cleared" flag and a `unit`
+   field ([D17](#vehicle-status)), a recorded link from each case to the fault that caused it
+   ([D42](#fault-case-links)), and CRM change events ([D14](#vehicle-page-caching)).
+6. **Private networking.** Vercel Secure Compute (an Enterprise feature) and a private IP for the
+   database ([D3](#boundary-auth), [D10](#db-access)).
 
 ## Open question
 
-- **The Anthropic spend cap no longer fits Claude-first.** D23's $25/month hard limit was the
-  backstop when Claude was the fallback. Since D49, Claude is the primary. When the cap is hit,
-  AI Gateway is likely to retry Claude on Vercel's own keys (on by default, [D5](#models)), billed
-  to AI Gateway Credits, before it falls back to Gemini. Not yet decided; see
-  [D23](#spend-alerts).
+- **The Anthropic spend cap no longer fits Claude-first.** [D23](#spend-alerts) set a
+  $25/month hard limit on Anthropic when Claude was only the fallback. Since
+  [D49](#assistant-model), Claude answers first, so the limit could be reached quickly. When it
+  is, Anthropic stops accepting Meridian's key. AI Gateway then most likely retries Claude with
+  Vercel's own key, a retry that is on by default and billed to AI Gateway Credits
+  ([D5](#models)), before it tries Gemini. If so, the cap moves the bill rather than stopping
+  it. Not yet decided.
 
 ## System at a glance
 
-An advisor's browser loads a Next.js app on Vercel. Its functions run in Cleveland (`cle1`),
-next to Meridian's API in Iowa (`us-central1`). They call the API on Cloud Run with a
-short-lived Google token, and the API alone reads and writes Postgres. The assistant and call
-summaries call models through AI Gateway: Claude first, Gemini as the fallback.
+An advisor's browser loads a Next.js app on Vercel. The app's functions run in Cleveland
+(`cle1`), the Vercel region closest to Meridian's API in Iowa (`us-central1`). The functions
+call the API on Cloud Run with a short-lived Google token, and only the API reads and writes
+Postgres. The assistant and call summaries reach the models through AI Gateway: Claude first,
+Gemini if Claude fails.
 
 ```mermaid
 flowchart LR
@@ -108,15 +113,18 @@ is also an eval case.
 | Entra ID | Microsoft's sign-in service, which Meridian's advisors already use. |
 | VIN | The 17-character vehicle identification number advisors look vehicles up by. |
 | Rep note, AI draft | A note the advisor types directly, and a note drafted by Call summary and edited before saving. |
-| CRITICAL event | The telematics severity that affects driving safety. It triggers the assistant's safety step. |
+| CRITICAL event | The highest telematics severity. When one affects driving, the assistant's first next step is about the driver's safety. |
 | Expand, then contract | Change a schema in steps: add the new shape beside the old, move every caller over, then remove the old. |
 | Eval | A scripted test that runs the real model and grades its answers by fixed rules. |
+| Instant Rollback | Vercel's one-click return to a previous production deployment. |
+| Rolling Releases, Skew Protection | Vercel features that move traffic to a new release gradually, and keep each browser on the version it loaded until it reloads. |
+| Workflows | Vercel's durable, multi-step jobs that can pause, for example to wait for an approval. |
 | Median, p90 | Half of waits are shorter than the median; 9 in 10 are shorter than p90. |
 | ZDR | Zero Data Retention: the provider keeps no copy of request data. |
 
 ## Index
 
-- **Starting point:** [D28](#current-state) How Meridian's console runs today ·
+- **Scenario:** [D28](#current-state) How Meridian's console runs today ·
   [D1](#scenario) Screen-by-screen rebuild · [D4](#primitives) Vercel features
 - **Boundary:** [D2](#gcp-backend) GCP backend · [D3](#boundary-auth) Auth across the boundary ·
   [D7](#api-shape) API shape · [D8](#contracts) Contracts · [D10](#db-access) Cloud Run → Cloud
@@ -145,30 +153,33 @@ is also an eval case.
 
 ---
 
-# Context
+# Scenario
 
 <a id="current-state"></a>
 ## D28. How Meridian's console runs today
 
 **Status:** Context
 
-- **Today:** Meridian's console is a React app built with Vite, served from Cloud Storage
-  behind Cloud CDN, with Microsoft Entra ID sign-in. The browser calls REST services on Cloud Run
-  in `us-central1`. Cloud Build uploads each release to the bucket, and there is one shared
-  staging environment. About 80 advisors work in North America, Europe and the Middle East.
-- **Why this starting point:** It's how a typical mid-market company runs an internal React app,
-  and its problems are ones a platform and framework solve: slow screens far from Iowa, one
-  shared staging, APIs exposed to the browser, and nowhere to run an assistant.
-- **Rejected starting points:** Next.js already self-hosted on GKE; the same app on VMs.
-- **Alternative Meridian weighed:** Running Next.js on Cloud Run, which would mean owning
-  scaling, the CDN setup, previews and rollbacks.
-- **Honest limit:** Functions run in one region next to the data ([D11](#function-region)).
+- **Decision:** The scenario starts from this setup. Meridian's console is a React app built
+  with Vite, served from Cloud Storage behind Cloud CDN, with Microsoft Entra ID sign-in. The
+  browser calls REST services on Cloud Run in `us-central1`. Cloud Build uploads each release to
+  the bucket, and there is one shared staging environment. About 80 advisors work in North
+  America, Europe and the Middle East.
+- **Why:** It's how a typical mid-market company runs an internal React app, and its problems
+  are ones a platform and framework solve: slow screens far from Iowa, one shared staging, APIs
+  exposed to the browser, and nowhere to run an assistant.
+- **Rejected:**
+  - As starting points: Next.js already self-hosted on GKE; the same app on VMs. *(Reasons not
+    yet recorded.)*
+  - As Meridian's alternative to Vercel: running Next.js on Cloud Run itself, which would mean
+    owning scaling, the CDN setup, previews and rollbacks.
+- **Trade-offs:** Functions run in one region, next to the data ([D11](#function-region)).
   Advisors abroad gain from the edge-served shell and streamed panels, not from faster data.
 
 <a id="scenario"></a>
 ## D1. Rebuild the console one screen at a time, starting with the vehicle workspace
 
-**Status:** Context
+**Status:** Current
 
 - **Problem:** Advisors piece together a vehicle's history from several screens of Meridian
   Motors' (fictional) support console.
@@ -178,7 +189,8 @@ is also an eval case.
   at a time lets each screen reach advisors as soon as it's validated ([D35](#rollout)). The
   scenario comes from a support tool I worked on.
 - **Rejected:**
-  - A new Vercel-hosted assistant beside the existing app: leaves the screen-hopping in place.
+  - A new Vercel-hosted assistant beside the existing app: advisors would still move between
+    screens.
   - A full rebuild at once: nothing reaches advisors until everything is done.
 
 ---
@@ -192,8 +204,8 @@ is also an eval case.
 
 - **Decision:** Express on Cloud Run with Cloud SQL Postgres. The API owns the Prisma schema and
   is the only path to the database.
-- **Why:** It's a realistic system of record in Meridian's cloud, and Vercel never holds
-  database credentials.
+- **Why:** It's a realistic system of record in Meridian's cloud. With the API as the only
+  path, Vercel never connects to Postgres.
 - **Rejected:** Cloud Run with Firestore; an external Postgres (Neon). *(Reasons not yet
   recorded.)*
 
@@ -209,8 +221,8 @@ is also an eval case.
   ([D12](#environments)), and anonymous calls get a 403. GitHub Actions deploys the same way
   ([D13](#pipeline)).
 - **Rejected:** A shared API key, which is a long-lived secret to leak and rotate.
-- **In production:** If Meridian's policy requires private APIs, Vercel Secure Compute and a
-  site-to-site VPN can reach an internal load balancer instead (Enterprise).
+- **In production:** If Meridian's policy requires private APIs, Vercel Secure Compute (an
+  Enterprise feature) and a site-to-site VPN can reach an internal load balancer instead.
 - **Evidence:** The exchange works end to end from a Vercel deployment, including inside a
   `"use cache"` function.
 
@@ -221,12 +233,13 @@ is also an eval case.
 
 - **Decision:** AI SDK, AI Gateway, Cache Components with the Runtime Cache, Fluid compute,
   Vercel Firewall and Preview Deployments.
-- **Why Fluid compute:** Agent requests spend most of their time waiting on the model. With
-  Fluid compute, one instance serves many of them, and billing counts only active CPU
-  ([D34](#concurrency)).
-- **Out of scope:** Workflows. Every AI request is short, changes nothing until the advisor
-  saves, and is cheap to retry. Workflows earns its place once summaries need a supervisor's
-  approval. Eve, Vercel's agent framework, is deferred for similar reasons ([D48](#chat-reload)).
+- **Why:** Fluid compute because agent requests spend most of their time waiting on the model.
+  One instance serves many of them, and billing counts only active CPU ([D34](#concurrency)).
+- **Out of scope:**
+  - Workflows. Every AI request is short, changes nothing until the advisor saves, and is cheap
+    to retry. Workflows earns its place once summaries need a supervisor's approval.
+  - Eve, Vercel's agent framework. Its benefits need advisor sign-in or durable runs, both
+    phase 2 ([D48](#chat-reload)).
 
 <a id="models"></a>
 ## D5. Two models on two clouds, each on Meridian's own keys
@@ -235,33 +248,33 @@ is also an eval case.
 
 - **Decision:** Claude Sonnet 5.5 on Anthropic first, then Gemini 3.8 Flash on Vertex AI, for
   the assistant and call summaries. Both use Meridian's own keys (BYOK): Claude is billed to
-  Meridian's Anthropic org, Gemini to its GCP commitment.
-- **Why:** With two vendors on two clouds, a provider-wide failure still leaves a working path.
-  Claude on Vertex would share Gemini's failures and needs Model Garden setup.
+  Meridian's Anthropic account, Gemini to its Google Cloud commitment.
+  - **Failover:** AI Gateway moves to Gemini when a Claude request fails. It doesn't move on
+    slow answers.
+  - **Vercel's keys:** If one of Meridian's keys fails, AI Gateway first retries the same model
+    with Vercel's own key. This is on by default
+    ([docs](https://vercel.com/docs/ai-gateway/authentication-and-byok/byok)), and those requests
+    are billed to AI Gateway Credits. The team setting "Fallback to Vercel Keys" turns it off, at
+    $0.20 per 1,000 BYOK requests. `only: ["vertex", "anthropic"]` keeps each model on its
+    provider but doesn't decide whose key is used, so it doesn't stop this retry.
+  - **Likely order:** Claude on Meridian's key, Claude on Vercel's, Gemini on Meridian's, then
+    Gemini on Vercel's. The docs don't confirm how the key retry and the model switch interleave.
+    AI Gateway Logs show which key each request used.
+- **Why:** Two vendors on two clouds, so a failure at one provider still leaves a working path.
 - **Rejected:**
   - Vercel's keys only: spend wouldn't land on Meridian's existing agreements.
-  - Gemini and Claude both on Vertex AI: one cloud's outage takes out both.
+  - Gemini and Claude both on Vertex AI: Claude would share Gemini's failures, and it needs
+    Model Garden setup.
 - **Trade-offs:**
   - Customer data leaves Google Cloud on every AI request, because Claude is first. Only the
     fallback stays in Google Cloud.
-  - The Vertex BYOK key is the system's one long-lived Google Cloud credential, limited to the
+  - The Vertex key is the system's one long-lived Google Cloud credential. It is limited to the
     Vertex AI User role and stored only in AI Gateway.
-  - AI Gateway budgets don't cap BYOK spend ([D23](#spend-alerts)). Requests on Vercel's keys
-    (below) are billed to AI Gateway Credits and do count toward Gateway budgets.
+  - AI Gateway budgets don't cap spend on Meridian's own keys ([D23](#spend-alerts)). They do
+    count the retries on Vercel's keys.
   - Answers differ by model, so evals run on both ([D19](#evals)).
-- **How failover works:**
-  - If a BYOK key fails, AI Gateway retries the same model on the same provider with Vercel's
-    own key. This is on by default
-    ([docs](https://vercel.com/docs/ai-gateway/authentication-and-byok/byok)). The team setting
-    "Fallback to Vercel Keys" turns it off, at $0.20 per 1,000 BYOK requests.
-  - `only: ["vertex", "anthropic"]` keeps each model on its provider. It doesn't decide whose
-    key is used, so it doesn't stop that retry.
-  - The docs don't say how the retry interleaves with the switch of model. The likely order is
-    Claude on Meridian's key, Claude on Vercel's, Gemini on Meridian's, then Gemini on Vercel's.
-    AI Gateway Logs show which credential each request used.
-  - AI Gateway fails over on errors, not on slow answers.
-- **History:** Until Nov 17, 2026 Gemini was first and Claude the fallback. Claude moved first
-  after latency tests ([D49](#assistant-model)).
+- **History:** Until Nov 17, 2026, Gemini answered first and Claude was the fallback. The order
+  was reversed after latency tests ([D49](#assistant-model)).
 - **Code:** `apps/web/lib/ai/models.ts`, the only place model IDs and the order live;
   `infra/vertex.tf`.
 
@@ -274,7 +287,8 @@ is also an eval case.
   `telematics_events`, `recalls`, `vehicle_recalls`, `cases` and `case_notes`. The seed holds
   five synthetic customer stories (see [Cast](#cast)), each also an eval case.
 - **Why:** Specs belong to the vehicle model, so they cache best. The VIN is what advisors
-  already use. Recalls give the agent its most valuable connection.
+  already use. Recalls let the agent connect a reported symptom to an open recall, the most
+  valuable link it can make.
 - **History:**
   - [D40](#case-numbers) added `cases.number` (an identity column from 24101, shown as
     `CS-24101`) and `case_notes.removedAt`, and made `case_notes.issue` nullable for rep notes.
@@ -315,7 +329,7 @@ is also an eval case.
 - **Trade-offs:** Shapes are written twice.
 
 <a id="terraform"></a>
-## D9. Terraform defines Google Cloud, except three named things
+## D9. Terraform defines Google Cloud, with three exceptions
 
 **Status:** Current
 
@@ -376,12 +390,12 @@ is also an eval case.
   It authenticates through a GitHub WIF provider trusted by repository ID, and each branch can
   act only as its own environment's deployer. The web app deploys separately through Vercel's
   Git integration.
-- **Why this order:** A failed migration leaves the running revision untouched.
+- **Why:** Migrating first means a failed migration leaves the running revision untouched.
 - **Rejected:** Migrations as a Cloud Run Job; Terraform in CI. *(Reasons not yet recorded.)*
-- **Trade-offs:** Migrations must be backward compatible: expand, then contract. The old revision
-  serves traffic until the new one is ready, so it must keep working against the new schema.
-  This is the rule other entries refer to ([D25](#note-ownership), [D35](#rollout),
-  [D40](#case-numbers)).
+- **Trade-offs:** Migrations must be backward compatible. The old revision keeps serving traffic
+  on the new schema until the new revision is ready, so a change is made in steps: expand, then
+  contract (see the glossary). [D25](#note-ownership), [D35](#rollout) and [D40](#case-numbers)
+  rely on this rule.
 
 <a id="vehicle-page-caching"></a>
 ## D14. Vehicle data is cached for hours and cases for minutes, in a shared cache
@@ -389,8 +403,9 @@ is also an eval case.
 **Status:** Current, amended by [D37](#telematics-windows), [D41](#vehicle-routes) and
 [D43](#layout-freshness)
 
-- **Problem:** The vehicle page reads several kinds of data that change at very different rates,
-  and a save must show up at once for every advisor.
+- **Problem:** The vehicle page reads data that changes at very different rates, from specs that
+  never change to cases that change on every save, and a save must show up at once for every
+  advisor.
 - **Decision:** A static shell, with each panel streamed in independently:
 
   | Data | Strategy | Tag |
@@ -402,10 +417,14 @@ is also an eval case.
   | Agent answers | Not cached. The agent's record reads use the cached fetchers above ([D30](#agent-context)). | — |
   | Customer search by email | Not cached: it runs only in a Server Action, which also keeps emails out of URLs | — |
 
-  The case page reads its case from the cached case list, so it shares the `cases:{vin}` tag
-  ([D41](#vehicle-routes)).
-- **Why the Runtime Cache:** An in-memory cache is per instance, so after a save another instance
-  could keep serving old cases. The Runtime Cache is shared within a region and environment.
+  - **Case page:** It reads its case from the cached case list, so it shares the `cases:{vin}`
+    tag ([D41](#vehicle-routes)).
+  - **Prefetching:** With `partialPrefetching`, a link prefetches its route's shell once, shared
+    by every link to that route, so a click shows the layout and skeletons at once
+    ([docs](https://nextjs.org/docs/app/guides/prefetching#partial-prefetching)).
+- **Why:** An in-memory cache lives in one instance, so after a save another instance could keep
+  serving old cases. The Runtime Cache is shared within a region and environment, so `updateTag`
+  reaches every instance.
 - **Rejected:**
   - `generateStaticParams` for the seeded vehicles: it would put owner details in static HTML,
     and the real fleet is unbounded. One shell serves every VIN.
@@ -417,11 +436,8 @@ is also an eval case.
     approve this.
   - The Runtime Cache starts empty after each deploy.
 - **In production:** The CRM would send change events to a route that invalidates the VIN's tags.
-- **Code:** `partialPrefetching` lets a link prefetch its route's shell once, shared by every link
-  to that route, so a click shows the layout and skeletons at once
-  ([docs](https://nextjs.org/docs/app/guides/prefetching#partial-prefetching)).
-- **History:** Corrections from [D43](#layout-freshness) folded in: the agent row, customer
-  search, `generateStaticParams` and prefetching.
+- **History:** [D43](#layout-freshness) corrected the agent and customer-search rows and added
+  the notes on `generateStaticParams` and prefetching. They're folded in here.
 
 <a id="agent"></a>
 ## D15. The assistant can read only the vehicle that's open
@@ -433,7 +449,7 @@ is also an eval case.
   vehicle page.
   - **Scope:** The route supplies the open vehicle, so the model can't choose a VIN.
   - **Input:** The vehicle record is loaded before the model runs ([D30](#agent-context)). One
-    tool, `getTelematics`, reaches older history, with a step cap of 3.
+    tool, `getTelematics`, fetches older telematics history, with a step cap of 3.
   - **Limits:** `reasoning: "low"`, the last 10 messages, and request checks
     ([D27](#agent-request)).
   - **Grounding:** It uses only facts from the record or a tool, and gives the date of each
@@ -445,8 +461,9 @@ is also an eval case.
 - **Why:** No prompt can make the agent read another customer's vehicle.
 - **Trade-offs:**
   - It can't compare a customer's vehicles.
-  - No output cap: Gemini's hidden reasoning counts toward the cap, and at 1,000 tokens answers
-    were cut off. Cost is bounded in other ways ([D33](#cost-per-run)).
+  - No cap on answer length. Gemini's hidden reasoning counts toward that cap, and at 1,000
+    tokens answers were cut off. Cost is bounded in other ways: the step cap, the message limits
+    and the edge rate limit ([D18](#rate-limits)).
 - **History:**
   - [D30](#agent-context) replaced three fetching tools with a record loaded up front.
   - [D40](#case-numbers) allowed case numbers.
@@ -477,7 +494,9 @@ is also an eval case.
   - **Limits:** Transcripts up to 15,000 characters.
 - **Why:** Predictable, cheap and easy to evaluate. The call has no tools, so instructions hidden
   in a transcript can't fetch or change anything.
-- **Rejected:** Display only, with no save; the agent with its tools; always opening a new case.
+- **Rejected:**
+  - The agent with its tools: a transcript's hidden instructions could then make it fetch data.
+  - Always opening a new case; display only, with no save. *(Reasons not yet recorded.)*
 - **Trade-offs:** It can't look beyond the record it's given. Transcripts are personal data sent
   to model providers, Anthropic first ([D49](#assistant-model)).
 - **In production:** Zero Data Retention routing and a privacy review.
@@ -495,8 +514,8 @@ is also an eval case.
   from an old one.
 - **Decision:** Faults from the last 30 days count as current. Each status item streams in on its
   own, ordered worst first.
-- **Units:** Units are read from the end of each telematics message, such as "(miles)", "(%)" or
-  "(°C)", because the API sends them only there.
+  - **Units:** The API sends units only inside each telematics message, such as "(miles)", "(%)"
+    or "(°C)", so the app reads them from there.
 - **In production:** A "cleared" flag and a `unit` field in Meridian's API.
 - **History:** This entry also said the status row and telematics panel share one fetch so their
   counts agree, and set a rule for when fault codes in answers become links. Both stopped
@@ -535,15 +554,17 @@ is also an eval case.
   - **Grading:** Deterministic. Required facts must be present. Internal IDs, invented fault
     codes, assumed pronouns, promises to the customer, markdown, and any mention of the removed
     note must be absent. The promise check needs the verb within three words of the item.
-  - **Report:** Scores, latency, cost and average thinking tokens per case, so a prompt change
-    that makes a model think shows up in the normal run.
-- **Rejected:** HTTP requests against the route; recorded fixtures; an LLM judge.
-- **What they caught:** Claude guessing pronouns, Gemini omitting driver-safety advice and
-  offering a loaner, Claude copying an injected instruction into a note, and a tool loop that
-  added nothing ([D30](#agent-context)).
-- **In production:** Run them on release PRs.
-- **Evidence:** Latest (Nov 17, 2026): agent 39/39 and call summaries 21/21 on both models. Full
-  history in [evidence.md](evidence.md#eval-results).
+  - **Report:** Pass rates, timings, cost and average thinking tokens per case, so a prompt
+    change that makes a model think shows up in the normal run.
+- **Rejected:** HTTP requests against the route; recorded fixtures; an LLM judge. *(Reasons not
+  yet recorded.)*
+- **In production:** Run them on every release PR.
+- **Evidence:**
+  - They caught Claude guessing pronouns, Gemini leaving out driver-safety advice and offering a
+    loaner, Claude copying an injected instruction into a note, and a tool loop that added
+    nothing ([D30](#agent-context)).
+  - Latest results (Nov 17, 2026): agent 39/39 and call summaries 21/21 on both models. Every
+    run is in [evidence.md](evidence.md#eval-results).
 - **Code:** `apps/web/evals/`.
 
 <a id="api-rate-limit-keying"></a>
@@ -565,15 +586,15 @@ is also an eval case.
 
 **Status:** Current
 
-- **Problem:** Advisors need help finding a vehicle, but a server search by prefix would let
-  anyone list customers on a public prototype.
+- **Problem:** Advisors need help finding a vehicle. A server search by prefix would help, but
+  on a public prototype it would let anyone list customers.
 - **Decision:** Suggestions come only from the browser: recent vehicles, the six seeded
   vehicles, and hints that update as the advisor types.
   - **Hints:** Input with a digit is treated as a VIN. The hint counts characters toward 17 and
     flags I, O or Q, anything other than letters and digits, or more than 17 characters. Input
     with an "@" is labelled as an email, with no format check.
   - **Recents:** The last five vehicles are kept in `localStorage`, never with emails.
-- **In production:** A server search by prefix, behind sign-in.
+- **In production:** A server search by prefix, once advisors sign in.
 - **History:** This entry also covered telematics units, now in [D17](#vehicle-status), and the
   assistant's tabs staying mounted, now in [D41](#vehicle-routes).
 - **Code:** `apps/web/lib/recent-vehicles.ts`, `apps/web/components/search/vehicle-search.tsx`.
@@ -595,7 +616,7 @@ is also an eval case.
 <a id="spend-alerts"></a>
 ## D23. Spend alerts on Google Cloud and a hard cap on Anthropic
 
-**Status:** Current, amended by [D49](#assistant-model). **Open question below.**
+**Status:** Current, with an open question since [D49](#assistant-model)
 
 - **Decision:** A $25/month budget alert on two Google Cloud billing services, Vertex AI and the
   Gemini API (`infra/budget.tf`), and a $25/month hard limit on Anthropic.
@@ -607,13 +628,15 @@ is also an eval case.
   - A budget that unlinks billing: it would stop every workload in the project.
 - **Trade-offs:** Google Cloud budgets alert but don't stop spending, and they lag by hours.
 - **In production:** Quotas per model and alerts to on-call.
-- **Open question:** The Anthropic cap was set when Claude was the fallback. Since
-  [D49](#assistant-model), Claude is the primary, at about $46 a day at production volume. When
-  the cap is hit, AI Gateway is likely to retry Claude on Vercel's own keys
-  ([D5](#models), on by default and billed to AI Gateway Credits) before it falls back to Gemini.
-  If so, the cap moves the bill rather than stopping it. Options: turn off the Vercel-key retry
-  so Gemini takes over at the cap; raise the cap and add an AI Gateway budget for Vercel-key
-  spend; or accept the behavior as it is.
+- **Open question:** The Anthropic cap was set when Claude was only the fallback. Since
+  [D49](#assistant-model), Claude answers first, at an estimated $46 a day at production volume,
+  so the cap could be reached within a day. When it is, Anthropic stops accepting Meridian's
+  key. AI Gateway then most likely retries Claude with Vercel's own key, billed to AI Gateway
+  Credits ([D5](#models)), before it tries Gemini. If so, the cap moves the bill rather than
+  stopping it. Options:
+  - Turn off the retry on Vercel's keys, so Gemini takes over when the cap is reached.
+  - Raise the cap, and add an AI Gateway budget for spend on Vercel's keys.
+  - Accept the behavior as it is.
 
 <a id="tests"></a>
 ## D24. API tests use a real database; model behavior is left to the evals
@@ -623,12 +646,11 @@ is also an eval case.
 - **Decision:** API tests run against a real Postgres through the real app, covering contracts,
   privacy, bad input, ownership and rate limits. About 100 web unit tests cover parsing, request
   checks and save errors. CI runs both on every PR, with no secrets. Model behavior is left to
-  the evals ([D19](#evals)).
-- **Rejected:** Mocking Prisma; component tests; Playwright. *(Reasons not yet recorded.
-  Playwright was later used for one-off browser checks in [D47](#answer-shape) and
-  [D48](#chat-reload).)*
-- **Trade-offs:** The API tests refuse any database whose name doesn't end in `_test`, because
-  the seed deletes rows.
+  the evals ([D19](#evals)). The API tests refuse any database whose name doesn't end in
+  `_test`, because the seed deletes rows.
+- **Rejected:** Mocking Prisma; component tests; Playwright in CI. *(Reasons not yet recorded.)*
+  Playwright was later used for one-off browser checks ([D47](#answer-shape),
+  [D48](#chat-reload)).
 
 <a id="note-ownership"></a>
 ## D25. The API checks that a note's case belongs to its vehicle
@@ -638,10 +660,11 @@ is also an eval case.
 - **Problem:** A crafted Server Action request could attach a note to another customer's case.
 - **Decision:** The API checks that the case belongs to the note's VIN, which protects every
   client, not just this one. The VIN is a new required field on note writes.
-- **Trade-offs:** Requiring a new field breaks any caller that doesn't send it yet, including the
-  React app ([D7](#api-shape)). Both sides shipped in one release here. For the React app, the
-  safe order is expand, then contract ([D13](#pipeline)): the API accepts an optional VIN and
-  checks it when present, every caller starts sending it, then the API requires it.
+- **Trade-offs:** A new required field breaks every caller that doesn't send it yet, including
+  the React app ([D7](#api-shape)). Here both sides shipped in one release. With the React app
+  still calling the API, the safe order is expand, then contract ([D13](#pipeline)): the API
+  accepts an optional VIN and checks it when present, every caller starts sending it, and only
+  then does the API require it.
 
 <a id="junk-transcripts"></a>
 ## D26. Calls with nothing to summarize are flagged, not summarized
@@ -653,15 +676,13 @@ is also an eval case.
 - **Decision:** Prompt rules plus a `callType` field (`vehicle_issue`, `other` or
   `no_conversation`). Any type other than `vehicle_issue` shows a warning in the review form. The
   field isn't saved, but it gives the evals something exact to check.
-- **Trade-offs:**
-  - **Borderline calls:** A wrong number can fairly be read as `other` or `no_conversation`.
-    Both show a warning, so the `no_conversation` wording ("Nothing to summarize from this
-    call") fits silence, noise and wrong numbers alike. That part of the prompt was left alone
-    (Nov 17, 2026), because prompt edits have cost eval regressions before
-    ([D40](#case-numbers)).
-  - **Length limits:** The draft schema describes length limits to the model but doesn't reject
-    a draft that exceeds them, so an over-long draft doesn't vanish in the browser. Instead, the
-    save action names the field that's too long.
+  - **Length limits:** The draft schema tells the model the length limits but doesn't reject a
+    draft that exceeds them, so an over-long draft doesn't vanish in the browser. The save
+    action names the field that's too long instead.
+- **Trade-offs:** A wrong number can fairly be read as `other` or `no_conversation`. Both show a
+  warning, and the `no_conversation` wording ("Nothing to summarize from this call") fits
+  silence, noise and wrong numbers alike, so the prompt wasn't changed for it (Nov 17, 2026).
+  Prompt edits have cost eval regressions before ([D40](#case-numbers)).
 
 <a id="agent-request"></a>
 ## D27. The agent route accepts only what the chat UI sends
@@ -673,7 +694,7 @@ is also an eval case.
   characters per question and 80,000 across the last 10 messages. Rejected requests get a 400 or
   413 before any model call.
 - **Trade-offs:** A caller can forge earlier assistant turns, but only within their own session.
-  A forged earlier answer can also hide a next step from the next answer
+  A forged earlier answer can also stop a next step from appearing in the next answer
   ([D47](#answer-shape)).
 - **Code:** `apps/web/lib/ai/agent-request.ts`.
 
@@ -687,10 +708,11 @@ is also an eval case.
 - **Decision:** Each panel catches its own failure and offers Retry, and so does the vehicle
   header ([D43](#layout-freshness)). When the vehicle read fails, the specs card shows no error
   of its own and leaves the explanation to the header's Retry card. The lookup shows errors
-  inline. Both AI routes share one error shape, and a failed answer offers Try again.
+  inline. Both AI routes share one error shape, and a failed answer offers Try again. An
+  over-long draft no longer vanishes ([D26](#junk-transcripts)).
 - **Why:** One panel's data failing (telematics down, say) costs that panel, not the page.
-- **Code:** `apps/web/lib/load-panel.ts`, using `unstable_rethrow` so prerendering still works.
 - **History:** [D43](#layout-freshness) added the header's Retry card.
+- **Code:** `apps/web/lib/load-panel.ts`, using `unstable_rethrow` so prerendering still works.
 
 <a id="agent-context"></a>
 ## D30. The vehicle record is loaded before the model runs
@@ -711,12 +733,13 @@ is also an eval case.
     forged.
   - **AI Gateway:** `caching: 'auto'`, and a `feature:` tag per route for spend reporting.
 - **Rejected:**
-  - Forcing the first step to call the tools: Anthropic's API doesn't allow it with extended
+  - Forcing the first step to call the tools: Anthropic's API doesn't allow that with extended
     thinking on.
-  - Keeping the tool loop: it only added latency.
+  - Keeping the tool loop as it was: the first round trip never changed, so it only added
+    latency.
 - **Trade-offs:** Every request carries the record's tokens.
 - **Evidence:** Median answer time fell from 4.7 s to 2.6 s on Gemini and from 5.4 s to 4.0 s on
-  Claude, with both at 30/30 ([evidence.md](evidence.md#eval-results)).
+  Claude. Both models scored 30/30 ([evidence.md](evidence.md#latency)).
 - **Code:** `apps/web/lib/ai/load-vehicle-record.ts`, `apps/web/lib/ai/model-context.ts`.
 
 <a id="case-view"></a>
@@ -747,21 +770,23 @@ history ([D44](#case-actions)).
 
 **Status:** Current, amended by [D47](#answer-shape) and [D49](#assistant-model)
 
-- **Decision:** Use the cost AI Gateway returns with every response. Its `marketCost` is the list
-  price of the tokens; `cost` is 0 with BYOK. One `ai_usage` log line per answer, and the eval
-  report shows averages.
-- **Why:** It's priced by the Gateway, so there's no price table to keep current.
+- **Decision:** Use the cost AI Gateway returns with every response. Its `marketCost` field is
+  the list price of the tokens used; its `cost` field is 0, because Meridian's own keys are
+  billed by the provider. The app logs one `ai_usage` line per answer, and the eval report shows
+  averages.
+- **Why:** AI Gateway prices each response, so there's no price table to keep current.
 - **Rejected:** A price table kept in the repo; dashboard totals only. *(Reasons not yet
   recorded.)*
-- **Trade-offs:** With BYOK, `marketCost` is the list price; the real bill is the provider's
-  invoice. Reporting tags add $0.000075 per request; they're kept because they split spend by
-  feature.
-- **Evidence:** At list price, a Claude answer costs about $0.005 in the evals and about $0.012
-  in a three-question call. Gemini costs $0.0023 and $0.0032 in the same tests. Since [D49](#assistant-model)
-  the primary model is the more expensive one. Every measurement, labelled by test, is in
+- **Trade-offs:** `marketCost` is the list price. Meridian's real bill is the provider's invoice,
+  at its negotiated rates. The `feature:` tags add $0.000075 per request; they're kept because
+  they split spend by feature.
+- **History:** This entry's first cost table was measured with Gemini first. It moved to the
+  evidence log when [D49](#assistant-model) reversed the order.
+- **Evidence:** At list price, one answer costs about half a cent on Claude and a quarter of a
+  cent on Gemini in the evals. In a three-question call, which sends more history, it's about
+  1.2 cents on Claude and 0.3 cents on Gemini. Since [D49](#assistant-model), the more
+  expensive model answers first. Every measurement, labelled by test, is in
   [evidence.md](evidence.md#cost).
-- **History:** The Nov 2026 table here was taken with Gemini as primary. It moved to the evidence
-  log when [D49](#assistant-model) changed the order.
 - **Code:** `apps/web/lib/ai/usage.ts`.
 
 <a id="concurrency"></a>
@@ -785,24 +810,28 @@ history ([D44](#case-actions)).
 
 **Status:** Current
 
-- **Decision (this prototype):** Every branch gets a Preview Deployment against staging
-  ([D12](#environments)). Merging a `release/*` branch to `master` deploys the production API
-  and web app ([D32](#release-versions)). Rollback is Instant Rollback on Vercel and the previous
-  revision on Cloud Run. Migrations are expand, then contract ([D13](#pipeline)). When a change
-  spans both sides, the API ships first, unless it starts requiring something callers don't
-  send yet ([D25](#note-ownership)).
-- **In production (Meridian):** An incremental migration, following Vercel's guide.
-  - Meridian's domain points to Vercel from the start. Next.js fallback rewrites send every path
-    the new app doesn't have yet to the React app, so advisors see one address.
-  - Each rebuilt screen goes first to a pilot group, chosen by Routing Middleware (`proxy.ts`)
-    from the advisor's Entra ID group and a flag in Global Config, then widens to every advisor.
-  - Rolling back a screen is a flag change, with no redeploy.
-  - The React app retires when nothing falls back to it.
-  - Every release uses Rolling Releases and Skew Protection.
+- **Decision:**
+  - **This prototype:** Every branch gets a Preview Deployment against staging
+    ([D12](#environments)). Merging a `release/*` branch to `master` deploys the production API
+    and web app ([D32](#release-versions)). Rollback is Instant Rollback on Vercel and the
+    previous revision on Cloud Run. Migrations are expand, then contract ([D13](#pipeline)). When
+    a change spans both sides, the API ships first, unless it starts requiring something callers
+    don't send yet ([D25](#note-ownership)).
+  - **Meridian's migration:** Incremental, following Vercel's guide.
+    - Meridian's domain points to Vercel from the start. Next.js fallback rewrites send every
+      path the new app doesn't have yet to the React app, so advisors see one address.
+    - Each rebuilt screen goes first to a pilot group, chosen by Routing Middleware (`proxy.ts`)
+      from the advisor's Entra ID group and a flag in Global Config, then widens to every
+      advisor.
+    - Rolling back a screen is a flag change, with no redeploy.
+    - The React app retires when nothing falls back to it.
+    - Every release uses Rolling Releases and Skew Protection.
 - **Why:** Each screen's value reaches every advisor as soon as it's ready, rollback is per
   screen, and there is no single switchover where problems surface late.
-- **Rejected:** A pilot group on the new app, then everyone switching at once when every screen
-  is done; Vercel Microfrontends.
+- **Rejected:**
+  - A pilot group on the new app, then everyone switching at once when every screen is done:
+    problems would surface late, all at once.
+  - Vercel Microfrontends. *(Reason not yet recorded.)*
 - **Trade-offs:** Links between the two apps load a full page, so both apps' navigation must
   match. Group flags need Entra ID sign-in at the edge, which the prototype doesn't have yet.
 
@@ -815,18 +844,18 @@ history ([D44](#case-actions)).
   Cloud Run starting up; the rest was a cold function, the token exchange and an empty cache.
   Production, with one instance running, took 0.46 s.
 - **Decision:** One minimum instance on production; staging still scales to zero.
-- **Rejected:** A scheduled `/health` ping.
-- **Trade-offs:** About $10/month while idle (an estimate), within [D34](#concurrency)'s
-  connection limit. It doesn't fix the Vercel side after a deploy: an empty Runtime Cache, and
-  one token exchange per new instance.
+- **Rejected:** A scheduled `/health` ping. *(Reason not yet recorded.)*
+- **Trade-offs:** About $10/month while idle (an estimate). It stays within
+  [D34](#concurrency)'s connection limit. It doesn't fix the Vercel side after a deploy: an empty
+  Runtime Cache, and one token exchange per new function instance.
 
 <a id="telematics-windows"></a>
 ## D37. Past telematics is read in cached, settled windows
 
 **Status:** Current, amended by [D44](#case-actions)
 
-- **Problem:** A case's faults were filtered from the newest telematics events only, so an older
-  case's week came back empty.
+- **Problem:** The case page looked for a case's faults only among the vehicle's newest
+  telematics events, so for an older case the week before it opened came back empty.
 - **Decision:** The API accepts `from`, `to` and `codedOnly` on telematics, and the case page reads
   one window per case for its fault history ([D44](#case-actions)). A window that ended more than
   24 hours ago is cached for days; a newer one is read fresh.
@@ -865,7 +894,8 @@ history ([D44](#case-actions)).
 - **Decision:** The Ask tab suggests questions written for the vehicle in view, from six fixed
   rules: the fault the status row shows (recurring or first time), open cases, the first open
   recall, what to tell the customer, a status summary, and what changed since the last contact.
-  The last rule applies only when there's no fault, so a vehicle gets at most five questions.
+  The last rule applies only when there's no fault, so the two never appear together and a
+  vehicle gets at most five questions.
 - **Why:** Rules cost nothing and are ready with the record. The layout uses the page's own
   fetchers, cached or shared per request, so suggestions add no calls to Google Cloud. If any
   read fails, the chat falls back to three general questions.
@@ -878,7 +908,7 @@ history ([D44](#case-actions)).
   - Like the whole header, suggestions reflect the record as it was when the advisor opened the
     vehicle, until a save, Retry or reload ([D43](#layout-freshness)).
   - The chat waits for hydration before it shows anything ([D48](#chat-reload)), so on a first
-    visit suggestions appear a moment after the server HTML.
+    visit the suggestions appear a moment after the page.
 - **Code:** The vehicle layout starts loading suggestions without waiting and passes the promise
   to the chat, which reads it with React's `use()` inside its own `<Suspense>`. The question box
   renders at once; only the suggestion rows wait. `apps/web/lib/assistant/assistant-suggestions.ts`.
@@ -888,10 +918,10 @@ history ([D44](#case-actions)).
 
 **Status:** Current
 
-- **Problem:** Advisors couldn't finish a call in the app. Cases had no number to read aloud, and
-  a case couldn't be reopened or a note taken back.
-- **Decision:** The API gains these, and every schema change only adds, so the running revision
-  keeps working during a deploy ([D13](#pipeline)).
+- **Problem:** Advisors couldn't finish a call in the app. Cases had no number to read aloud, a
+  closed case couldn't be reopened, and a note couldn't be taken back.
+- **Decision:** The API gains what an advisor needs to finish a call. Every schema change only
+  adds, so the running revision keeps working during a deploy ([D13](#pipeline)).
   - **Case numbers:** An identity column, `number`, starting at 24101, shown as `CS-{number}`.
     `GET /vehicles/:vin/cases/:number` reads one case. The model now sees case numbers and may
     cite them; internal IDs stay hidden.
@@ -911,14 +941,19 @@ history ([D44](#case-actions)).
   - **Identity, not SERIAL:** Postgres lets anyone who can insert into the table use an identity
     column's sequence. A SERIAL sequence needs its own grant, which `infra/sql/grants.sql`
     doesn't give the API's user, so inserts would fail on staging and production.
-- **Rejected:** A number generated in the web app from the case's internal ID; moving every case
-  route under `/vehicles/:vin/cases/:number`; deleting notes; placeholder text for a rep note's
-  issue.
+- **Rejected:**
+  - A number generated in the web app from the case's internal ID: the number belongs to the
+    system of record.
+  - Moving every case route under `/vehicles/:vin/cases/:number`: it would change the React
+    app's calls.
+  - Deleting notes: nothing left for Undo or audit.
+  - Placeholder text for a rep note's issue. *(Reason not yet recorded.)*
 - **Trade-offs:** The web app now expects `number`, so the API ships first ([D35](#rollout)).
-- **Evidence:** API tests for each write and refusal, a seeded removed note that no read returns,
-  and an eval rule that no answer or draft mentions it. A prompt line inviting case numbers made
-  Claude slip on pronouns, so the prompts weren't changed; answers cite numbers from the record
-  anyway. Details in [evidence.md](evidence.md#prompt-experiments).
+- **Evidence:** API tests cover each write and each refusal. A seeded removed note checks that
+  no read returns it, and an eval rule checks that no answer or draft mentions it. Adding a
+  prompt line that invited case numbers made Claude use pronouns more often, so the prompts
+  stayed as they were; answers cite case numbers from the record anyway
+  ([evidence.md](evidence.md#prompt-experiments)).
 - **Code:** Every new write is `POST /cases/:id/...` with the VIN in the body. It returns 404 for
   another vehicle's case or note, as in [D25](#note-ownership), and 409 for a note that belongs
   to a different case, a reopen on an open case, or a removal of a note already removed.
@@ -952,15 +987,15 @@ history ([D44](#case-actions)).
   survives a reload.
 - **Trade-offs:** A case number that doesn't exist shows the not-found view with a 200 status,
   because the static shell has already been sent. The vehicle page behaves the same way.
+- **History:** New case moved from the header to the Cases panel ([D44](#case-actions)). The tabs
+  staying mounted moved here from [D21](#lookup-and-layout). This entry replaced
+  [D31](#case-view)'s `cases/[caseId]` route.
 - **Code:** Breadcrumb details: Back, or a crumb, returns to an earlier step; a new VIN starts a
   new trail; a page opened directly shows the overview and the current page; older steps sit
   behind "…". The page after the new-case form takes its place, and the redirect replaces the
   browser's history entry, so Back skips the submitted form (Nov 17, 2026). The open-case chip
   marks itself current on its own case; the fault chip scrolls to the fault's newest telematics
   row on the overview and to its fault history on a case page.
-- **History:** New case moved from the header to the Cases panel ([D44](#case-actions)). The tabs
-  staying mounted moved here from [D21](#lookup-and-layout). This entry replaced
-  [D31](#case-view)'s `cases/[caseId]` route.
 
 <a id="fault-case-links"></a>
 ## D42. One rule links each fault to the case it led to
@@ -974,9 +1009,9 @@ history ([D44](#case-actions)).
   same code. The telematics panel links each fault row to its case ("CS-24117 opened 2 days
   later"), each case row shows its fault code, and the case view's fault history uses the same
   helper.
-- **Why:** One rule, used everywhere. The app should read like a tool for advisors
-  rather than explain its own matching, so the rule lives in the helper's doc comment and here,
-  not on screen.
+- **Why:** One helper means every panel applies the same rule. The app should read like a tool
+  for advisors rather than explain its own matching, so the rule lives in the helper's doc
+  comment and here, not on screen.
 - **Rejected:** Showing the rule on screen.
 - **Trade-offs:**
   - Each panel now reads the other's data: telematics reads the cached cases, and cases read the
@@ -1025,12 +1060,12 @@ history ([D44](#case-actions)).
 - **Code:** `apps/web/components/assistant/agent-reference.tsx`, `apps/web/components/vehicle/vehicle-header.tsx`.
 
 <a id="case-actions"></a>
-## D44. The case view carries every write needed to finish a call
+## D44. The case page has every action needed to finish a call
 
 **Status:** Current
 
-- **Decision:** Each write is one call to the API ([D40](#case-numbers)), followed by clearing the
-  case list's cache.
+- **Decision:** The case page lets an advisor do everything needed to finish a call. Each write
+  is one call to the API ([D40](#case-numbers)), followed by clearing the case list's cache.
   - **Header:** `CS-{number}`, status and subject; Category, Opened, Last contact and Notes; Close
     case on an open case, Reopen case on a closed one, each as an inline form that requires a
     resolution or a reason.
@@ -1056,10 +1091,10 @@ history ([D44](#case-actions)).
   simply isn't there.
 - **Out of scope:** Escalation and overdue rules, owner, priority and dealer repairs. Each needs
   advisor identity, a migration or another Meridian system.
-- **Evidence:** Agent 30/30 and call summaries 21/21 on both models, with case numbers cited and
-  no mention of the removed note ([evidence.md](evidence.md#eval-results)).
 - **History:** Replaces the first case view ([D31](#case-view)): no overdue rule, and fault
   history in place of related faults.
+- **Evidence:** Agent 30/30 and call summaries 21/21 on both models, with case numbers cited and
+  no mention of the removed note ([evidence.md](evidence.md#eval-results)).
 
 <a id="call-summary-target"></a>
 ## D45. Notes save to the case in view only if it's open
@@ -1085,17 +1120,18 @@ history ([D44](#case-actions)).
 
 - **Problem:**
   - Sometimes a save reaches the database but the reply never reaches the browser (a timeout, a
-    dropped connection, a 500 after the commit). The advisor sees an error and saves again, which
-    wrote a second note, or on New case a second case with its own CS number. The Save button
-    was already disabled during a save, so double-clicks weren't the cause.
+    dropped connection, a 500 after the commit). The advisor sees an error and saves again.
+    That second save wrote a second note, or on New case a second case with its own CS number.
+    The Save button was already disabled during a save, so double-clicks weren't the cause.
   - The transcript, draft and edits lived only in React state, so a reload or crashed tab lost
     them.
 - **Decision:**
   - **Repeat-safe save:** Each AI draft gets an ID in the browser when it finishes streaming. The
-    API stores it under a unique index, so a second save of the same draft is recognized. Saved
-    again to the same case, the API answers with the note already saved, as if the first reply
-    had arrived. Saved to a different case, it answers 409, and the form says where the draft
-    already went.
+    API stores the ID under a unique index, so it recognizes a second save of the same draft.
+    - If the repeat targets the same case, the API returns the note already saved, and the
+      browser shows "Saved to CS-…" as if the first reply had arrived.
+    - If the advisor switched case before retrying, the API answers 409. The form says the draft
+      is already saved to another case and refreshes Case history, so it shows there.
   - **Unsaved draft:** Kept in `sessionStorage`, one entry per vehicle, until it's saved.
 - **Why:**
   - **ID made in the browser:** Only the browser knows two requests are the same attempt. An ID
@@ -1157,14 +1193,15 @@ history ([D44](#case-actions)).
     "Don't promise" line naming what the record can't back up.
   - **Email or written message:** Only the body: two to four sentences signed "[Your name]", with
     no next steps after it.
-  - **Case age:** Each open case carries its last update and days since, so answers can say how
-    long it has waited. Only the agent gets them; with them, Claude's call summaries slipped a
-    pronoun more often.
-- **Why compute the list in code:** Asking the model to check the conversation for steps it had
-  already given made Gemini think before most answers, and the wait for the first word rose from
-  a median of 1.8 s to 10.2 s. Gemini's thinking can't be set lower than `low` through AI
-  Gateway. Computing the list in code, the same move [D30](#agent-context) made with repeat
-  counts, brought the wait back to the old prompt's level.
+  - **Case age:** Each open case carries the date of its last update and the days since, so
+    answers can say how long it has waited. Call summaries don't get these: with them, Claude's
+    summaries used a pronoun in 3 of 16 runs, against 0 of 16 without.
+- **Why:** The list is computed in code because asking the model to check the conversation for
+  steps it had already given made Gemini think before most answers. Its median wait for the
+  first word rose from 1.8 s to 10.2 s, and its thinking can't be set lower than `low` through
+  AI Gateway. With the list computed in code, the same move [D30](#agent-context) made with
+  repeat counts, the wait matched the old prompt's again: a median of 4.3 s for both, measured
+  side by side.
 - **Rejected:**
   - New answer block kinds ("Say", "Avoid", "Email") with their own styling: clearer to scan, but
     adds parser, UI and eval surface.
@@ -1172,12 +1209,12 @@ history ([D44](#case-actions)).
   - Keeping the "already given" check in the prompt: slow on Gemini.
   - Next steps on every answer: fast, but the repetition stays.
 - **Trade-offs:** The earlier answers come from the browser ([D27](#agent-request)), so a forged
-  one can hide a step from the next answer. It can't add facts or tools, and the caller only
-  affects their own session.
+  one can stop a step from appearing in the next answer. It can't add facts or tools, and the
+  caller only affects their own session.
 - **Out of scope:** Sending email, saving drafts to the case, templates, and per-region language
   or tone. Sending and storing email cross into Meridian's systems, so they're phase 2.
-- **Evidence:** Agent 39/39 on both models across 13 cases, up from 10. The eval changes this
-  required are in [D19](#evals); the prompt tuning, timings and browser check are in
+- **Evidence:** Agent evals scored 39/39 on both models, across 13 cases (up from 10). The eval
+  changes this needed are in [D19](#evals). The prompt tuning, timings and browser check are in
   [evidence.md](evidence.md#prompt-experiments).
 - **Code:** The panel's parser (`toBlocks`) reads earlier next steps, sent as
   `<earlier_next_steps>`. Case age (`lastUpdate`, `daysSinceUpdate`) is computed in
@@ -1203,18 +1240,20 @@ history ([D44](#case-actions)).
     static shell already prerenders until then, so suggestions never appear and then vanish.
   - **New chat:** A button under the question box empties the thread and its saved copy, so an
     advisor can start fresh for a new call. It's disabled while an answer streams.
-- **Why:** The feedback asks for a reload, and `sessionStorage` covers it with no new service.
+- **Why:** The feedback was about a reload, and `sessionStorage` covers that with no new service.
   The thread holds customer details, so it's gone when the tab closes, as in
   [D46](#repeat-safe-save).
 - **Rejected:**
-  - Server-side threads with resumable streams: survives a crash or another device, but needs
-    advisor identity, a new store, and keeps customer details on the server.
-  - Eve, Vercel's agent framework: would replace the [D15](#agent)/[D30](#agent-context) agent
-    and the [D27](#agent-request) checks, need its own storage and a rerun of the evals. Its
-    benefits need rep login or durable runs, both phase 2 next to Workflows.
+  - Server-side threads with resumable streams: they would survive a crash or a switch of
+    device, but they need advisor sign-in to know whose thread is whose, a new store, and they
+    keep customer details on the server.
+  - Eve, Vercel's agent framework: it would replace the agent ([D15](#agent),
+    [D30](#agent-context)) and its request checks ([D27](#agent-request)), need its own storage,
+    and need the evals rerun. Its benefits need advisor sign-in or durable runs, both phase 2
+    alongside Workflows.
 - **Trade-offs:**
-  - A reload mid-answer loses the half-written answer and asks again, costing one more answer
-    (under a cent, [D33](#cost-per-run)).
+  - A reload mid-answer loses the half-written answer and asks again, costing one more answer:
+    about a cent on Claude in a multi-turn call ([D33](#cost-per-run)).
   - A second tab or a crash starts empty.
   - On a first visit, suggestions appear a moment later than when they were in the server HTML
     ([D39](#assistant-suggestions)).
@@ -1246,25 +1285,28 @@ history ([D44](#case-actions)).
   - **Pronouns:** Claude echoed the transcript's "he" in about 2 of 11 Marcus drafts. The rule
     now says to repeat the first name wherever it would write a pronoun.
 - **Why:** An advisor waiting on either feature notices delay more than anything else, and Sonnet
-  was the only model that was reliably fast. Two vendors on two clouds remain, with Gemini as the
-  fallback.
+  was the only model tested that was reliably fast. Two vendors on two clouds remain
+  ([D5](#models)), with Gemini as the fallback.
 - **Rejected:**
   - **Gemini first, Claude on a timeout** (retry on Claude if no first word in about 8 s): keeps
-    the cost and the GCP billing, and caps the worst wait near 9 s. But typical waits stay 2–5 s,
-    and it adds a retry path to both routes.
+    Gemini's lower cost and the Google Cloud billing, and caps the worst wait near 9 s. But
+    typical waits stay 2–5 s, and it adds a retry path to both routes.
   - **Keep Gemini first:** the cheapest option, with waits nobody can predict.
   - **Claude first for the assistant only:** briefly chosen, then dropped once summaries also
     stalled for advisors.
   - **Claude Haiku 5.5:** about a tenth of Sonnet's cost and also 39/39, but it thinks before
     answering, so its first word took 3–7 s.
-- **Trade-offs:** About 3× the model spend, now billed to Meridian's Anthropic org rather than its
-  GCP commitment: for the assistant, roughly $46 a day against $13 a day at 4,000 answers (80
-  advisors asking 50 questions each), at list price. Customer data goes to Anthropic first. The
-  Anthropic spend cap needs revisiting ([D23](#spend-alerts)).
+- **Trade-offs:**
+  - Model spend roughly triples, and is billed to Meridian's Anthropic account instead of its
+    Google Cloud commitment. For the assistant, at list price and 4,000 answers a day (80
+    advisors asking 50 questions each), that's about $46 a day instead of $13.
+  - Customer data goes to Anthropic first, outside Google Cloud.
+  - The Anthropic spend cap no longer fits; see the open question in [D23](#spend-alerts).
 - **In production:** Revisit with pilot data ([D35](#rollout)): advisors' real waits, question
   volume, and Meridian's negotiated rates.
-- **Evidence (Nov 17, 2026):** First word on the assistant: median 0.9 s on Claude against 2.7 s
-  on Gemini, p90 1.0 s against 15.0 s, worst 1.2 s against 36.5 s. Call summaries: worst 5.0 s
-  against 97.6 s. Both models 39/39 on the agent evals; after the prompt fix, both 21/21 on
-  call summaries. Tables in [evidence.md](evidence.md#latency).
+- **Evidence:** Measured Nov 17, 2026. Time to the assistant's first word, Claude against
+  Gemini: median 0.9 s against 2.7 s, p90 1.0 s against 15.0 s, worst 1.2 s against 36.5 s.
+  Call summaries at worst: 5.0 s against 97.6 s. Both models scored 39/39 on the agent evals,
+  and 21/21 on call summaries after the prompt fix. Full tables are in
+  [evidence.md](evidence.md#latency).
 - **Code:** `apps/web/lib/ai/models.ts`.
