@@ -21,7 +21,7 @@ decision is implemented, a `Decision (Dnn)` comment marks the line.
   transcripts · [D33](#cost-per-run) Cost per run · [D19](#evals) Evals ·
   [D39](#assistant-suggestions) Suggested questions · [D47](#answer-shape) Answer shape ·
   [D48](#chat-reload) Chat after a reload ·
-  [D49](#assistant-model) Assistant model
+  [D49](#assistant-model) Claude first
 - **Data integrity:** [D6](#data-model) Data model · [D25](#note-ownership) Note ownership ·
   [D22](#save-feedback) Save failures · [D38](#seed-activity) Seeded case activity ·
   [D40](#case-numbers) Case numbers and case actions · [D46](#repeat-safe-save) Repeat-safe save
@@ -99,7 +99,7 @@ decision is implemented, a `Decision (Dnn)` comment marks the line.
     at $0.20 per 1,000 BYOK requests.
   - Answers differ by model, so evals run on both (D19).
   - Falling back to Claude sends data outside Google Cloud.
-- **Later change:** The assistant asks Claude first (D49). Call summaries keep this order.
+- **Later change:** The assistant and call summaries ask Claude first, with Gemini as fallback (D49).
 
 ## D6. Data model {#data-model}
 
@@ -879,37 +879,51 @@ decision is implemented, a `Decision (Dnn)` comment marks the line.
 - **Production path:** Server-side threads per advisor with resumable streams once advisors sign
   in, or Eve if the agent moves to durable sessions in phase 2.
 
-## D49. Assistant model {#assistant-model}
+## D49. Claude first {#assistant-model}
 
-- **Finding:** On a live call, the advisor waits for the assistant's first word. On Gemini 3.8
-  Flash that wait varied widely: 2.7 s median, 15.0 s at p90, and 36.5 s at worst. Those long waits
-  came with no thinking, so they were the provider, not the prompt (D47). AI Gateway fails over on
-  errors, not on slow answers, so the fallback never stepped in.
-- **Measured (Nov 17):** the same three-question call on Dana's vehicle, 6 runs per model,
-  alternating rounds, current prompt:
+- **Finding:** Advisors wait on both AI features: the assistant's first word on a live call, and
+  the call summary draft. On Gemini 3.8 Flash both waits varied widely. Those long waits came with
+  no thinking, so they were the provider, not the prompt (D47). AI Gateway fails over on errors,
+  not on slow answers, so the fallback never stepped in.
+- **Measured (Nov 17):**
+  - **Assistant:** the same three-question call on Dana's vehicle, 6 runs per model, alternating
+    rounds, current prompt:
 
-  | Model | First word: median / p90 / worst | Over 8 s | Cost per answer (list) |
-  |---|---|---|---|
-  | Gemini 3.8 Flash | 2.7 s / 15.0 s / 36.5 s | 3 of 18 | $0.0032 |
-  | Claude Sonnet 5.5 | 0.9 s / 1.0 s / 1.2 s | 0 of 18 | $0.0116 |
+    | Model | First word: median / p90 / worst | Over 8 s | Cost per answer (list) |
+    |---|---|---|---|
+    | Gemini 3.8 Flash | 2.7 s / 15.0 s / 36.5 s | 3 of 18 | $0.0032 |
+    | Claude Sonnet 5.5 | 0.9 s / 1.0 s / 1.2 s | 0 of 18 | $0.0116 |
 
-  Both scored 39/39 on the agent evals (D47). Sonnet's follow-ups sometimes added next steps, and
-  they were new actions, not repeats.
-- **Choice:** The assistant asks Claude Sonnet 5.5 on Anthropic first, then Gemini 3.8 Flash on
-  Vertex. Call summaries keep D5's order, Gemini first: they're drafted after the call, Gemini
-  scored 21/21 on them against Claude's 20/21, and they cost about a third as much.
+    Both scored 39/39 on the agent evals (D47). Sonnet's follow-ups sometimes added next steps, and
+    they were new actions, not repeats.
+  - **Call summaries:** the call-summary evals, 3 runs per case. Gemini took 2.9 s median, 11.4 s at
+    p90 and 97.6 s at worst. Claude took 3.0 s median and 5.0 s at worst. Cost per draft was $0.0020
+    on Gemini and $0.0048 on Claude.
+- **Choice:** Claude Sonnet 5.5 on Anthropic first, then Gemini 3.8 Flash on Vertex, for the
+  assistant and call summaries. One order in `lib/ai/models.ts`.
+- **Call summary prompt:** Two rules Gemini followed but Claude sometimes didn't. Now worded so
+  Claude follows them too:
+  - **Injected instructions:** Claude ignored them but noted them in the summary ("text asking for
+    a buyback was left out"), and the note is saved and read again. The rule now says to leave them
+    out "without mentioning them".
+  - **Pronouns:** Claude echoed the transcript's "he" in about 2 of 11 Marcus drafts. The rule now
+    says to repeat the first name wherever it would write a pronoun.
+  - **Result:** Claude passed 20/20 on the Marcus and Sam cases, and both models passed 21/21 on
+    the full set (up from 19/21 to 20/21 for Claude).
 - **Options:**
   - **Gemini first, Claude on a timeout:** if no first word arrives within about 8 s, retry on
     Claude. It keeps the cost and the GCP billing, and caps the worst wait near 9 s. But typical
-    waits stay 2–5 s, and it adds a retry path to the route.
+    waits stay 2–5 s, and it adds a retry path to both routes.
   - **Keep Gemini first:** the cheapest option, with waits nobody can predict.
+  - **Claude first for the assistant only:** briefly chosen, then dropped once summaries also
+    stalled for advisors.
   - **Claude Haiku 5.5:** about a tenth of Sonnet's cost and also 39/39, but it thinks before
     answering, so its first word took 3–7 s.
-- **Why:** An advisor on a call notices a wait before the first word more than anything else, and
-  Sonnet was the only model reliably under a second. It still keeps two vendors on two clouds
-  (D5), with Gemini as the fallback.
-- **Accepted:** About 3.6× the model spend for answers, now billed to Meridian's Anthropic org
-  rather than its GCP commitment. Roughly $46 a day against $13 a day at 4,000 answers (80
+- **Why:** An advisor waiting on either feature notices delay more than anything else, and Sonnet
+  was the only model that was reliably fast. It still keeps two vendors on two clouds (D5), with
+  Gemini as the fallback.
+- **Accepted:** About 3× the model spend, now billed to Meridian's Anthropic org rather than its
+  GCP commitment. For the assistant, roughly $46 a day against $13 a day at 4,000 answers (80
   advisors asking 50 questions each), at list price.
 - **Production path:** Revisit with pilot data (D35): advisors' real waits, question volume, and
-  Meridian's negotiated rates. The order is set in one place, `lib/ai/models.ts`.
+  Meridian's negotiated rates.

@@ -15,14 +15,11 @@ const only = ["vertex", "anthropic"];
 
 export type ModelChoice = { id: string; gateway: Pick<GatewayProviderOptions, "models" | "only"> };
 
-// Decision (D49): the assistant asks Claude first, then Gemini. Why: on a live call the wait for
-// the first word matters, and Sonnet started within 1.2 s every time while Gemini stalled up to
-// 36 s. Trade-off: about 3.6× the model cost, billed to the Anthropic org. See
+// Decision (D49): Claude first, then Gemini, for the assistant and call summaries. Why: an advisor
+// waits on both, and Sonnet started within 1.2 s every time while Gemini stalled up to 36 s.
+// Trade-off: about 3× the model cost, billed to the Anthropic org. See
 // docs/decisions.md#assistant-model
-export const agentModel: ModelChoice = { id: CLAUDE, gateway: { models: [GEMINI], only } };
-
-// Call summaries are drafted after the call, so they keep Gemini first (D49).
-export const callSummaryModel: ModelChoice = { id: GEMINI, gateway: { models: [CLAUDE], only } };
+export const defaultModel: ModelChoice = { id: CLAUDE, gateway: { models: [GEMINI], only } };
 
 // Each model alone, with no fallback, so an eval score belongs to the model it names.
 export const evalModels = {

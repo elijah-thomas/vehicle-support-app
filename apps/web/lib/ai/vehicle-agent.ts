@@ -3,7 +3,7 @@ import { isStepCount, ToolLoopAgent, tool, type InferAgentUIMessage, type StepRe
 import { z } from "zod";
 import { getCases, getTelematics, getVehicle } from "@/lib/customer/vehicles";
 import { earlierNextStepsForModel, telematicsForModel, type VehicleRecord, vehicleRecordForModel } from "./model-context";
-import { agentModel, gatewayOptionsFor, type ModelChoice } from "./models";
+import { defaultModel, gatewayOptionsFor, type ModelChoice } from "./models";
 import { RECORD_TELEMATICS } from "./vehicle-record";
 
 export type VehicleLoaders = {
@@ -117,7 +117,7 @@ I can only help with this vehicle's support. Try asking "What changed since the 
 export function createVehicleAgent(
   record: VehicleRecord,
   {
-    model = agentModel,
+    model = defaultModel,
     loaders = cachedLoaders,
     asOf = new Date(),
     earlierAnswers = [],
