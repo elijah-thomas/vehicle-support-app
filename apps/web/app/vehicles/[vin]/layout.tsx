@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { AgentChat } from "@/components/assistant/agent-chat";
+import { AskTab } from "@/components/assistant/ask-tab";
 import { AssistantPanel } from "@/components/assistant/assistant-panel";
 import { CallSummaryForm } from "@/components/assistant/call-summary-form";
 import { CallSummaryPanel } from "@/components/assistant/call-summary-panel";
@@ -38,10 +38,10 @@ export default function VehicleLayout({ children, params }: LayoutProps<"/vehicl
         >
           <AssistantPanel
             ask={
-              <Suspense fallback={<AgentChat vin={null} suggestions={null} />}>
+              <Suspense fallback={<AskTab vin={null} suggestions={null} />}>
                 {/* Decision (D19): suggestions start here, unawaited, and only their rows wait.
                     See docs/decisions.md#assistant-suggestions */}
-                <WithVin params={params}>{(vin) => <AgentChat vin={vin} suggestions={loadSuggestions(vin)} />}</WithVin>
+                <WithVin params={params}>{(vin) => <AskTab vin={vin} suggestions={loadSuggestions(vin)} />}</WithVin>
               </Suspense>
             }
             callSummary={
