@@ -11,14 +11,14 @@ export const MAX_TEXT_LENGTH = 2000;
 export const MAX_REQUEST_CHARS = 80_000;
 
 const part = z.looseObject({ type: z.string() });
-const message = z.discriminatedUnion("role", [
+export const agentMessageSchema = z.discriminatedUnion("role", [
   z.looseObject({ role: z.literal("user"), parts: z.array(z.looseObject({ type: z.literal("text"), text: z.string() })) }),
   z.looseObject({ role: z.literal("assistant"), parts: z.array(part) }),
 ]);
 
 const requestSchema = z.object({
   vin: z.string().toUpperCase().regex(VIN_PATTERN),
-  messages: z.array(message).min(1),
+  messages: z.array(agentMessageSchema).min(1),
 });
 
 type Messages = z.infer<typeof requestSchema>["messages"];
