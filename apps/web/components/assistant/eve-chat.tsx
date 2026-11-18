@@ -62,7 +62,16 @@ function EveChatPanel({ vin, suggestions }: { vin: string; suggestions: Promise<
 function errorCode(agent: ReturnType<typeof useEveAgent>): AiErrorCode | null {
   // The Firewall's rate limit (D23) answers before Eve does.
   if (agent.error) return "status" in agent.error && agent.error.status === 429 ? "rate_limited" : "failed";
-  return turns(agent.view).at(-1)?.outcome === "failed" ? "failed" : null;
+  const outcome = turns(agent.view).at(-1)?.outcome;
+  if (outcome === "failed") return "failed";
+  // A turn the limits hook cancelled (agent/hooks/limits.ts) has no cause; one the advisor
+  // stopped names the cancel request, and shows no error.
+  if (outcome === "cancelled") {
+    const settled = agent.events.findLast((event) => event.type === "turn.settled");
+    const cause = settled && "data" in settled ? (settled.data as { cause?: unknown }).cause : undefined;
+    if (cause === undefined) return "failed";
+  }
+  return null;
 }
 
 // A question whose send failed stays in the list, marked failed. Once Try again sends it again
