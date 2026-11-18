@@ -259,7 +259,9 @@ changed and when. Code marks where a decision lands with a `Decision (Dnn)` comm
   answer time from 4.7 s to 2.6 s on Gemini and from 5.4 s to 4.0 s on Claude. Facts computed in
   code are facts the model can't get wrong.
 - **Instead of:** Forcing the model to call its tools first, which Anthropic doesn't allow with
-  extended thinking.
+  extended thinking. Vercel Workflows: each request finishes in seconds within one request,
+  changes nothing until the advisor saves, and is cheap to retry, so no step is worth
+  checkpointing.
 - **Trade-off:** The assistant can't compare a customer's vehicles. Every request carries the
   record. There's no cap on answer length, because Gemini's hidden reasoning counted toward it and
   cut answers off. A caller can forge earlier turns of their own conversation, but nothing else.
@@ -290,7 +292,10 @@ changed and when. Code marks where a decision lands with a `Decision (Dnn)` comm
   service, and it clears when the tab closes, since the thread holds customer details.
 - **Instead of:** Saving threads on the server, which survives a crash or a new device but needs
   advisor sign-in, a new store and customer details kept on the server. Vercel's Eve agent
-  framework, which would replace the agent and needs sign-in to pay off.
+  framework, which runs each conversation as a durable session on Workflows: it would replace the
+  agent, its request checks and this storage, and Vercel recommends an AI SDK agent like ours for
+  a single AI feature in an existing app whose work finishes within one request
+  ([guide](https://vercel.com/kb/guide/eve-vs-ai-sdk-agents-vs-workflowagent)).
 - **Trade-off:** A second tab or a crashed browser starts empty.
 - **Later:** Server-side threads per advisor, once advisors sign in.
 
