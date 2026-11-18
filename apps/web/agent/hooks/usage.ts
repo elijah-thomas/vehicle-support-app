@@ -9,7 +9,9 @@ export default defineHook({
     async "turn.settled"(_event, ctx) {
       const turnId = ctx.turn?.id;
       if (!turnId) return;
-      const turnRuns = runs(ctx.view, { turnId });
+      // Only model calls that ran: one the limits hook cancelled (agent/hooks/limits.ts) used nothing.
+      const turnRuns = runs(ctx.view, { turnId }).filter((run) => run.usage);
+      if (turnRuns.length === 0) return;
       const total = (field: "inputTokens" | "cacheReadTokens" | "outputTokens") =>
         turnRuns.reduce((sum, run) => sum + (run.usage?.[field] ?? 0), 0);
       console.info(
