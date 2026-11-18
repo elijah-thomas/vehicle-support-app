@@ -17,7 +17,7 @@ EVAL_ENGINE=eve EVAL_URL=http://localhost:3000 pnpm eval evals/agent.eval.ts
 ```
 
 It reports as `eve`, on the production model order, so compare it with `claude`. Its cost column
-is empty: Eve reports tokens, not list price; AI Gateway's `feature:agent-eve` tag has the cost.
+shows n/a: Eve reports tokens, not list price; AI Gateway's `feature:agent-eve` tag has the cost.
 
 | File | What it holds |
 |---|---|
