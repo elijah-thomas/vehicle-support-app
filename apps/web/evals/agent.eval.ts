@@ -7,12 +7,47 @@ import { loadVehicleRecord } from "@/lib/ai/load-vehicle-record";
 import { agentCases, everyAnswer, nextStepsFormat } from "./cases";
 import { checkText, checkTools } from "./checks";
 import { loaders } from "./loaders";
+import { askEve } from "./eve-client";
 import { createReport, runs } from "./report";
 
 const report = createReport("agent");
 afterAll(() => report.print());
 
-for (const [modelName, model] of Object.entries(evalModels)) {
+// EVAL_ENGINE=eve runs the same cases and checks against the Eve version (D28) at EVAL_URL, a local
+// `pnpm dev` or a Preview. It uses the production model order, so its row compares with "claude".
+const eveUrl = process.env.EVAL_ENGINE === "eve" ? process.env.EVAL_URL : undefined;
+if (process.env.EVAL_ENGINE === "eve" && !eveUrl) throw new Error("EVAL_ENGINE=eve needs EVAL_URL");
+
+if (eveUrl) {
+  describe.concurrent("eve", () => {
+    const cases = agentCases.flatMap((c) => runs.map((run) => ({ ...c, run })));
+    test.each(cases)("$name (run $run)", async (c) => {
+      // Earlier questions go to the same conversation; Eve keeps the answers on the server and
+      // lists their next steps itself (agent/instructions/2-record.ts).
+      const result = await askEve(eveUrl, c.vin, [...(c.history ?? []), c.prompt]);
+      const failures = [
+        ...checkTools(result.tools, c.tools),
+        ...checkText(result.text, c),
+        ...checkText(result.text, everyAnswer),
+        ...(c.nextSteps ? checkText(result.text, nextStepsFormat) : []),
+      ];
+      report.add({
+        model: "eve",
+        case: c.name,
+        run: c.run,
+        pass: failures.length === 0,
+        failures,
+        output: { tools: result.tools, text: result.text },
+        seconds: result.seconds,
+        steps: result.steps,
+        tokens: result.tokens,
+      });
+      expect(failures, `tools: ${result.tools.join(", ") || "none"}\n\n${result.text}`).toEqual([]);
+    });
+  });
+}
+
+for (const [modelName, model] of eveUrl ? [] : Object.entries(evalModels)) {
   describe.concurrent(modelName, () => {
     const cases = agentCases.flatMap((c) => runs.map((run) => ({ ...c, run })));
     test.each(cases)("$name (run $run)", async (c) => {
