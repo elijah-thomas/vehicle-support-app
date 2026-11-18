@@ -164,6 +164,28 @@ export type ChatViewProps = {
   onNewChat: () => void;
 };
 
+const noop = () => {};
+
+// The disabled panel, before the vehicle is known or while an engine's client loads.
+export function AgentChatPlaceholder() {
+  return (
+    <AgentChatView
+      vin={null}
+      suggestions={null}
+      messages={[]}
+      busy={false}
+      reading={false}
+      answering={false}
+      settled={false}
+      error={null}
+      onSend={noop}
+      onStop={noop}
+      onRetry={noop}
+      onNewChat={noop}
+    />
+  );
+}
+
 export function AgentChatView({
   vin,
   suggestions,

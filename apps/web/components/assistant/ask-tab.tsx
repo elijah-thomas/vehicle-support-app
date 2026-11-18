@@ -1,9 +1,10 @@
 "use client";
 
 import { cn } from "cn";
+import dynamic from "next/dynamic";
 import { useState, useSyncExternalStore } from "react";
 import { AgentChat } from "@/components/assistant/agent-chat";
-import { EveChat } from "@/components/assistant/eve-chat";
+import { AgentChatPlaceholder } from "@/components/assistant/agent-chat-view";
 import { loadAssistantEngine, storeAssistantEngine, type AssistantEngine } from "@/lib/assistant/assistant-engine";
 import type { Suggestion } from "@/lib/assistant/assistant-suggestions";
 
@@ -12,6 +13,13 @@ type Props = { vin: string | null; suggestions: Promise<Suggestion[]> | null };
 const subscribeNever = () => () => {};
 
 const labels: Record<AssistantEngine, string> = { "ai-sdk": "AI SDK", eve: "Eve" };
+
+// Eve's client (about 130 KB compressed) loads only when a tab picks Eve, so the default AI SDK
+// panel doesn't pay for it. Until it arrives, the panel shows its disabled state.
+const EveChat = dynamic(() => import("@/components/assistant/eve-chat").then((m) => m.EveChat), {
+  ssr: false,
+  loading: () => <AgentChatPlaceholder />,
+});
 
 // The tab's engine choice is read once hydrated; the server render and the static shell show
 // the default.

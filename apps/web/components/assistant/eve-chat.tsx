@@ -3,7 +3,7 @@
 import { activeTurn, runs, turns } from "eve/events";
 import { useEveAgent, type EveMessage } from "eve/react";
 import { useState, useSyncExternalStore } from "react";
-import { AgentChatView, type ChatViewMessage } from "@/components/assistant/agent-chat-view";
+import { AgentChatPlaceholder, AgentChatView, type ChatViewMessage } from "@/components/assistant/agent-chat-view";
 import type { AiErrorCode } from "@/lib/assistant/ai-request-error";
 import type { Suggestion } from "@/lib/assistant/assistant-suggestions";
 import { loadEveSession, storeEveSession } from "@/lib/assistant/eve-chat-session";
@@ -11,31 +11,12 @@ import { loadEveSession, storeEveSession } from "@/lib/assistant/eve-chat-sessio
 type Props = { vin: string | null; suggestions: Promise<Suggestion[]> | null };
 
 const subscribeNever = () => () => {};
-const noop = () => {};
-
 // The Eve version of the Ask tab (D28). Same panel as the AI SDK version; the conversation lives
 // on the server, and the tab keeps only its ID.
 export function EveChat(props: Props) {
   const hydrated = useSyncExternalStore(subscribeNever, () => true, () => false);
   const vin = hydrated ? props.vin : null;
-  if (vin === null) {
-    return (
-      <AgentChatView
-        vin={null}
-        suggestions={null}
-        messages={[]}
-        busy={false}
-        reading={false}
-        answering={false}
-        settled={false}
-        error={null}
-        onSend={noop}
-        onStop={noop}
-        onRetry={noop}
-        onNewChat={noop}
-      />
-    );
-  }
+  if (vin === null) return <AgentChatPlaceholder />;
   return <EveChatPanel key={vin} vin={vin} suggestions={props.suggestions} />;
 }
 
