@@ -14,9 +14,9 @@ import type { Case } from "@/lib/customer/reads";
 import { formatCaseNumber, formatDate } from "@/lib/format";
 import { loadPanel } from "@/lib/load-panel";
 
-// Decision (D8): one case, read from the vehicle's cached case list, which every write clears. The
+// Decision (D7): one case, read from the vehicle's cached case list, which every write clears. The
 // fault history needs the whole list anyway, so a per-case read would add a call and a cache entry
-// for nothing yet. See docs/decisions.md#vehicle-layout
+// for nothing yet. See docs/decisions.md#caching
 export async function CaseDetail({ vin, number }: { vin: string; number: number }) {
   const loaded = await loadPanel("case", () => getCaseSnapshot(vin));
   if (!loaded.ok) return <PanelUnavailable title="This case" />;

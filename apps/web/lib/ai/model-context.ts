@@ -16,7 +16,6 @@ export type VehicleRecord = {
 // What the models see of a vehicle. Shaped for the model, not passed through from the API:
 // - no internal IDs: they mean nothing to a rep, and a model that never sees one can't quote one.
 //   Case numbers (CS-24117) are different: reps read and say them, so the model gets those.
-//   Decision (D12). See docs/decisions.md#case-page
 // - dates already in the format answers use, so the model never converts timestamps
 // - repeat counts and an open case's days since its last update computed here, so "this code keeps
 //   coming back" and "waiting 12 days" are facts, not inferences the model has to reason toward

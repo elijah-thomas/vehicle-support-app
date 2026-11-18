@@ -22,7 +22,8 @@ this repo in minutes, and I must have made and understood every architectural de
 
 ## In scope
 
-Only these are agreed. Anything beyond this list is a decision point.
+The scope agreed at the start. What was built, and why, is in `docs/decisions.md`. Anything
+beyond both is a decision point.
 
 1. **GCP backend:** Express on Cloud Run + Cloud SQL Postgres, seeded with ~5 synthetic
    customers/vehicles with built-in stories (recurring fault code, open recall). Endpoints:
@@ -32,16 +33,16 @@ Only these are agreed. Anything beyond this list is a decision point.
    Cloud Run via WIF.
 3. **Vehicle page:** search by email/VIN. Static shell, specs cached long, telematics fresh and
    streamed, cases cached and invalidated on note save.
-4. **Agent chat:** AI SDK, read-only tools per lookup, AI Gateway failover per D15, canned
+4. **Agent chat:** AI SDK, reads only the open vehicle (D16), AI Gateway failover per D15, canned
    prompts, step cap.
 5. **Call summary:** paste transcript → structured draft (issue, summary, next steps) → rep
    edits → save to Postgres → invalidate cases. 2–3 canned transcripts.
-6. **Protection:** Vercel Firewall rate limit on AI routes, transcript size and output caps.
-7. **Evals:** ~8 cases (expected tools + required facts), run on both models.
+6. **Protection:** Vercel Firewall rate limit on AI routes, transcript size cap.
+7. **Evals:** graded by fixed rules, run on each model alone (D21).
 8. **Docs:** the 8 submission sections, including a Preview Deployments rollout plan.
 
-**Out of scope (documented only):** Workflows (phase 2), Secure Compute / private networking,
-rep login, Rolling Releases.
+**Out of scope (documented only):** Secure Compute / private networking, rep login, Rolling
+Releases.
 
 **Build order** (each step ends with a proposed commit): monorepo scaffold → DB schema + seed
 (data shapes are a decision point) → Express API locally → Cloud Run deploy + WIF spike from a

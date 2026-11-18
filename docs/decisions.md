@@ -96,6 +96,7 @@ changed and when. Code marks where a decision lands with a `Decision (Dnn)` comm
 ### D7. Data is cached by how often it changes
 
 - **Decision:** Every vehicle page shares one static shell, and each panel streams in on its own.
+  A case page reads its case from the cached case list, which its fault history needs anyway.
   Cached data lives in Vercel's Runtime Cache:
 
   | Data | Cached for | Cleared by |
@@ -124,7 +125,8 @@ changed and when. Code marks where a decision lands with a `Decision (Dnn)` comm
   in a layout shared by every page for that vehicle. Moving between the overview, a case and a new
   case swaps only the left column. Case URLs use the number advisors say aloud: `/cases/24117`.
   The header shows the vehicle as it was when the advisor opened it, until a save, Retry or
-  reload.
+  reload. The breadcrumb trail lives in the layout's state, not the URL, so a shared link opens
+  the case rather than someone's route to it.
 - **Why:** The chat and an unsaved draft survive every move. Refreshing the header on every click
   would cost an API call and a token exchange each time, and it only goes stale if new telematics
   arrive mid-visit.
@@ -251,7 +253,7 @@ changed and when. Code marks where a decision lands with a `Decision (Dnn)` comm
 - **Decision:** The assistant's route, not the model, picks the vehicle. Before the model runs,
   the route loads the vehicle, its cases and its 20 newest telematics events from the page's
   cache, and gives them to the model already shaped: dates formatted, repeat counts and case ages
-  computed, internal IDs removed. One tool fetches older telematics, with at most 3 steps. The
+  computed, internal IDs removed. Case numbers stay, because advisors say them aloud. One tool fetches older telematics, with at most 3 steps. The
   route accepts only what the chat sends: text questions up to 2,000 characters and the last 10
   messages.
 - **Why:** No prompt can make the assistant read another customer's vehicle. The models had

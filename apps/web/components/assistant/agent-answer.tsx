@@ -3,7 +3,7 @@ import { toBlocks } from "@/lib/assistant/agent-answer-blocks";
 
 // Fault codes (P0C73) and recall campaigns (MR-24-117) become links to their rows. Matched by
 // pattern on the client, so no extra data reaches the panel. Cases are cited by subject and date, so
-// they stay plain text. See docs/decisions.md#faults and docs/decisions.md#vehicle-layout
+// they stay plain text. See docs/decisions.md#faults
 const REFERENCE = /\b(?:[PBCU][0-9A-F]{4}|[A-Z]{2}-\d{2}-\d{3})\b/g;
 
 function withReferences(text: string, vin: string) {
