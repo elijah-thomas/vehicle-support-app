@@ -293,13 +293,15 @@ changed and when. Code marks where a decision lands with a `Decision (Dnn)` comm
 - **Why:** Reviewer feedback: a refresh lost the conversation. Tab storage fixes that with no new
   service, and it clears when the tab closes, since the thread holds customer details.
 - **Instead of:** Saving threads on the server, which survives a crash or a new device but needs
-  advisor sign-in, a new store and customer details kept on the server. Vercel's Eve agent
-  framework, which runs each conversation as a durable session on Workflows: it would replace the
-  agent, its request checks and this storage, and Vercel recommends an AI SDK agent like ours for
-  a single AI feature in an existing app whose work finishes within one request
+  advisor sign-in, a new store and customer details kept on the server. Moving the default
+  assistant to Vercel's Eve agent framework, which keeps each conversation on the server: Vercel
+  recommends an AI SDK agent like ours for a single AI feature in an existing app whose work
+  finishes within one request
   ([guide](https://vercel.com/kb/guide/eve-vs-ai-sdk-agents-vs-workflowagent)).
 - **Trade-off:** A second tab or a crashed browser starts empty.
 - **Later:** Server-side threads per advisor, once advisors sign in.
+- **Changed:** Nov 18, 2026. Eve was turned down outright. A test on a Preview showed it works,
+  so an Eve version now runs behind a switch ([D28](#eve-assistant)); this one stays the default.
 
 <a id="assistant-suggestions"></a>
 ### D19. Suggested questions come from fixed rules, not a model
@@ -357,6 +359,25 @@ changed and when. Code marks where a decision lands with a `Decision (Dnn)` comm
 - **Why:** No price table to keep current. At list price, a Claude answer costs about half a
   cent, or about 1.2 cents deep in a conversation; Gemini costs less than half as much.
 - **Trade-off:** It's the list price; Meridian's real bill is its negotiated rate.
+
+<a id="eve-assistant"></a>
+### D28. An Eve version of the assistant, behind a switch in the panel
+
+- **Decision:** A second version of the assistant runs on Eve, Vercel's agent framework, with the
+  same prompt, record, tool, models and evals. A switch in the Ask tab picks the version; the
+  current one stays the default. The vehicle is fixed when an Eve conversation starts, so
+  [D16](#agent)'s guarantee holds, and Eve's built-in bash, file and web tools are off.
+- **Why:** Vercel recommends an agent like the current one for this case, and Eve for longer,
+  durable work. Running both on the same questions shows the difference instead of arguing it. A
+  test on a Preview passed: the vehicle couldn't be changed, functions ran in `cle1`
+  ([D4](#function-region)), and the median first word took 1.37 s, against 1.46 s today.
+- **Instead of:** A server-side flag only, which suits a pilot but can't be compared live. Not
+  building it.
+- **Trade-off:** Two versions to keep in step. Eve runs outside Next.js, so it reads the API on
+  every turn instead of the page's cache ([D7](#caching)). Conversations are kept on Vercel, so
+  customer details stay on the server.
+- **Later:** A server-side flag for the pilot group ([D27](#releases)). Eve as the only version
+  once advisors sign in and the assistant takes actions that need approval.
 
 ## Protection and spend
 
