@@ -16,7 +16,7 @@ const forms = {
 // The case header with its one status action: Close on an open case (a resolution is required,
 // since the assistant reads it later), Reopen on a closed one (the reason is kept as a note). The
 // form opens inline under the header.
-export function CaseStatusAction({
+export function CaseHeader({
   vin,
   caseId,
   isOpen,

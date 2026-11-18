@@ -1,6 +1,6 @@
 import { Car } from "lucide-react";
 import Link from "next/link";
-import { VehicleSearch } from "@/components/vehicle-search";
+import { VehicleSearch } from "@/components/search/vehicle-search";
 
 // The landing page has its own large lookup, so the bar's search is left off there.
 export function TopBar({ search = true }: { search?: boolean }) {

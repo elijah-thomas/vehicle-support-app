@@ -1,13 +1,13 @@
 import { Mail, Phone, ShieldAlert } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { PanelUnavailable } from "@/components/panel-unavailable";
-import { PeekButton } from "@/components/peek-button";
-import { RecordVisit } from "@/components/record-visit";
+import { PanelUnavailable } from "@/components/shared/panel-unavailable";
+import { PeekButton } from "@/components/shared/peek-button";
+import { RememberRecentVehicle } from "@/components/vehicle/remember-recent-vehicle";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { VehicleStatus } from "@/components/vehicle-status";
+import { VehicleStatus } from "@/components/vehicle/vehicle-status";
 import { getVehicle } from "@/lib/customer/cached-reads";
 import { loadPanel } from "@/lib/load-panel";
 
@@ -41,7 +41,7 @@ export async function VehicleHeader({ vin }: { vin: string }) {
 
   return (
     <div className="space-y-4">
-      <RecordVisit vin={vehicle.vin} name={name} owner={owner} />
+      <RememberRecentVehicle vin={vehicle.vin} name={name} owner={owner} />
       {openRecalls.map(({ recall }) => (
         <Alert
           key={recall.campaignNumber}

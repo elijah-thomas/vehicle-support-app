@@ -1,6 +1,6 @@
 import { ShieldAlert } from "lucide-react";
-import { PeekButton } from "@/components/peek-button";
-import { RecordLink } from "@/components/record-link";
+import { PeekButton } from "@/components/shared/peek-button";
+import { RecordLink } from "@/components/shared/record-link";
 
 // The open recalls past the first two chips. Each one scrolls to its banner in the header.
 export function MoreRecalls({ campaigns }: { campaigns: string[] }) {

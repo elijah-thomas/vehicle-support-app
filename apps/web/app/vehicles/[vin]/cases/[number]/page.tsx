@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { CaseDetail } from "@/components/case-detail";
-import { CaseDetailSkeleton } from "@/components/case-detail-skeleton";
-import { WithVin } from "@/components/with-vin";
+import { CaseDetail } from "@/components/cases/case-detail";
+import { CaseDetailSkeleton } from "@/components/cases/case-detail-skeleton";
+import { WithVin } from "../../with-vin";
 
 // One case, at the number reps use (CS-24117 → /cases/24117), under the shared header. A static
 // shell like the overview: the case comes from the cached case list (D41), and its fault history

@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { ExpandableList } from "@/components/expandable-list";
-import { SeverityBadge } from "@/components/severity-badge";
+import { ExpandableList } from "@/components/shared/expandable-list";
+import { SeverityBadge } from "@/components/vehicle/severity-badge";
 import { Badge } from "@/components/ui/badge";
 import { caseHref, faultWindow, matchFaultsToCases } from "@/lib/cases";
 import { getTelematicsSnapshot } from "@/lib/customer/snapshots";

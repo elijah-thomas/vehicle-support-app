@@ -1,6 +1,6 @@
 import { Suspense } from "react";
-import { NewCaseForm } from "@/components/new-case-form";
-import { WithVin } from "@/components/with-vin";
+import { NewCaseForm } from "@/components/cases/new-case-form";
+import { WithVin } from "../../with-vin";
 
 // A new case, in the left column under the shared header. The form needs only the VIN.
 export default function NewCasePage({ params }: PageProps<"/vehicles/[vin]/cases/new">) {

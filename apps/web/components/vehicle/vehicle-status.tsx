@@ -1,8 +1,8 @@
 import { Check, ChevronRight, FileText, OctagonAlert, ShieldAlert, TriangleAlert, type LucideIcon } from "lucide-react";
 import { Suspense } from "react";
-import { MoreRecalls } from "@/components/more-recalls";
-import { CurrentPageLink, PageAwareLink } from "@/components/page-aware-link";
-import { RecordLink } from "@/components/record-link";
+import { MoreRecalls } from "@/components/vehicle/more-recalls";
+import { CurrentPageLink, PageAwareLink } from "@/components/vehicle/page-aware-link";
+import { RecordLink } from "@/components/shared/record-link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "cn";
 import { caseHref } from "@/lib/cases";

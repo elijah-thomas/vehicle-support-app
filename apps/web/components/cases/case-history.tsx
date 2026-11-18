@@ -1,7 +1,7 @@
 import { ChevronRight, FilePlus } from "lucide-react";
 import Link from "next/link";
-import { ExpandableList } from "@/components/expandable-list";
-import { PanelUnavailable } from "@/components/panel-unavailable";
+import { ExpandableList } from "@/components/shared/expandable-list";
+import { PanelUnavailable } from "@/components/shared/panel-unavailable";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";

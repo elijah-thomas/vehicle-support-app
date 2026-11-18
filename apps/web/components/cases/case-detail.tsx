@@ -1,10 +1,10 @@
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { type ActivityItem, CaseActivity } from "@/components/case-activity";
-import { CaseNoteForm } from "@/components/case-note-form";
-import { CaseStatusAction } from "@/components/case-status-action";
-import { FaultHistory } from "@/components/fault-history";
-import { PanelUnavailable } from "@/components/panel-unavailable";
+import { type ActivityItem, CaseActivity } from "@/components/cases/case-activity";
+import { CaseNoteForm } from "@/components/cases/case-note-form";
+import { CaseHeader } from "@/components/cases/case-header";
+import { FaultHistory } from "@/components/cases/fault-history";
+import { PanelUnavailable } from "@/components/shared/panel-unavailable";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -30,7 +30,7 @@ export async function CaseDetail({ vin, number }: { vin: string; number: number 
   return (
     <Card className="gap-0 py-0">
       <div className="border-b p-4">
-        <CaseStatusAction vin={vin} caseId={supportCase.id} isOpen={isOpen}>
+        <CaseHeader vin={vin} caseId={supportCase.id} isOpen={isOpen}>
           <div className="space-y-1">
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-mono text-[13px] whitespace-nowrap text-muted-foreground">
@@ -47,7 +47,7 @@ export async function CaseDetail({ vin, number }: { vin: string; number: number 
             <Field label="Last contact" value={formatDate(lastContact(supportCase))} />
             <Field label="Notes" value={String(notes)} />
           </dl>
-        </CaseStatusAction>
+        </CaseHeader>
       </div>
 
       {/* Two columns only when the case has a fault history to show beside its activity. */}

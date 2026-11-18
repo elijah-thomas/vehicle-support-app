@@ -1,4 +1,4 @@
-import { FaultReference, RecallReference } from "@/components/agent-reference";
+import { FaultReference, RecallReference } from "@/components/assistant/agent-reference";
 import { toBlocks } from "@/lib/assistant/agent-answer-blocks";
 
 // Fault codes (P0C73) and recall campaigns (MR-24-117) become links to their rows. Matched by

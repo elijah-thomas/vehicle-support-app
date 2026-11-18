@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { RecordLink } from "@/components/record-link";
+import { RecordLink } from "@/components/shared/record-link";
 import { flashWhenPresent } from "@/lib/flash-element";
 import { vehicleView } from "@/lib/vehicle-paths";
 

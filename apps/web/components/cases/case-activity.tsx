@@ -3,7 +3,7 @@
 import { CircleAlert, CircleCheck, FilePlus, FileText, RotateCcw } from "lucide-react";
 import { useEffect, useState, useTransition } from "react";
 import { removeNoteAction, restoreNoteAction } from "@/app/vehicles/[vin]/cases/case-actions";
-import { CaseNote } from "@/components/case-note";
+import { CaseNote } from "@/components/cases/case-note";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import type { Case } from "@/lib/customer/reads";

@@ -34,15 +34,15 @@ const subscribeNever = () => () => {};
 
 // Browser storage isn't readable during the server render, so the form mounts again once
 // hydrated, starting from this vehicle's unsaved transcript and draft (D46).
-export function CallSummary(props: Props) {
+export function CallSummaryForm(props: Props) {
   const hydrated = useSyncExternalStore(subscribeNever, () => true, () => false);
   const vin = hydrated ? props.vin : null;
-  return <CallSummaryForm key={vin ?? "pending"} {...props} vin={vin} />;
+  return <CallSummaryFormContent key={vin ?? "pending"} {...props} vin={vin} />;
 }
 
 // Paste a transcript → the AI draft streams in → the rep edits it, picks a case, and saves.
 // Nothing reaches the case system until the rep presses Save. See docs/decisions.md#call-summary-generation
-function CallSummaryForm({ vin, cases, cannedTranscript }: Props) {
+function CallSummaryFormContent({ vin, cases, cannedTranscript }: Props) {
   const [restored] = useState(() => (vin === null ? null : loadCallSummary(vin)));
   const [transcript, setTranscript] = useState(restored?.transcript ?? "");
   const [draft, setDraft] = useState<ActiveDraft | null>(restored?.draft ?? null);

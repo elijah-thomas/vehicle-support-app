@@ -1,5 +1,5 @@
 import { CircleAlert } from "lucide-react";
-import { RetryButton } from "@/components/retry-button";
+import { RetryButton } from "@/components/shared/retry-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 // Stands in for a panel whose data couldn't load. Only the Retry button runs in the browser.

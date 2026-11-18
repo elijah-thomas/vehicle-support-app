@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { ExpandableList } from "@/components/expandable-list";
-import { PanelUnavailable } from "@/components/panel-unavailable";
-import { SeverityBadge } from "@/components/severity-badge";
+import { ExpandableList } from "@/components/shared/expandable-list";
+import { PanelUnavailable } from "@/components/shared/panel-unavailable";
+import { SeverityBadge } from "@/components/vehicle/severity-badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCaseSnapshot, getTelematicsSnapshot } from "@/lib/customer/snapshots";
 import { caseHref, daysBetween, matchFaultsToCases } from "@/lib/cases";

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { RecordLink } from "@/components/record-link";
+import { RecordLink } from "@/components/shared/record-link";
 import { vehicleView } from "@/lib/vehicle-paths";
 
 // The header stays mounted across the vehicle's pages (layout.tsx), so a chip that points into the

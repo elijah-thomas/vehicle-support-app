@@ -1,4 +1,4 @@
-import { CallSummary } from "@/components/call-summary";
+import { CallSummaryForm } from "@/components/assistant/call-summary-form";
 import { cannedTranscripts } from "@/lib/assistant/canned-transcripts";
 import { getCases } from "@/lib/customer/cached-reads";
 import { formatCaseNumber, formatDate } from "@/lib/format";
@@ -19,7 +19,7 @@ export async function CallSummaryPanel({ vin }: { vin: string }) {
     .sort((a, b) => Date.parse(b.openedAt) - Date.parse(a.openedAt));
 
   return (
-    <CallSummary
+    <CallSummaryForm
       vin={vin}
       cannedTranscript={cannedTranscripts[vin]}
       cases={open.map((c) => ({
