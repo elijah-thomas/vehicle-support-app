@@ -88,7 +88,7 @@ export function daysBetween(fromIso: string, toIso: string) {
   return Math.floor((Date.parse(toIso) - Date.parse(fromIso)) / DAY);
 }
 
-// Case URLs use the number reps read aloud, never the internal ID. See docs/decisions.md#case-numbers
+// Case URLs use the number reps read aloud, never the internal ID. See docs/decisions.md#case-page
 export function caseHref(vin: string, number: number) {
   return `/vehicles/${vin}/cases/${number}`;
 }

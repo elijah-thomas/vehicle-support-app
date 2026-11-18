@@ -4,7 +4,7 @@ import { cachedLoaders, createVehicleAgent, type VehicleAgentMessage } from "@/l
 import { logUsage } from "@/lib/ai/usage";
 import { loadVehicleRecord } from "@/lib/ai/load-vehicle-record";
 
-// Decision (D18, D27): a public endpoint, so Vercel Firewall rate-limits it at the edge and every
+// Decision (D23, D16): a public endpoint, so Vercel Firewall rate-limits it at the edge and every
 // request is checked before the model runs (lib/ai/agent-request.ts). Why: a blocked request
 // costs no compute and no tokens. Trade-off: per-IP, so spend alerts are the backstop.
 // See docs/decisions.md#rate-limits

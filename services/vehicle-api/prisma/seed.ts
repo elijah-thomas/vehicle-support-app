@@ -268,7 +268,7 @@ async function seedCases() {
             nextSteps: ["Call Dana with the review team's decision"], createdAt: daysAgo(11),
           },
           // Saved on the wrong case and removed. No read returns it, and the evals check that no
-          // answer mentions winter tires. See docs/decisions.md#case-numbers
+          // answer mentions winter tires. See docs/decisions.md#case-page
           {
             source: "REP", summary: "Asked about winter tire packages and a price quote.",
             createdAt: daysAgo(10), removedAt: daysAgo(10),

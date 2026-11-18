@@ -13,7 +13,7 @@ import { RECENT_WINDOW_DAYS, repeatKey, worstRecentEvent } from "@/lib/telematic
 
 // Worst first: critical event, open recalls, warning event, open cases. Telematics and cases stream
 // in on their own, so flex `order` keeps that sequence whichever arrives first.
-// See docs/decisions.md#vehicle-status
+// See docs/decisions.md#faults
 const ORDER = { critical: "order-1", recall: "order-2", warning: "order-3", cases: "order-4" } as const;
 
 const tones = {

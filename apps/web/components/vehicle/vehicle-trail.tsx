@@ -8,9 +8,9 @@ import { nextTrail, vehicleView, viewLabel } from "@/lib/vehicle-paths";
 
 const crumbLink = "text-primary underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
 
-// Decision (D41): the path the rep took within this vehicle, held in the [vin] layout's state, not
+// Decision (D8): the path the rep took within this vehicle, held in the [vin] layout's state, not
 // the URL, so a shared link opens the case rather than someone's route to it. Rendered with
-// key={vin}, so a new vehicle starts a new trail. See docs/decisions.md#vehicle-routes
+// key={vin}, so a new vehicle starts a new trail. See docs/decisions.md#vehicle-layout
 export function VehicleTrail({ vin }: { vin: string }) {
   const pathname = usePathname();
   const overview = `/vehicles/${vin}`;

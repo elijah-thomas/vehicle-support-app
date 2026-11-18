@@ -18,7 +18,7 @@ import { aiErrorCode, rateLimitAwareFetch, type AiErrorCode } from "@/lib/assist
 import { flashWhenPresent } from "@/lib/flash-element";
 import { type ActiveDraft, clearCallSummary, type DraftEdits, loadCallSummary, newDraft, storeCallSummary } from "@/lib/assistant/call-summary-draft";
 
-// An open case the note can be saved to (D45), newest first.
+// An open case the note can be saved to (D20), newest first.
 export type CaseOption = { id: string; number: number; label: string; subject: string };
 
 type Saved = { noteId: string; caseNumber: number; caseSubject: string };
@@ -33,7 +33,7 @@ type Props = {
 const subscribeNever = () => () => {};
 
 // Browser storage isn't readable during the server render, so the form mounts again once
-// hydrated, starting from this vehicle's unsaved transcript and draft (D46).
+// hydrated, starting from this vehicle's unsaved transcript and draft (D14).
 export function CallSummaryForm(props: Props) {
   const hydrated = useSyncExternalStore(subscribeNever, () => true, () => false);
   const vin = hydrated ? props.vin : null;
@@ -41,7 +41,7 @@ export function CallSummaryForm(props: Props) {
 }
 
 // Paste a transcript → the AI draft streams in → the rep edits it, picks a case, and saves.
-// Nothing reaches the case system until the rep presses Save. See docs/decisions.md#call-summary-generation
+// Nothing reaches the case system until the rep presses Save. See docs/decisions.md#call-summary
 function CallSummaryFormContent({ vin, cases, cannedTranscript }: Props) {
   const [restored] = useState(() => (vin === null ? null : loadCallSummary(vin)));
   const [transcript, setTranscript] = useState(restored?.transcript ?? "");
@@ -196,7 +196,7 @@ function ReviewForm({
   const { issue, summary, nextSteps, subject, category } = draft.edits;
   // The case in view if it's open, else the newest open case, else a new case, until the rep picks
   // one. A restored pick that's no longer open falls back the same way.
-  // See docs/decisions.md#call-summary-target
+  // See docs/decisions.md#call-summary
   const params = useParams<{ number?: string }>();
   const defaultCase = cases.find((c) => String(c.number) === params.number) ?? cases[0];
   const pick = draft.edits.caseId;
@@ -307,7 +307,7 @@ function ReviewForm({
   );
 }
 
-// See docs/decisions.md#junk-transcripts
+// See docs/decisions.md#call-summary
 const callTypeWarning: Record<Exclude<CallType, "vehicle_issue">, string> = {
   other: "This call doesn't describe a vehicle issue",
   no_conversation: "Nothing to summarize from this call",

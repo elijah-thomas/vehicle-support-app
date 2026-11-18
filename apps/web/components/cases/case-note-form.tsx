@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
-// A quick note from the rep: only its summary (D40). A transcript goes through Call summary instead.
+// A quick note from the rep: only its summary (D12). A transcript goes through Call summary instead.
 export function CaseNoteForm({ vin, caseId }: { vin: string; caseId: string }) {
   const [summary, setSummary] = useState("");
   const [error, setError] = useState<string | null>(null);

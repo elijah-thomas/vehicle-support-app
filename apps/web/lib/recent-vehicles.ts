@@ -1,6 +1,6 @@
-// Decision (D21): suggestions come from this browser, not a server prefix search, which would let
+// Decision (D10): suggestions come from this browser, not a server prefix search, which would let
 // anyone list customers. Only VIN, vehicle name and owner name are kept, never emails.
-// See docs/decisions.md#lookup-and-layout
+// See docs/decisions.md#lookup
 export type RecentVehicle = { vin: string; name: string; owner: string; openedAt: string };
 
 const KEY = "vs:recent";

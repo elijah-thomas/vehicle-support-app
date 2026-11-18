@@ -19,7 +19,7 @@ export type ActivityItem =
 const UNDO_MS = 8000;
 
 // The case's history, newest first. Removing a note asks for no confirmation: it's replaced at
-// once by a marker, with Undo for a few seconds. Case reads leave removed notes out (D40), so the
+// once by a marker, with Undo for a few seconds. Case reads leave removed notes out (D12), so the
 // marker is kept here, in the order the note had.
 export function CaseActivity({ vin, caseId, items }: { vin: string; caseId: string; items: ActivityItem[] }) {
   const [removed, setRemoved] = useState<Map<string, { note: Note; at: string }>>(new Map());

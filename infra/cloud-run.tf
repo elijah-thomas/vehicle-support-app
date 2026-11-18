@@ -33,13 +33,13 @@ resource "google_cloud_run_v2_service" "api" {
   template {
     service_account = google_service_account.api[each.key].email
 
-    # Decision (D34): 3 instances × 4 pool connections × 2 environments must fit the database's
-    # connection limit. See docs/decisions.md#concurrency
+    # Decision (D5): 3 instances × 4 pool connections × 2 environments must fit the database's
+    # connection limit. See docs/decisions.md#db-access
     scaling {
       max_instance_count = 3
-      # Decision (D36): production keeps one instance warm; staging scales to zero. Why: a rep's
+      # Decision (D4): production keeps one instance warm; staging scales to zero. Why: a rep's
       # first lookup shouldn't pay for a container start and Cloud SQL connector setup.
-      # Trade-off: about $10/month idle. See docs/decisions.md#warm-api
+      # Trade-off: about $10/month idle. See docs/decisions.md#function-region
       min_instance_count = each.value.min_instances
     }
 

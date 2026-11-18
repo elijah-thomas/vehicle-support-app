@@ -1,4 +1,4 @@
-# Decision (D23): monthly spend alert on Gemini (Vertex AI) usage, measured before credits.
+# Decision (D24): monthly spend alert on Gemini (Vertex AI) usage, measured before credits.
 # Trade-off: alerts only. GCP budgets don't stop spending, and a billing kill switch would take
 # down every workload in this shared project. See docs/decisions.md#spend-alerts
 resource "google_billing_budget" "vertex" {

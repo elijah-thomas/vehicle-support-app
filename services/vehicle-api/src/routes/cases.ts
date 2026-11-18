@@ -12,12 +12,12 @@ const summary = z.string().trim().min(1).max(4000);
 const nextStep = z.string().trim().min(1).max(500);
 
 // A rep's quick note needs only a summary. An AI-drafted note always carries all three fields,
-// as the call summary produces them (D16).
+// as the call summary produces them (D20).
 const note = z.discriminatedUnion("source", [
   z.object({ source: z.literal("REP"), issue: issue.optional(), summary, nextSteps: z.array(nextStep).max(10).default([]) }),
   z.object({
     source: z.literal("AI_DRAFT_EDITED"),
-    // Optional so a web deploy that doesn't send it yet keeps working (D13). See D46.
+    // Optional so a web deploy that doesn't send it yet keeps working (D26). See D14.
     draftId: z.uuid().optional(),
     issue,
     summary,
@@ -43,10 +43,10 @@ const closeCaseBody = z.object({ vin, resolution: z.string().trim().min(1).max(1
 const reopenCaseBody = z.object({ vin, reason: z.string().trim().min(1).max(1000) });
 const vinBody = z.object({ vin });
 
-// Decision (D46): a draft's ID is unique on case_notes, so the database refuses a second write of
+// Decision (D14): a draft's ID is unique on case_notes, so the database refuses a second write of
 // it, even from two requests racing. Why: a save whose response is lost looks failed, and the retry
 // would add the note again (or a whole new case). Trade-off: the first write wins; edits made
-// before the retry aren't saved. See docs/decisions.md#repeat-safe-save
+// before the retry aren't saved. See docs/decisions.md#saving-notes
 async function findSavedDraft(error: unknown, draftId: string | undefined) {
   const isUniqueViolation = error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
   if (!draftId || !isUniqueViolation) throw error;
@@ -92,7 +92,7 @@ casesRouter.post("/:id/notes", async (req, res) => {
   const { id } = caseParams.parse(req.params);
   const { vin, ...note } = createNoteBody.parse(req.body);
 
-  // Decision (D25): the caller names the vehicle it has open, and the system of record refuses a
+  // Decision (D13): the caller names the vehicle it has open, and the system of record refuses a
   // case that isn't that vehicle's, so every client gets the check. See docs/decisions.md#note-ownership
   const existing = await prisma.case.count({ where: { id, vin } });
   if (!existing) throw new NotFoundError(`No case with id ${id} for VIN ${vin}`);
@@ -161,7 +161,7 @@ casesRouter.post("/:id/reopen", async (req, res) => {
 });
 
 // Removing marks the note instead of deleting it, so restore (Undo) brings it back unchanged.
-// Each write names the vehicle, and a note on another vehicle's case is a 404 (D25).
+// Each write names the vehicle, and a note on another vehicle's case is a 404 (D13).
 async function findOwnedNote(id: string, noteId: string, vin: string) {
   const found = await prisma.caseNote.findFirst({ where: { id: noteId, caseId: id, case: { vin } } });
   if (!found) throw new NotFoundError(`No note ${noteId} on case ${id} for VIN ${vin}`);

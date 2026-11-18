@@ -140,13 +140,13 @@ function FollowUps({
 
 // vin and suggestions are null while the page's params resolve: the same empty state renders
 // disabled, so it can be the Suspense fallback and prerender in the static shell.
-// See docs/decisions.md#vehicle-page-caching
+// See docs/decisions.md#caching
 type Props = { vin: string | null; suggestions: Promise<Suggestion[]> | null };
 
 const subscribeNever = () => () => {};
 
 // Browser storage isn't readable during the server render, so the chat mounts again once
-// hydrated, starting from this vehicle's thread (D48). Until then it shows the disabled state.
+// hydrated, starting from this vehicle's thread (D18). Until then it shows the disabled state.
 export function AgentChat(props: Props) {
   const hydrated = useSyncExternalStore(subscribeNever, () => true, () => false);
   const vin = hydrated ? props.vin : null;
@@ -269,7 +269,7 @@ function AgentChatPanel({ vin, suggestions }: Props) {
           </Button>
         )}
       </div>
-      {/* The assistant gets only this vehicle's record (D30), so the rep knows not to ask about
+      {/* The assistant gets only this vehicle's record (D16), so the rep knows not to ask about
           other vehicles or policy. */}
       <div className="flex items-center justify-between gap-2">
         <p id="agent-scope" className="text-xs text-muted-foreground">

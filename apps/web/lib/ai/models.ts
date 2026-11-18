@@ -1,12 +1,13 @@
 import "server-only";
 import type { GatewayProviderOptions } from "@ai-sdk/gateway";
 
-// Decision (D5): Gemini on Vertex and Claude on Anthropic, both BYOK, each the other's fallback.
-// Why: two vendors on two clouds, each billed under an existing agreement. Trade-off: answers
-// differ by model, so evals run on both. The only place model IDs live. See docs/decisions.md#models
+// Decision (D15): Claude on Anthropic first, then Gemini on Vertex, both BYOK, for the assistant
+// and call summaries. Why: Claude started within 1.2 s every time; Gemini stalled up to 36 s, and
+// two vendors on two clouds keep a working path. Trade-off: about 3× the model cost. The only
+// place model IDs live. See docs/decisions.md#models
 //
-//   Gemini 3.8 Flash on Vertex     → billed to GCP credits (BYOK)
 //   Claude Sonnet 5.5 on Anthropic → billed to Anthropic org credits (BYOK)
+//   Gemini 3.8 Flash on Vertex     → billed to GCP credits (BYOK)
 //   Vercel's own provider keys     → automatic AI Gateway retry if a BYOK key fails
 const GEMINI = "google/gemini-3.8-flash";
 const CLAUDE = "anthropic/claude-sonnet-5.5";
@@ -15,10 +16,6 @@ const only = ["vertex", "anthropic"];
 
 export type ModelChoice = { id: string; gateway: Pick<GatewayProviderOptions, "models" | "only"> };
 
-// Decision (D49): Claude first, then Gemini, for the assistant and call summaries. Why: an advisor
-// waits on both, and Sonnet started within 1.2 s every time while Gemini stalled up to 36 s.
-// Trade-off: about 3× the model cost, billed to the Anthropic org. See
-// docs/decisions.md#assistant-model
 export const defaultModel: ModelChoice = { id: CLAUDE, gateway: { models: [GEMINI], only } };
 
 // Each model alone, with no fallback, so an eval score belongs to the model it names.

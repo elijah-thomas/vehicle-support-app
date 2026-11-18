@@ -2,7 +2,7 @@ import { z } from "zod";
 import { agentMessageSchema } from "@/lib/ai/agent-request";
 import type { VehicleAgentMessage } from "@/lib/ai/vehicle-agent";
 
-// The route's own message check (D27), so a restored thread is one the route will accept.
+// The route's own message check (D16), so a restored thread is one the route will accept.
 const storedSchema = z.object({
   messages: z.array(z.intersection(z.object({ id: z.string().min(1) }), agentMessageSchema)),
   // True from the moment a question is sent until its answer ends. A reload in between left the
@@ -12,8 +12,8 @@ const storedSchema = z.object({
 
 export type StoredAgentChat = { messages: VehicleAgentMessage[]; pending: boolean };
 
-// Decision (D48): the assistant thread lives in sessionStorage, one entry per vehicle, like the
-// call summary draft (D46). Why: a reload keeps the conversation, and closing the tab removes
+// Decision (D18): the assistant thread lives in sessionStorage, one entry per vehicle, like the
+// call summary draft (D14). Why: a reload keeps the conversation, and closing the tab removes
 // customer details from shared machines. Trade-off: a second tab or a crash starts empty.
 // See docs/decisions.md#chat-reload
 const key = (vin: string) => `vs:agent-chat:${vin}`;

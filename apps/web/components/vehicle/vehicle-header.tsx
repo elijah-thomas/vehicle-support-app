@@ -16,12 +16,12 @@ const contactButton = buttonVariants({ variant: "outline", size: "sm", className
 
 // The same header on every vehicle page: it lives in the [vin] layout, above whichever view the
 // left column shows. Open-recall banners sit here too, so the recall chips reach them from any page.
-// New case lives in the Cases panel, not here (D44).
+// New case lives in the Cases panel, not here (D12).
 export async function VehicleHeader({ vin }: { vin: string }) {
-  // Decision (D43): the header catches its own failure. Why: it renders in the layout, which the
+  // Decision (D9): the header catches its own failure. Why: it renders in the layout, which the
   // [vin] error.tsx doesn't cover, so a throw here would replace the whole page with the root error.
   // Trade-off: the page answers 200 with a Retry card, not an error status. See
-  // docs/decisions.md#layout-freshness
+  // docs/decisions.md#error-states
   const loaded = await loadPanel("vehicle header", () => getVehicle(vin));
   if (!loaded.ok) {
     return (
