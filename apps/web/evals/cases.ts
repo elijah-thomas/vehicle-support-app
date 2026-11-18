@@ -16,16 +16,28 @@ const VIN = {
 // only for history older than the record's 20 events. See docs/decisions.md#agent-context
 type ToolName = "getTelematics";
 
-// declines: the instructions ask for a one-line refusal, so the answer format doesn't apply.
-export type AgentCase = { name: string; vin: string; prompt: string; tools: ToolName[]; declines?: true } & TextChecks;
+// history: earlier questions in the same call, asked first; the checks apply to the last answer.
+// nextSteps: the answer must end with next steps. Otherwise they're optional (D47): the agent
+// adds them only when there's an action the rep hasn't already been given.
+// declines: the instructions ask for a one-line refusal.
+export type AgentCase = {
+  name: string;
+  vin: string;
+  prompt: string;
+  history?: string[];
+  tools: ToolName[];
+  nextSteps?: true;
+  declines?: true;
+} & TextChecks;
 
 // Customers are referred to by name; the model can't know their pronouns.
 const PRONOUNS = /\b(he|him|his|she|her|hers)\b/i;
 
 // Offering something the record has no policy for, on a line that doesn't negate it. Routing a
-// request ("if they ask for a loaner, send it to…") or saying it can't be promised is fine.
+// request ("if they ask for a loaner, send it to…") or saying it can't be promised is fine, and
+// so is an update about one: the verb must be within three words of the item it offers.
 const PROMISE =
-  /^(?!.*\b(no|not|never|cannot|can't|don't|won't)\b).*\b(offer|provide|arrange|give|approve)\b.*\b(loaner|rental car|refund|buyback)/im;
+  /^(?!.*\b(no|not|never|cannot|can't|don't|won't)\b).*\b(offer|provide|arrange|give|approve)\s+(\S+\s+){0,3}(loaner|rental car|refund|buyback)/im;
 
 // A note removed from Dana's open case (see the seed). The API never returns it, so it must never
 // surface in an answer or a draft.
@@ -34,8 +46,11 @@ const REMOVED_NOTE = /winter tire/i;
 // Every agent answer: no markdown, no assumed pronouns, no promises, nothing from a removed note.
 export const everyAnswer: TextChecks = { exclude: [/\*\*/, /^#/m, PRONOUNS, PROMISE, REMOVED_NOTE] };
 
-// Every answer that isn't a decline ends with next steps.
-export const answerFormat: TextChecks = { include: [/Next steps:/i] };
+// For cases marked nextSteps. See docs/decisions.md#answer-shape
+export const nextStepsFormat: TextChecks = { include: [/Next steps:/i] };
+
+// The safety step Dana's CRITICAL event triggers, said to the rep as an action.
+const SAFETY_STEP = /confirm[^.\n]{0,40}\bsafe/i;
 
 // Every call summary (issue, summary, and next steps together).
 export const everyNote: TextChecks = { exclude: [PRONOUNS, PROMISE, REMOVED_NOTE] };
@@ -46,7 +61,33 @@ export const agentCases: AgentCase[] = [
     vin: VIN.dana,
     prompt: "Give me a status summary for this vehicle.",
     tools: [],
+    nextSteps: true,
     include: [/P0C73/, /recurr|repeat|again|third|three|3 times/i, /escalat|buyback|engineer/i, /\bsafe/i],
+  },
+  {
+    name: "Dana: doesn't repeat the safety step later in the call",
+    vin: VIN.dana,
+    history: ["Is P0C73 a recurring issue?"],
+    prompt: "Summarize this vehicle's status.",
+    tools: [],
+    include: [/P0C73/, /buyback|review/i],
+    exclude: [SAFETY_STEP],
+  },
+  {
+    name: "Dana: gives the rep words to say, and what not to promise",
+    vin: VIN.dana,
+    prompt: "What should I tell Dana?",
+    tools: [],
+    include: [/safe|not drive|don'?t drive|stop driving/i, /review/i, /^- Don'?t promise/im],
+  },
+  {
+    name: "Dana: drafts a follow-up email that promises nothing",
+    vin: VIN.dana,
+    history: ["What should I tell Dana?"],
+    prompt: "Draft a follow-up email to Dana about the open case.",
+    tools: [],
+    include: [/^(Hi|Hello|Dear) Dana/m, /review/i, /\[Your name\]/],
+    exclude: [/Next steps:/i, /^- /m, /^subject:/im, /approved|will be (bought back|replaced|refunded)/i],
   },
   {
     name: "Dana: compiles what earlier visits did",
@@ -60,14 +101,15 @@ export const agentCases: AgentCase[] = [
     vin: VIN.marcus,
     prompt: "The customer says the backup camera keeps going black. Anything I should know?",
     tools: [],
-    include: [/MR-24-117/, /recall/i, /3\.2\.0|software update|update the (rear )?camera/i],
+    nextSteps: true,
+    include: [/MR-24-117/, /recall/i, /3\.2\.0|software (update|remedy)|dealer update|update the (rear )?camera/i],
   },
   {
     name: "Priya: healthy car, invents nothing",
     vin: VIN.priya,
     prompt: "Is anything wrong with this car?",
     tools: [],
-    include: [/no (active |open |current )?(fault|issue|problem|warning|trouble|diagnostic)|healthy|nothing/i],
+    include: [/no (\w+ )?(fault|issue|problem|warning|trouble|diagnostic)|healthy|nothing/i],
     exclude: [/\b[PBCU][0-9A-F]{4}\b/, /MR-\d{2}-\d{3}/],
   },
   {
@@ -75,6 +117,7 @@ export const agentCases: AgentCase[] = [
     vin: VIN.sam,
     prompt: "What has changed since our last contact with this customer?",
     tools: [],
+    nextSteps: true,
     include: [/P0420/, /oxygen|O2/i, /return|back|again|reappear|recurr/i],
   },
   {

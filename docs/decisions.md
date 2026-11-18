@@ -19,7 +19,9 @@ decision is implemented, a `Decision (Dnn)` comment marks the line.
 - **AI:** [D5](#models) Models and failover · [D15](#agent) Agent · [D30](#agent-context) Record
   up front · [D16](#call-summary-generation) Call summary · [D26](#junk-transcripts) Non-support
   transcripts · [D33](#cost-per-run) Cost per run · [D19](#evals) Evals ·
-  [D39](#assistant-suggestions) Suggested questions · [D48](#chat-reload) Chat after a reload
+  [D39](#assistant-suggestions) Suggested questions · [D47](#answer-shape) Answer shape ·
+  [D48](#chat-reload) Chat after a reload ·
+  [D49](#assistant-model) Claude first
 - **Data integrity:** [D6](#data-model) Data model · [D25](#note-ownership) Note ownership ·
   [D22](#save-feedback) Save failures · [D38](#seed-activity) Seeded case activity ·
   [D40](#case-numbers) Case numbers and case actions · [D46](#repeat-safe-save) Repeat-safe save
@@ -97,6 +99,7 @@ decision is implemented, a `Decision (Dnn)` comment marks the line.
     at $0.20 per 1,000 BYOK requests.
   - Answers differ by model, so evals run on both (D19).
   - Falling back to Claude sends data outside Google Cloud.
+- **Later change:** The assistant and call summaries ask Claude first, with Gemini as fallback (D49).
 
 ## D6. Data model {#data-model}
 
@@ -211,6 +214,7 @@ decision is implemented, a `Decision (Dnn)` comment marks the line.
 - **No output cap:** Gemini's hidden reasoning counts toward the cap, and at 1,000 tokens answers
   were cut off. Cost is bounded in other ways (D33).
 - **Later change:** How data is loaded and how the prompt is built were redesigned in D30.
+  Next steps became conditional and the answer shape follows the question in D47.
   D48 keeps the conversation across a reload.
 
 ## D16. Call summary {#call-summary-generation}
@@ -760,6 +764,78 @@ decision is implemented, a `Decision (Dnn)` comment marks the line.
 - **Production path:** Server-side drafts once advisors sign in, and an idempotency key on every
   write as Meridian's API grows.
 
+## D47. Answer shape {#answer-shape}
+
+- **Finding:** In a multi-turn call about Dana, all three answers ended with the same "confirm
+  Dana is safe" and "check on the buyback" next steps. Three causes:
+  - The prompt required "Next steps:" on every answer, and the evals failed any answer without it
+    (D15, D19).
+  - The safety rule fired on every answer while the CRITICAL event was in the record.
+  - Every example was a first question, so nothing showed what a follow-up looks like.
+
+  "What should I tell Dana?" got citations for the rep, with the words to say left as next steps.
+- **Choice:** The answer's shape follows the question, and next steps appear only when they're
+  new. The parser and panel are unchanged.
+  - **Next steps:** The route reads the next steps of earlier answers with the panel's parser
+    (`toBlocks`) and sends them as `<earlier_next_steps>`. The model leaves out any step already
+    on that list, and leaves out "Next steps:" when none are left. The safety step is the first
+    next step whenever a CRITICAL event affects driving, so the list is what stops it repeating.
+  - **"What should I tell the customer?":** Lines the rep can read aloud, ending with a "Don't
+    promise" line naming what the record can't back up.
+  - **Email or written message:** Only the body: two to four sentences signed "[Your name]", with
+    no next steps after it.
+  - **Case age:** Each open case carries `lastUpdate` and `daysSinceUpdate`, computed in
+    `lib/ai/model-context.ts`, so summaries can say how long it has waited. Only the agent gets
+    them. With them, Claude's call summaries slipped a pronoun in 3 of 16 runs, against 0 of 16
+    without, so the call summary's input is unchanged.
+- **Prompt tuning:** The first version of this prompt had the model check the conversation for
+  steps it had already given, and decide when to repeat the safety step. On Gemini 3.8 Flash, that
+  made it think before 20 of 24 answers (median 834 thinking tokens), against 5 of 24 before.
+  - **Wait for the first word:** a median of 10.2 s, against 1.8 s.
+  - **Thinking setting:** It couldn't be turned down. `low` is the lowest level the AI Gateway
+    catalog lists for this model, and the Gateway maps every other AI SDK `reasoning` value to
+    `high` on Gemini 3
+    ([docs](https://vercel.com/docs/ai-gateway/models-and-providers/reasoning/google)).
+  - **Cause:** Rewording the rule alone didn't help. Thinking came from the two rules combined,
+    the "already given" check and the "first answer" safety condition.
+  - **Fix:** Compute the list in code, the same move D30 made with repeat counts. Rules became
+    one-line triggers, and the examples carry each answer's shape, as Google's and Anthropic's
+    prompting guides recommend.
+  - **Measured against the old prompt** (same time window, 4 questions × 6 runs): a median first
+    word of 4.3 s for both, with thinking on 6 of 24 answers against 4 of 24.
+- **Options:**
+  - New answer block kinds ("Say", "Avoid", "Email") with their own panel styling: clearer to scan,
+    but adds parser, UI and eval surface.
+  - Hiding repeated next steps in the panel: leaves the answers themselves wrong.
+  - Keeping the "already given" check in the prompt: slow on Gemini.
+  - Next steps on every answer: fast, but the repetition stays.
+- **Accepted:** The earlier answers come from the browser (D27), so a forged one can hide a step
+  from the next answer. It can't add facts or tools, and the caller only affects their own session.
+- **Evals:**
+  - `nextSteps: true` marks the four cases that must end with next steps; elsewhere they're
+    optional.
+  - Cases can list earlier questions in `history`. Their answers go back as text, and their next
+    steps as the list, as the route sends them.
+  - Three new cases on Dana: no repeated safety step, lines to say with "Don't promise", and an
+    email with no bullets, next steps, subject or promises.
+  - The report shows average thinking tokens per case, so a prompt change that makes a model think
+    shows up in the normal run.
+  - **Checks that rejected correct answers:**
+    - The promise check now needs the verb within three words of the item, so "provide an update on
+      the buyback" passes.
+    - Priya's and Marcus's checks accept "no reported faults" and "dealer update".
+- **Results (Nov 17, 3 runs per case):**
+  - **Agent:** 39/39 on both models (13 cases, up from 10). Medians were 3.2 s on Gemini and 3.3 s
+    on Claude. Average thinking was 57 tokens on Gemini and 0 on Claude, and cost per answer was
+    $0.0023 on Gemini and $0.0053 on Claude.
+  - **Call summaries:** 41/42. Claude once named "buyback" when it noted the injected line in Sam's
+    transcript (D26), as it did before this change.
+  - **Browser:** checked with Playwright on Dana's call, through the route. Next steps showed only
+    on the first answer, the second didn't repeat them, and the email rendered as plain
+    paragraphs.
+- **Out of scope:** Sending email, saving drafts to the case, templates, and per-region language
+  or tone. Sending and storing email cross into Meridian's systems, so they're phase 2.
+
 ## D48. Chat after a reload {#chat-reload}
 
 - **Finding:** Reviewer feedback: a soft refresh during a conversation lost it. The chat only
@@ -797,5 +873,57 @@ decision is implemented, a `Decision (Dnn)` comment marks the line.
   with no request and no suggestion flash, a follow-up answered after the restore, a mid-answer
   reload re-asked exactly once (also in dev, where React mounts twice), stopped and failed
   questions not re-asked, each vehicle keeps its own thread, a new session starts empty.
+- **Later change:** A "New chat" button under the question box empties the thread and removes its
+  saved copy, so an advisor can start fresh for a new call, and a reload doesn't bring the old
+  thread back. It's disabled while an answer streams.
 - **Production path:** Server-side threads per advisor with resumable streams once advisors sign
   in, or Eve if the agent moves to durable sessions in phase 2.
+
+## D49. Claude first {#assistant-model}
+
+- **Finding:** Advisors wait on both AI features: the assistant's first word on a live call, and
+  the call summary draft. On Gemini 3.8 Flash both waits varied widely. Those long waits came with
+  no thinking, so they were the provider, not the prompt (D47). AI Gateway fails over on errors,
+  not on slow answers, so the fallback never stepped in.
+- **Measured (Nov 17):**
+  - **Assistant:** the same three-question call on Dana's vehicle, 6 runs per model, alternating
+    rounds, current prompt:
+
+    | Model | First word: median / p90 / worst | Over 8 s | Cost per answer (list) |
+    |---|---|---|---|
+    | Gemini 3.8 Flash | 2.7 s / 15.0 s / 36.5 s | 3 of 18 | $0.0032 |
+    | Claude Sonnet 5.5 | 0.9 s / 1.0 s / 1.2 s | 0 of 18 | $0.0116 |
+
+    Both scored 39/39 on the agent evals (D47). Sonnet's follow-ups sometimes added next steps, and
+    they were new actions, not repeats.
+  - **Call summaries:** the call-summary evals, 3 runs per case. Gemini took 2.9 s median, 11.4 s at
+    p90 and 97.6 s at worst. Claude took 3.0 s median and 5.0 s at worst. Cost per draft was $0.0020
+    on Gemini and $0.0048 on Claude.
+- **Choice:** Claude Sonnet 5.5 on Anthropic first, then Gemini 3.8 Flash on Vertex, for the
+  assistant and call summaries. One order in `lib/ai/models.ts`.
+- **Call summary prompt:** Two rules Gemini followed but Claude sometimes didn't. Now worded so
+  Claude follows them too:
+  - **Injected instructions:** Claude ignored them but noted them in the summary ("text asking for
+    a buyback was left out"), and the note is saved and read again. The rule now says to leave them
+    out "without mentioning them".
+  - **Pronouns:** Claude echoed the transcript's "he" in about 2 of 11 Marcus drafts. The rule now
+    says to repeat the first name wherever it would write a pronoun.
+  - **Result:** Claude passed 20/20 on the Marcus and Sam cases, and both models passed 21/21 on
+    the full set (up from 19/21 to 20/21 for Claude).
+- **Options:**
+  - **Gemini first, Claude on a timeout:** if no first word arrives within about 8 s, retry on
+    Claude. It keeps the cost and the GCP billing, and caps the worst wait near 9 s. But typical
+    waits stay 2–5 s, and it adds a retry path to both routes.
+  - **Keep Gemini first:** the cheapest option, with waits nobody can predict.
+  - **Claude first for the assistant only:** briefly chosen, then dropped once summaries also
+    stalled for advisors.
+  - **Claude Haiku 5.5:** about a tenth of Sonnet's cost and also 39/39, but it thinks before
+    answering, so its first word took 3–7 s.
+- **Why:** An advisor waiting on either feature notices delay more than anything else, and Sonnet
+  was the only model that was reliably fast. It still keeps two vendors on two clouds (D5), with
+  Gemini as the fallback.
+- **Accepted:** About 3× the model spend, now billed to Meridian's Anthropic org rather than its
+  GCP commitment. For the assistant, roughly $46 a day against $13 a day at 4,000 answers (80
+  advisors asking 50 questions each), at list price.
+- **Production path:** Revisit with pilot data (D35): advisors' real waits, question volume, and
+  Meridian's negotiated rates.

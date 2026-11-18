@@ -55,3 +55,11 @@ function withoutOldToolResults(message: Messages[number]): Messages[number] {
   if (message.role !== "assistant") return message;
   return { ...message, parts: message.parts.filter((part) => part.type === "text" || part.type === "reasoning") };
 }
+
+// The text of each earlier answer, for the next steps it already gave (D47). Forged text can only
+// hide a step from the next answer. See docs/decisions.md#answer-shape
+export function earlierAnswers(messages: Messages): string[] {
+  return messages.slice(0, -1).flatMap((m) =>
+    m.role === "assistant" ? [m.parts.flatMap((p) => (p.type === "text" && typeof p.text === "string" ? [p.text] : [])).join("")] : [],
+  );
+}
