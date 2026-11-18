@@ -871,5 +871,8 @@ decision is implemented, a `Decision (Dnn)` comment marks the line.
   with no request and no suggestion flash, a follow-up answered after the restore, a mid-answer
   reload re-asked exactly once (also in dev, where React mounts twice), stopped and failed
   questions not re-asked, each vehicle keeps its own thread, a new session starts empty.
+- **Later change:** A "New chat" button under the question box empties the thread and removes its
+  saved copy, so an advisor can start fresh for a new call, and a reload doesn't bring the old
+  thread back. It's disabled while an answer streams.
 - **Production path:** Server-side threads per advisor with resumable streams once advisors sign
   in, or Eve if the agent moves to durable sessions in phase 2.

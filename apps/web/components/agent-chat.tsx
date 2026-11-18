@@ -2,7 +2,7 @@
 
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
-import { ArrowUp, Car, CircleAlert, FileText, MessageSquare, ShieldAlert, Square, TriangleAlert, type LucideIcon } from "lucide-react";
+import { ArrowUp, Car, CircleAlert, FileText, MessageSquare, RotateCcw, ShieldAlert, Square, TriangleAlert, type LucideIcon } from "lucide-react";
 import { cn } from "cn";
 import { Suspense, use, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { AgentAnswer } from "@/components/agent-answer";
@@ -159,7 +159,7 @@ function AgentChatPanel({ vin, suggestions }: Props) {
   // Set when the route says the record is loaded and the model is working (app/api/agent/route.ts).
   const [answering, setAnswering] = useState(false);
   const [restored] = useState(() => (vin === null ? null : loadAgentChat(vin)));
-  const { messages, sendMessage, regenerate, status, error, stop } = useChat<VehicleAgentMessage>({
+  const { messages, setMessages, sendMessage, regenerate, status, error, stop } = useChat<VehicleAgentMessage>({
     messages: restored?.messages,
     transport: new DefaultChatTransport({ api: "/api/agent", body: { vin } }),
     onData: (part) => {
@@ -174,8 +174,9 @@ function AgentChatPanel({ vin, suggestions }: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
   const logRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  // The question box moves from the top to the bottom on the first question, which remounts it.
-  // Focus follows only if it was already in the chat; on page load the lookup owns focus (`/`).
+  // The question box moves from the top to the bottom on the first question, and back on New chat,
+  // which remounts it. Focus follows only if it was already in the chat; on page load the lookup
+  // owns focus (`/`).
   const refocus = useRef(false);
 
   useEffect(() => {
@@ -203,11 +204,20 @@ function AgentChatPanel({ vin, suggestions }: Props) {
   }, [status]);
 
   useEffect(() => {
-    if (started && refocus.current) {
+    if (refocus.current) {
       refocus.current = false;
       inputRef.current?.focus();
     }
   }, [started]);
+
+  // Starts a new conversation, such as for a new call. Emptying the thread also removes its saved
+  // copy (lib/agent-chat-history.ts), so a reload doesn't bring it back.
+  function clearChat() {
+    reasked.current = true;
+    setMessages([]);
+    setInput("");
+    refocus.current = true;
+  }
 
   function ask(text: string) {
     if (!text.trim() || busy || loading) return;
@@ -261,9 +271,17 @@ function AgentChatPanel({ vin, suggestions }: Props) {
       </div>
       {/* The assistant gets only this vehicle's record (D30), so the rep knows not to ask about
           other vehicles or policy. */}
-      <p id="agent-scope" className="text-xs text-muted-foreground">
-        Answers use only this vehicle&apos;s record, telematics and case history.
-      </p>
+      <div className="flex items-center justify-between gap-2">
+        <p id="agent-scope" className="text-xs text-muted-foreground">
+          Answers use only this vehicle&apos;s record, telematics and case history.
+        </p>
+        {started && (
+          <Button type="button" variant="ghost" size="xs" onClick={clearChat} disabled={busy} className="shrink-0 text-muted-foreground">
+            <RotateCcw aria-hidden />
+            New chat
+          </Button>
+        )}
+      </div>
     </form>
   );
 
