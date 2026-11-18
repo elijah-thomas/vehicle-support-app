@@ -842,7 +842,7 @@ decision is implemented, a `Decision (Dnn)` comment marks the line.
   survived moving between pages, because it lives in the vehicle layout (D31). `useChat` keeps
   messages in memory, so a reload started an empty chat and showed the suggestions again.
 - **Choice:** The thread lives in `sessionStorage`, one entry per VIN (`vs:agent-chat:{vin}`), in
-  `lib/agent-chat-history.ts`, the same pattern as the call summary draft (D46).
+  `lib/assistant/agent-chat-history.ts`, the same pattern as the call summary draft (D46).
   - **When it's written:** When a question is sent and when its answer ends, stops or fails. Not
     on every streamed token.
   - **Checked on read:** With the route's own message schema (D27), so a restored thread is one

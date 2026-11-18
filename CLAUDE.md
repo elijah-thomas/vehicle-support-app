@@ -100,7 +100,7 @@ Rules for collaborating:
   - `master`: production. Vercel's production branch. Only receives merges from `release/*`
     (and hotfix `fix/*` branches when needed).
   - `develop`: integration branch. All work branches start here and merge back here.
-  - `feat/<short-name>`, `fix/<short-name>`, `docs/<short-name>`: one branch per piece of work,
+  - `feat/`, `fix/`, `refactor/`, `docs/` + `<short-name>`: one branch per piece of work,
     branched from `develop`.
   - `release/YY.MM.DD.N` (date-based, D32; N counts releases that day, starting at 1): cut from
     `develop`, merged into `master` and back into `develop`, then tagged `vYY.MM.DD.N`.
@@ -145,12 +145,16 @@ pnpm-workspace monorepo. Each app deploys independently.
 
 ```
 apps/web/                 Next.js app → Vercel (Git integration, root directory apps/web)
-  app/                    Routes only. Thin: compose components, call lib/. No business logic.
-  components/             Shared UI. One component per file, kebab-case filenames (shadcn style).
-    ui/                   shadcn components. Add with `pnpm dlx shadcn@latest add <name>`.
+  app/                    Routes, Server Actions, AI route handlers. Thin: no business logic.
+  components/             One component per file, kebab-case.
+    ui/                   shadcn only (`pnpm dlx shadcn@latest add <name>`).
+    shared/               Generic pieces with no feature knowledge.
+    search/ vehicle/ cases/ assistant/   One folder per feature.
   lib/
-    customer/             THE BOUNDARY: clients for the systems that stay on GCP. Everything
-                          that talks to them lives here and only here.
+    customer/             THE BOUNDARY: the only code that talks to GCP. cached-reads → reads/writes
+                          → vehicle-api → auth.
+    ai/                   Server code that calls models.
+    assistant/            The assistant panel's own logic (not model calls).
     env.ts                Zod-validated env vars; the only place process.env is read.
   evals/                  Canned prompts + expected behavior for validating the AI.
 services/vehicle-api/     Express API → Cloud Run (GitHub Actions). Owns the Postgres schema.
@@ -163,8 +167,9 @@ infra/                    Terraform for GCP (D9). Never change GCP by hand; edit
 docs/                     decisions.md, architecture, rollout plan, submission write-up.
 ```
 
-- Create other folders (e.g. `lib/ai/`) only once the related decision is made. No barrel
-  `index.ts` files. Name things in the domain (`getVehicleByVin`), not `utils`.
+- Name files after what they export. Keep filenames unique across folders.
+- *Assistant* is the panel; *agent* is its Ask tab; *call summary* is the other tab.
+- No barrel `index.ts` files. Name things in the domain, not `utils`.
 - The web app never talks to Postgres directly; only through `services/vehicle-api`.
 
 ## Comments
