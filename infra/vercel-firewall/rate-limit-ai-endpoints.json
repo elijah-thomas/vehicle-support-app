@@ -44,8 +44,22 @@
           "value": "/api/call-summary"
         }
       ]
+    },
+    {
+      "conditions": [
+        {
+          "op": "eq",
+          "type": "method",
+          "value": "POST"
+        },
+        {
+          "op": "pre",
+          "type": "path",
+          "value": "/eve/v1/session"
+        }
+      ]
     }
   ],
-  "description": "20 requests per minute per IP to the agent and call-summary routes (model spend)",
+  "description": "20 requests per minute per IP to the agent, Eve session and call-summary routes (model spend)",
   "name": "Rate limit AI endpoints"
 }

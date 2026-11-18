@@ -154,6 +154,8 @@ pnpm-workspace monorepo. Each app deploys independently.
 ```
 apps/web/                 Next.js app → Vercel (Git integration, root directory apps/web)
   app/                    Routes, Server Actions, AI route handlers. Thin: no business logic.
+  agent/                  The Eve version of the assistant (D28): model, channel auth, prompt,
+                          tool, hooks. Eve serves it at /eve/v1/*; it reuses lib/ai and lib/customer.
   components/             One component per file, kebab-case.
     ui/                   shadcn only (`pnpm dlx shadcn@latest add <name>`).
     shared/               Generic pieces with no feature knowledge.
