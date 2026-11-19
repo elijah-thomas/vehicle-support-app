@@ -13,13 +13,20 @@ export async function askEve(baseUrl: string, vin: string, questions: string[]):
 
   let sessionId: string | undefined;
   let answer: EveAnswer | undefined;
-  for (const [index, question] of questions.entries()) {
-    const started = performance.now();
-    const url = sessionId ? `${baseUrl}/eve/v1/session/${sessionId}` : `${baseUrl}/eve/v1/session`;
-    const response = await fetch(url, { method: "POST", headers, body: JSON.stringify({ message: question }) });
-    if (!response.ok) throw new Error(`Eve refused the question (${response.status}): ${await response.text()}`);
-    sessionId ??= ((await response.json()) as { sessionId: string }).sessionId;
-    answer = await readTurn(`${baseUrl}/eve/v1/session/${sessionId}/stream`, headers, index, started);
+  try {
+    for (const [index, question] of questions.entries()) {
+      const started = performance.now();
+      const url = sessionId ? `${baseUrl}/eve/v1/session/${sessionId}` : `${baseUrl}/eve/v1/session`;
+      const response = await fetch(url, { method: "POST", headers, body: JSON.stringify({ message: question }) });
+      if (!response.ok) throw new Error(`Eve refused the question (${response.status}): ${await response.text()}`);
+      sessionId ??= ((await response.json()) as { sessionId: string }).sessionId;
+      answer = await readTurn(`${baseUrl}/eve/v1/session/${sessionId}/stream`, headers, index, started);
+    }
+  } finally {
+    // Close the case's conversation so eval runs don't leave sessions open on the server.
+    if (sessionId) {
+      await fetch(`${baseUrl}/eve/v1/session/${sessionId}/end`, { method: "POST", headers, body: "{}" }).catch(() => {});
+    }
   }
   if (!answer) throw new Error("No questions to ask");
   return answer;
