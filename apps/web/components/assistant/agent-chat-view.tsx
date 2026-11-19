@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUp, Car, CircleAlert, FileText, MessageSquare, RotateCcw, ShieldAlert, Square, TriangleAlert, type LucideIcon } from "lucide-react";
+import { ArrowUp, Car, CircleAlert, FileText, MessageSquare, RotateCcw, RotateCw, ShieldAlert, Square, TriangleAlert, type LucideIcon } from "lucide-react";
 import { cn } from "cn";
 import { Suspense, use, useEffect, useId, useRef, useState } from "react";
 import { AgentAnswer } from "@/components/assistant/agent-answer";
@@ -371,10 +371,11 @@ export function AgentChatView({
         {failure && (
           <Alert variant={failure.tone}>
             {failure.tone === "warning" ? <TriangleAlert aria-hidden /> : <CircleAlert aria-hidden />}
-            <AlertDescription className="text-foreground">
-              {failure.text}
+            <AlertDescription className="flex flex-col items-start gap-2 text-foreground">
+              <span>{failure.text}</span>
               {failure.retry && (
-                <Button variant="outline" size="sm" className="mt-2" onClick={onRetry}>
+                <Button variant="outline" size="sm" onClick={onRetry}>
+                  <RotateCw data-icon="inline-start" aria-hidden />
                   Try again
                 </Button>
               )}
