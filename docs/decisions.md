@@ -371,28 +371,28 @@ changed and when. Code marks where a decision lands with a `Decision (Dnn)` comm
   [D16](#agent)'s guarantee holds, and Eve's built-in bash, file and web tools are off. Hooks in
   the agent apply D16's limits: questions up to 2,000 characters, 3 model calls per answer, and
   about 30 answers per conversation. The tab keeps only the conversation's ID; after a reload, Eve
-  replays the conversation from the server. A conversation closes when the advisor starts a new
-  chat, or after 24 hours without a question.
+  replays the conversation from the server. A conversation closes on New chat, or after 24 hours
+  without a question.
 - **Why:** Vercel recommends an agent like the current one for this case, and Eve for longer,
   durable work. Running both on the same questions shows the difference instead of arguing it. A
   test on a Preview passed: the vehicle couldn't be changed, functions ran in `cle1`
   ([D4](#function-region)), and the median first word took 1.37 s, against 1.46 s today. The Eve
-  version passes every assistant eval ([D21](#tests-and-evals)).
+  version passes every assistant eval ([D21](#tests-and-evals)). A closed tab can't reach its
+  conversation again, and a day still covers a customer calling back.
 - **Instead of:** A server-side flag only, which suits a pilot but can't be compared live. Not
-  building it.
+  building it. Eve's default of 30 days open. Checking the VIN against the conversation on every
+  request, which adds a read per request and still doesn't say who is asking.
 - **Trade-off:** Two versions to keep in step. Eve runs outside Next.js, so it reads the API on
   every turn instead of the page's cache ([D7](#caching)). Conversations are kept on Vercel, so
   customer details stay on the server. Eve reports tokens, not list price, so its cost per answer
-  comes from AI Gateway's `feature:agent-eve` tag ([D22](#cost-per-answer)). Eve doesn't check who
-  may use a conversation: anyone with its ID and any valid VIN can read, continue or end it. Answers
-  still use only the vehicle it started with, and the ID can't be guessed. The vehicle pages have
-  no sign-in either, so this is no weaker than the rest of the app.
-- **Later:** A server-side flag for the pilot group ([D27](#releases)). Once advisors sign in, only
-  the advisor who started a conversation can use it. Eve as the only version once the assistant
+  comes from AI Gateway's `feature:agent-eve` tag ([D22](#cost-per-answer)). Anyone with a
+  conversation's ID and a valid VIN can read, continue or end it; its answers still use only its
+  own vehicle.
+- **Later:** A server-side flag for the pilot group ([D27](#releases)). Each conversation tied to
+  the advisor who started it, once advisors sign in. Eve as the only version once the assistant
   takes actions that need approval.
-- **Changed:** Nov 18, 2026. Conversations stayed open for Eve's default of 30 days, and New chat
-  and the evals left theirs open, so 104 piled up in a day. The tab that holds a conversation's ID
-  is gone well before 30 days, and 24 hours still covers a customer calling back the next day.
+- **Changed:** Nov 18, 2026. Conversations stayed open for Eve's default of 30 days, so ones left
+  by New chat and the evals piled up.
 
 ## Protection and spend
 
