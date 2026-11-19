@@ -383,9 +383,13 @@ changed and when. Code marks where a decision lands with a `Decision (Dnn)` comm
 - **Trade-off:** Two versions to keep in step. Eve runs outside Next.js, so it reads the API on
   every turn instead of the page's cache ([D7](#caching)). Conversations are kept on Vercel, so
   customer details stay on the server. Eve reports tokens, not list price, so its cost per answer
-  comes from AI Gateway's `feature:agent-eve` tag ([D22](#cost-per-answer)).
-- **Later:** A server-side flag for the pilot group ([D27](#releases)). Eve as the only version
-  once advisors sign in and the assistant takes actions that need approval.
+  comes from AI Gateway's `feature:agent-eve` tag ([D22](#cost-per-answer)). Eve doesn't check who
+  may use a conversation: anyone with its ID and any valid VIN can read, continue or end it. Answers
+  still use only the vehicle it started with, and the ID can't be guessed. The vehicle pages have
+  no sign-in either, so this is no weaker than the rest of the app.
+- **Later:** A server-side flag for the pilot group ([D27](#releases)). Once advisors sign in, only
+  the advisor who started a conversation can use it. Eve as the only version once the assistant
+  takes actions that need approval.
 - **Changed:** Nov 18, 2026. Conversations stayed open for Eve's default of 30 days, and New chat
   and the evals left theirs open, so 104 piled up in a day. The tab that holds a conversation's ID
   is gone well before 30 days, and 24 hours still covers a customer calling back the next day.
