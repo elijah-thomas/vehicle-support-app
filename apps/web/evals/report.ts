@@ -36,8 +36,10 @@ export function createReport(name: string) {
         "median s": median(group.map((r) => r.seconds)).toFixed(1),
         "avg tokens": Math.round(average(group.map((r) => r.tokens ?? 0))),
         "avg thinking": Math.round(average(group.map((r) => r.reasoningTokens ?? 0))),
-        // AI Gateway's list-price cost per answer; see lib/ai/usage.ts.
-        "avg cost $": average(group.map((r) => r.costUsd ?? 0)).toFixed(5),
+        // AI Gateway's list-price cost per answer; see lib/ai/usage.ts. Eve's runs don't carry it.
+        "avg cost $": group.some((r) => r.costUsd === undefined)
+          ? "n/a"
+          : average(group.map((r) => r.costUsd ?? 0)).toFixed(5),
       });
       const byCase = groupBy(rows, (r) => `${r.model}\u0000${r.case}`).map((group) => ({
         model: group[0].model,

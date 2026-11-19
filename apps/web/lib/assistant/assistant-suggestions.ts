@@ -1,4 +1,5 @@
 import "server-only";
+import { unstable_rethrow } from "next/navigation";
 import { getCaseSnapshot, getTelematicsSnapshot } from "@/lib/customer/snapshots";
 import { getVehicle } from "@/lib/customer/cached-reads";
 import type { Case, TelematicsEvent, Vehicle } from "@/lib/customer/reads";
@@ -75,6 +76,9 @@ export async function loadSuggestions(vin: string): Promise<Suggestion[]> {
     if (!vehicle || !caseSnapshot || !telematics) return FALLBACK_SUGGESTIONS;
     return suggestionsFor({ vehicle, cases: caseSnapshot.cases, events: telematics.events, now: telematics.fetchedAt });
   } catch (error) {
+    // Next's prerender signal from connection() (via the telematics snapshot) isn't a failure, as
+    // in lib/load-panel.ts.
+    unstable_rethrow(error);
     console.error("assistant suggestions failed to load", error);
     return FALLBACK_SUGGESTIONS;
   }

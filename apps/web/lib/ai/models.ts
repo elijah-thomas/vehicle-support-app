@@ -24,8 +24,11 @@ export const evalModels = {
   claude: { id: CLAUDE, gateway: { only: ["anthropic"] } },
 } satisfies Record<string, ModelChoice>;
 
+// "agent-eve" is the Eve version of the assistant (D28), tagged apart so the two can be compared.
+export type AiFeature = "agent" | "agent-eve" | "call-summary";
+
 // Per-feature gateway options: cache the static prefix (Anthropic needs this; Gemini caches on its
 // own) and tag requests so spend and latency can be split by feature in AI Gateway.
-export function gatewayOptionsFor(model: ModelChoice, feature: "agent" | "call-summary") {
+export function gatewayOptionsFor(model: ModelChoice, feature: AiFeature) {
   return { ...model.gateway, caching: "auto" as const, tags: [`feature:${feature}`] };
 }

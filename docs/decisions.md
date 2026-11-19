@@ -350,6 +350,8 @@ changed and when. Code marks where a decision lands with a `Decision (Dnn)` comm
   added nothing. Latest results: every case passed on both models.
 - **Instead of:** A model grading the answers. Mocked database tests.
 - **Later:** Run the evals on every release.
+- **Changed:** Nov 18, 2026. The assistant cases also run against the Eve version
+  ([D28](#eve-assistant)), through its own API, so both versions are graded the same way.
 
 <a id="cost-per-answer"></a>
 ### D22. Cost per answer comes from AI Gateway
@@ -366,18 +368,31 @@ changed and when. Code marks where a decision lands with a `Decision (Dnn)` comm
 - **Decision:** A second version of the assistant runs on Eve, Vercel's agent framework, with the
   same prompt, record, tool, models and evals. A switch in the Ask tab picks the version; the
   current one stays the default. The vehicle is fixed when an Eve conversation starts, so
-  [D16](#agent)'s guarantee holds, and Eve's built-in bash, file and web tools are off.
+  [D16](#agent)'s guarantee holds, and Eve's built-in bash, file and web tools are off. Hooks in
+  the agent apply D16's limits: questions up to 2,000 characters, 3 model calls per answer, and
+  about 30 answers per conversation. The tab keeps only the conversation's ID; after a reload, Eve
+  replays the conversation from the server. A conversation closes on New chat, or after 24 hours
+  without a question.
 - **Why:** Vercel recommends an agent like the current one for this case, and Eve for longer,
   durable work. Running both on the same questions shows the difference instead of arguing it. A
   test on a Preview passed: the vehicle couldn't be changed, functions ran in `cle1`
-  ([D4](#function-region)), and the median first word took 1.37 s, against 1.46 s today.
+  ([D4](#function-region)), and the median first word took 1.37 s, against 1.46 s today. The Eve
+  version passes every assistant eval ([D21](#tests-and-evals)). A closed tab can't reach its
+  conversation again, and a day still covers a customer calling back.
 - **Instead of:** A server-side flag only, which suits a pilot but can't be compared live. Not
-  building it.
+  building it. Eve's default of 30 days open. Checking the VIN against the conversation on every
+  request, which adds a read per request and still doesn't say who is asking.
 - **Trade-off:** Two versions to keep in step. Eve runs outside Next.js, so it reads the API on
   every turn instead of the page's cache ([D7](#caching)). Conversations are kept on Vercel, so
-  customer details stay on the server.
-- **Later:** A server-side flag for the pilot group ([D27](#releases)). Eve as the only version
-  once advisors sign in and the assistant takes actions that need approval.
+  customer details stay on the server. Eve reports tokens, not list price, so its cost per answer
+  comes from AI Gateway's `feature:agent-eve` tag ([D22](#cost-per-answer)). Anyone with a
+  conversation's ID and a valid VIN can read, continue or end it; its answers still use only its
+  own vehicle.
+- **Later:** A server-side flag for the pilot group ([D27](#releases)). Each conversation tied to
+  the advisor who started it, once advisors sign in. Eve as the only version once the assistant
+  takes actions that need approval.
+- **Changed:** Nov 18, 2026. Conversations stayed open for Eve's default of 30 days, so ones left
+  by New chat and the evals piled up.
 
 ## Protection and spend
 
@@ -394,6 +409,8 @@ changed and when. Code marks where a decision lands with a `Decision (Dnn)` comm
   API counts in each instance's memory, so its real ceiling can be up to three times higher; fine
   for a backstop.
 - **Later:** Per-advisor limits, once advisors sign in.
+- **Changed:** Nov 18, 2026. The AI limit also covers the Eve version's questions
+  ([D28](#eve-assistant)), which reach Eve's own routes instead of `/api/agent`.
 
 <a id="spend-alerts"></a>
 ### D24. Spend alerts on Google Cloud, a hard cap on Anthropic

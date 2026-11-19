@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { AiFeature } from "./models";
 
 // The parts of an AI SDK step this reads, so evals and both routes can pass their own step types.
 type StepLike = {
@@ -61,6 +62,6 @@ export function summarizeUsage(steps: readonly StepLike[]): AnswerUsage {
 }
 
 // One structured line per answer in Vercel's runtime logs: what it cost, and whether failover ran.
-export function logUsage(feature: "agent" | "call-summary", steps: readonly StepLike[]) {
+export function logUsage(feature: AiFeature, steps: readonly StepLike[]) {
   console.info(JSON.stringify({ event: "ai_usage", feature, ...summarizeUsage(steps) }));
 }
