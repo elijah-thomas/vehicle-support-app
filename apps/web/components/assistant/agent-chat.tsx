@@ -33,8 +33,10 @@ function AgentChatPanel({ vin, suggestions }: Props) {
       if (part.type === "data-status") setAnswering(true);
     },
   });
-  // A reload during an answer left the question unanswered, so ask it again once.
-  const reask = restored?.pending === true && restored.messages.at(-1)?.role === "user";
+  // A reload during an answer left it unfinished, so ask the question again once. The thread can
+  // end in the question or in an empty or partial answer (the SDK adds the answer on the stream's
+  // first chunk, before the save that marks it done); regenerate() drops that answer and re-asks.
+  const reask = restored?.pending === true;
   const reasked = useRef(false);
 
   useEffect(() => {
