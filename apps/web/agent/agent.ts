@@ -22,5 +22,9 @@ export default defineAgent({
     sessionUsage: ({ total }) =>
       total.outputTokens >= MAX_CONVERSATION_OUTPUT_TOKENS ||
       total.inputTokens - total.cacheReadTokens >= MAX_CONVERSATION_NEW_INPUT_TOKENS,
+    // Decision (D28): a conversation closes after a day without questions, not Eve's 30 days.
+    // Why: the tab that holds its ID is gone by then, and a day still covers a next-day callback.
+    // Trade-off: a tab left open longer starts over. See docs/decisions.md#eve-assistant
+    sessionTimeoutMs: 24 * 60 * 60 * 1000,
   },
 });

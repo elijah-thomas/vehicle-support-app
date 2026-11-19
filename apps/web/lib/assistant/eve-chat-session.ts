@@ -24,3 +24,14 @@ export function storeEveSession(vin: string, sessionId: string | null) {
     // Storage blocked or full: the chat still works, it just won't survive a reload.
   }
 }
+
+// Closes a conversation the tab is leaving behind, so it doesn't wait out the idle timeout. Best
+// effort: if it fails, the timeout closes it. keepalive lets it finish if the page goes away.
+export function endEveSession(vin: string, sessionId: string) {
+  void fetch(`/eve/v1/session/${encodeURIComponent(sessionId)}/end`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-vehicle-vin": vin },
+    body: "{}",
+    keepalive: true,
+  }).catch(() => {});
+}

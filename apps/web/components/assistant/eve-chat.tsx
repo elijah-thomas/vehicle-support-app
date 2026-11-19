@@ -6,7 +6,7 @@ import { useState, useSyncExternalStore } from "react";
 import { AgentChatPlaceholder, AgentChatView, type ChatViewMessage } from "@/components/assistant/agent-chat-view";
 import type { AiErrorCode } from "@/lib/assistant/ai-request-error";
 import type { Suggestion } from "@/lib/assistant/assistant-suggestions";
-import { loadEveSession, storeEveSession } from "@/lib/assistant/eve-chat-session";
+import { endEveSession, loadEveSession, storeEveSession } from "@/lib/assistant/eve-chat-session";
 
 type Props = { vin: string | null; suggestions: Promise<Suggestion[]> | null };
 
@@ -52,6 +52,9 @@ function EveChatPanel({ vin, suggestions }: { vin: string; suggestions: Promise<
         if (text) agent.send(text).catch(() => {});
       }}
       onNewChat={() => {
+        // The old conversation can't be reached again, so close it on the server too (D28).
+        const previous = loadEveSession(vin);
+        if (previous) endEveSession(vin, previous);
         storeEveSession(vin, null);
         agent.newSession();
       }}
