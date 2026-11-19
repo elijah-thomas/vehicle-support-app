@@ -1,8 +1,7 @@
 "use client";
 
 import { cn } from "cn";
-import dynamic from "next/dynamic";
-import { useState, useSyncExternalStore } from "react";
+import { Activity, lazy, Suspense, useState, useSyncExternalStore } from "react";
 import { AgentChat } from "@/components/assistant/agent-chat";
 import { AgentChatPlaceholder } from "@/components/assistant/agent-chat-view";
 import { loadAssistantEngine, storeAssistantEngine, type AssistantEngine } from "@/lib/assistant/assistant-engine";
@@ -15,11 +14,10 @@ const subscribeNever = () => () => {};
 const labels: Record<AssistantEngine, string> = { "ai-sdk": "AI SDK", eve: "Eve" };
 
 // Eve's client (about 130 KB compressed) loads only when a tab picks Eve, so the default AI SDK
-// panel doesn't pay for it. Until it arrives, the panel shows its disabled state.
-const EveChat = dynamic(() => import("@/components/assistant/eve-chat").then((m) => m.EveChat), {
-  ssr: false,
-  loading: () => <AgentChatPlaceholder />,
-});
+// panel doesn't pay for it. It starts loading when the pointer or focus reaches the switch's Eve
+// option; until it arrives, the panel keeps its suggestions in place, disabled.
+const loadEveChat = () => import("@/components/assistant/eve-chat");
+const EveChat = lazy(() => loadEveChat().then((m) => ({ default: m.EveChat })));
 
 // The tab's engine choice is read once hydrated; the server render and the static shell show
 // the default.
@@ -32,9 +30,13 @@ export function AskTab(props: Props) {
 // switching back finds the earlier one. See docs/decisions.md#eve-assistant
 function AskTabPanel({ hydrated, vin, suggestions }: Props & { hydrated: boolean }) {
   const [engine, setEngine] = useState<AssistantEngine>(() => (hydrated ? loadAssistantEngine() : "ai-sdk"));
+  // Each engine's panel stays mounted once opened and is hidden while the other shows, so
+  // switching back doesn't rebuild it (Eve would flash its empty state while it replays).
+  const [eveOpened, setEveOpened] = useState(engine === "eve");
 
   function choose(next: AssistantEngine) {
     setEngine(next);
+    if (next === "eve") setEveOpened(true);
     storeAssistantEngine(next);
   }
 
@@ -53,6 +55,8 @@ function AskTabPanel({ hydrated, vin, suggestions }: Props & { hydrated: boolean
               aria-checked={engine === option}
               disabled={!hydrated}
               onClick={() => choose(option)}
+              onPointerEnter={option === "eve" ? loadEveChat : undefined}
+              onFocus={option === "eve" ? loadEveChat : undefined}
               className={cn(
                 "h-6 rounded-sm px-2 text-xs font-medium text-muted-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50",
                 engine === option && "bg-card text-foreground shadow-sm",
@@ -63,7 +67,16 @@ function AskTabPanel({ hydrated, vin, suggestions }: Props & { hydrated: boolean
           ))}
         </div>
       </div>
-      {engine === "eve" ? <EveChat vin={vin} suggestions={suggestions} /> : <AgentChat vin={vin} suggestions={suggestions} />}
+      <Activity mode={engine === "ai-sdk" ? "visible" : "hidden"}>
+        <AgentChat vin={vin} suggestions={suggestions} />
+      </Activity>
+      {eveOpened && (
+        <Activity mode={engine === "eve" ? "visible" : "hidden"}>
+          <Suspense fallback={<AgentChatPlaceholder suggestions={suggestions} />}>
+            <EveChat vin={vin} suggestions={suggestions} />
+          </Suspense>
+        </Activity>
+      )}
     </>
   );
 }

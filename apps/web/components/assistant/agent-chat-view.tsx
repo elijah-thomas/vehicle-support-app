@@ -2,7 +2,7 @@
 
 import { ArrowUp, Car, CircleAlert, FileText, MessageSquare, RotateCcw, ShieldAlert, Square, TriangleAlert, type LucideIcon } from "lucide-react";
 import { cn } from "cn";
-import { Suspense, use, useEffect, useRef, useState } from "react";
+import { Suspense, use, useEffect, useId, useRef, useState } from "react";
 import { AgentAnswer } from "@/components/assistant/agent-answer";
 import { AgentToolStep } from "@/components/assistant/agent-tool-step";
 import { TypingIndicator } from "@/components/assistant/typing-indicator";
@@ -166,12 +166,13 @@ export type ChatViewProps = {
 
 const noop = () => {};
 
-// The disabled panel, before the vehicle is known or while an engine's client loads.
-export function AgentChatPlaceholder() {
+// The disabled panel, before the vehicle is known or while an engine's client loads. Given the
+// suggestions, it keeps their space so the panel doesn't jump when the engine arrives.
+export function AgentChatPlaceholder({ suggestions = null }: { suggestions?: Promise<Suggestion[]> | null }) {
   return (
     <AgentChatView
       vin={null}
-      suggestions={null}
+      suggestions={suggestions}
       messages={[]}
       busy={false}
       reading={false}
@@ -201,6 +202,10 @@ export function AgentChatView({
   onNewChat,
 }: ChatViewProps) {
   const loading = vin === null;
+  // Both engines' panels can be in the page at once (one hidden), so ids are per panel.
+  const id = useId();
+  const scopeId = `${id}-scope`;
+  const suggestionsId = `${id}-suggestions`;
   const [input, setInput] = useState("");
   const started = messages.length > 0;
   const rootRef = useRef<HTMLDivElement>(null);
@@ -261,7 +266,7 @@ export function AgentChatView({
           aria-label={started ? "Ask a follow-up" : "Ask about this vehicle"}
           maxLength={MAX_TEXT_LENGTH}
           disabled={loading}
-          aria-describedby="agent-scope"
+          aria-describedby={scopeId}
         />
         {busy ? (
           <Button type="button" variant="outline" size="icon" onClick={onStop} aria-label="Stop answering">
@@ -276,7 +281,7 @@ export function AgentChatView({
       {/* The assistant gets only this vehicle's record (D16), so the rep knows not to ask about
           other vehicles or policy. */}
       <div className="flex items-center justify-between gap-2">
-        <p id="agent-scope" className="text-xs text-muted-foreground">
+        <p id={scopeId} className="text-xs text-muted-foreground">
           Answers use only this vehicle&apos;s record, telematics and case history.
         </p>
         {started && (
@@ -293,8 +298,8 @@ export function AgentChatView({
     return (
       <div ref={rootRef} className="space-y-4 p-4">
         {questionBox}
-        <section aria-labelledby="agent-suggestions" className="space-y-2">
-          <h3 id="agent-suggestions" className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+        <section aria-labelledby={suggestionsId} className="space-y-2">
+          <h3 id={suggestionsId} className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
             Suggested for this vehicle
           </h3>
           {suggestions ? (
