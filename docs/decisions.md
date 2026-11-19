@@ -371,7 +371,8 @@ changed and when. Code marks where a decision lands with a `Decision (Dnn)` comm
   [D16](#agent)'s guarantee holds, and Eve's built-in bash, file and web tools are off. Hooks in
   the agent apply D16's limits: questions up to 2,000 characters, 3 model calls per answer, and
   about 30 answers per conversation. The tab keeps only the conversation's ID; after a reload, Eve
-  replays the conversation from the server.
+  replays the conversation from the server. A conversation closes when the advisor starts a new
+  chat, or after 24 hours without a question.
 - **Why:** Vercel recommends an agent like the current one for this case, and Eve for longer,
   durable work. Running both on the same questions shows the difference instead of arguing it. A
   test on a Preview passed: the vehicle couldn't be changed, functions ran in `cle1`
@@ -385,6 +386,9 @@ changed and when. Code marks where a decision lands with a `Decision (Dnn)` comm
   comes from AI Gateway's `feature:agent-eve` tag ([D22](#cost-per-answer)).
 - **Later:** A server-side flag for the pilot group ([D27](#releases)). Eve as the only version
   once advisors sign in and the assistant takes actions that need approval.
+- **Changed:** Nov 18, 2026. Conversations stayed open for Eve's default of 30 days, and New chat
+  and the evals left theirs open, so 104 piled up in a day. The tab that holds a conversation's ID
+  is gone well before 30 days, and 24 hours still covers a customer calling back the next day.
 
 ## Protection and spend
 
