@@ -34,7 +34,8 @@ beyond both is a decision point.
 3. **Vehicle page:** search by email/VIN. Static shell, specs cached long, telematics fresh and
    streamed, cases cached and invalidated on note save.
 4. **Agent chat:** AI SDK, reads only the open vehicle (D16), AI Gateway failover per D15, canned
-   prompts, step cap.
+   prompts, step cap. An Eve version of the same assistant, picked by a switch in the panel
+   (D28).
 5. **Call summary:** paste transcript → structured draft (issue, summary, next steps) → rep
    edits → save to Postgres → invalidate cases. 2–3 canned transcripts.
 6. **Protection:** Vercel Firewall rate limit on AI routes, transcript size cap.
@@ -153,6 +154,8 @@ pnpm-workspace monorepo. Each app deploys independently.
 ```
 apps/web/                 Next.js app → Vercel (Git integration, root directory apps/web)
   app/                    Routes, Server Actions, AI route handlers. Thin: no business logic.
+  agent/                  The Eve version of the assistant (D28): model, channel auth, prompt,
+                          tool, hooks. Eve serves it at /eve/v1/*; it reuses lib/ai and lib/customer.
   components/             One component per file, kebab-case.
     ui/                   shadcn only (`pnpm dlx shadcn@latest add <name>`).
     shared/               Generic pieces with no feature knowledge.

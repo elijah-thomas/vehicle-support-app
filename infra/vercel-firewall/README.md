@@ -5,7 +5,7 @@ compute and no model tokens. See `docs/decisions.md` (D23).
 
 | File | Matches | Limit |
 |---|---|---|
-| `rate-limit-ai-endpoints.json` | `POST /api/agent`, `POST /api/call-summary` | 20 per minute per IP → 429 |
+| `rate-limit-ai-endpoints.json` | `POST /api/agent`, `POST /eve/v1/session*` (the Eve version, D28), `POST /api/call-summary` | 20 per minute per IP → 429 |
 | `rate-limit-note-saves.json` | `POST /vehicles/*` with a `Next-Action` header (Server Actions) | 30 per minute per IP → 429 |
 
 These files are the source of truth. To apply them to a project:
